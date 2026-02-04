@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+- The default branch should be named `main`
+
+- This project should use a Gitflow workflow where features are developed on separate branches and pushed separately from the `main` branch
+
+- Ensure there is a README.md file at the root of the project that contains instructions on how to execute the program
+    
+- Update the `README.md` file if needed every time the application itself is updated
