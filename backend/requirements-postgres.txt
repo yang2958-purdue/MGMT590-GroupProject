@@ -1,0 +1,7 @@
+# Additional requirements for PostgreSQL support
+# Install this ONLY if you plan to use PostgreSQL instead of SQLite
+# 
+# Install with: pip install -r requirements-postgres.txt
+
+psycopg2-binary==2.9.9
+
