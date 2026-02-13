@@ -8,7 +8,9 @@ This lightweight command-line application helps job seekers identify the best-ma
 
 ## Features
 
-- **Resume Input**: Upload from file (.txt) or paste text directly
+- **Resume Input**: Upload from file (.txt, .pdf, .docx) or paste text directly
+- **Visual File Browser**: Native file picker dialog for easy file selection
+- **Multi-Format Support**: Handles TXT, PDF, and Word documents
 - **Multi-Company Search**: Search across multiple companies simultaneously
 - **Intelligent Matching**: TF-IDF-based similarity scoring with difflib fallback
 - **Ranked Results**: Jobs sorted by relevance to your resume
@@ -21,6 +23,8 @@ This lightweight command-line application helps job seekers identify the best-ma
 - **Language**: Python 3.8+
 - **ML/NLP**: scikit-learn (TF-IDF), difflib
 - **Data Processing**: numpy
+- **Document Parsing**: PyPDF2 (PDF), python-docx (Word)
+- **GUI**: tkinter (built-in file browser)
 - **Web Scraping Ready**: requests, beautifulsoup4 (for future real scraping)
 
 ## Project Structure
@@ -123,7 +127,8 @@ python main.py
 ### Example 1: Quick Job Search
 
 ```
-1. Select Option 1 → Option 1 → Enter: resume.txt
+1. Select Option 1 → Option 1 → Browse and select your resume file
+   (OR Option 2 → Enter path like: C:\path\to\resume.txt)
 2. Select Option 2 → Enter: Google, Microsoft, Apple
 3. Select Option 3 → Enter: Software Engineer Intern
 4. Select Option 4 → Wait for search and ranking
@@ -143,6 +148,10 @@ python main.py
 
 ### Resume Parser
 
+- **File Browser**: Visual file selection dialog (Windows-friendly!)
+- **Multiple Formats**: Supports TXT, PDF (.pdf), and Word (.docx) documents
+- **Automatic Format Detection**: Intelligently handles different file types
+- **Multiple Input Methods**: Browse files, enter path, or paste text
 - **Validation**: Ensures resume meets minimum requirements (100+ characters)
 - **Normalization**: Cleans whitespace and formatting
 - **Sanitization**: Enforces length limits and removes problematic characters

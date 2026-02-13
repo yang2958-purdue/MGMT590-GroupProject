@@ -40,6 +40,12 @@ env/
 tailored_resume_*.txt
 *.log
 
+# Sample/test resume files (keep sample_resume.txt, ignore others)
+sample_resume.pdf
+sample_resume.docx
+*_resume.pdf
+*_resume.docx
+
 # Environment variables
 .env
 .env.local

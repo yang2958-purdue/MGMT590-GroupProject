@@ -27,9 +27,10 @@ python main.py
 Follow these steps in the CLI menu:
 
 1. **Select Option 1** (Upload or paste resume)
-   - Choose **Option 1** (Load from file)
-   - Enter: `sample_resume.txt`
-   - You should see "✓ Successfully loaded resume..."
+   - Choose **Option 1** (Browse and select file) - A file browser will open!
+   - Navigate to and select `sample_resume.txt`
+   - OR choose **Option 2** and type: `sample_resume.txt`
+   - You should see "[OK] Successfully loaded resume..."
 
 2. **Select Option 2** (Enter target companies)
    - Enter: `Google, Microsoft, Amazon, Apple`
