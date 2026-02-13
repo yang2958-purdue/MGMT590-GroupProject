@@ -1,401 +1,325 @@
-# AI-Powered Job Search Automation Platform
+# Resume Auto-Fill Bot
 
-An intelligent job search platform that uses AI to parse resumes, match candidates with jobs, generate tailored resumes, and create personalized cover letters.
+A minimal, modular CLI-based tool for matching resumes to job postings using TF-IDF similarity scoring.
+
+## Overview
+
+This lightweight command-line application helps job seekers identify the best-matching job postings for their resume. It uses machine learning (TF-IDF vectorization and cosine similarity) to rank job opportunities and generate tailored resume summaries.
 
 ## Features
 
-### Phase 1 MVP (Implemented)
-
-- **User Authentication**: Secure JWT-based authentication system
-- **Resume Management**: Upload, parse, and store resumes (PDF/DOCX supported)
-- **AI-Powered Resume Parsing**: Extract structured data from resumes using AI
-- **Job Listing Management**: Manually import and manage job listings
-- **Intelligent Job Matching**: Calculate match scores between resumes and jobs
-- **Resume Tailoring**: Generate customized resumes for specific job applications
-- **Cover Letter Generation**: Create personalized cover letters using AI
-- **Application Tracking**: Track application status, notes, and documents
-- **Multi-Provider AI Support**: Use HuggingFace (free), OpenAI, Anthropic, or local models
-
-## Architecture
-
-The application follows a modern, modular architecture:
-
-```
-Frontend (React + TypeScript + Vite)
-    ↓ REST API
-Backend (FastAPI + Python)
-    ↓ Service Layer
-AI Provider Abstraction Layer
-    ↓ Provider Interface
-Database (SQLite/PostgreSQL)
-```
+- **Resume Input**: Upload from file (.txt) or paste text directly
+- **Multi-Company Search**: Search across multiple companies simultaneously
+- **Intelligent Matching**: TF-IDF-based similarity scoring with difflib fallback
+- **Ranked Results**: Jobs sorted by relevance to your resume
+- **Tailored Exports**: Generate customized resume summaries for specific jobs
+- **Interactive CLI**: User-friendly menu-driven interface
+- **Modular Design**: Clean separation of concerns for easy extension
 
 ## Technology Stack
 
-### Backend
-- **Framework**: FastAPI (Python 3.11+)
-- **Database**: SQLite (development) / PostgreSQL (production)
-- **ORM**: SQLAlchemy
-- **Authentication**: JWT with bcrypt
-- **File Processing**: PyPDF2, python-docx
-- **AI Providers**: HuggingFace, OpenAI, Anthropic, Ollama
-
-### Frontend
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Routing**: React Router v6
-- **State Management**: Zustand
-- **HTTP Client**: Axios
-- **Styling**: Custom CSS with modern design system
-
-## Prerequisites
-
-- **Python**: 3.11 or higher
-- **Node.js**: 18 or higher
-- **npm**: 9 or higher
-
-## Installation
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd MGMT590-GroupProject
-```
-
-### 2. Backend Setup
-
-```bash
-# Navigate to backend directory
-cd backend
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create .env file
-copy .env.example .env  # Windows
-cp .env.example .env    # macOS/Linux
-
-# Edit .env file and set your configuration
-# Minimum required: SECRET_KEY
-# For AI features: Set AI_PROVIDER and corresponding API keys
-```
-
-### 3. Frontend Setup
-
-```bash
-# Navigate to frontend directory
-cd frontend
-
-# Install dependencies
-npm install
-
-# Create .env file (optional)
-echo "VITE_API_URL=http://localhost:8000" > .env
-```
-
-## Configuration
-
-### Backend Configuration (.env)
-
-```env
-# Required
-SECRET_KEY=your-secret-key-here  # Generate a secure random string
-
-# Database (default: SQLite)
-DATABASE_URL=sqlite:///./app.db
-# For PostgreSQL: postgresql://user:password@localhost:5432/dbname
-
-# AI Provider (default: huggingface)
-AI_PROVIDER=huggingface  # Options: huggingface, openai, anthropic, local
-
-# Optional: AI Provider API Keys
-HUGGINGFACE_API_KEY=  # Optional for free inference
-OPENAI_API_KEY=       # Required if using OpenAI
-ANTHROPIC_API_KEY=    # Required if using Anthropic
-OLLAMA_BASE_URL=http://localhost:11434  # For local models
-
-# Other settings
-DEBUG=True
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-```
-
-### Choosing an AI Provider
-
-1. **HuggingFace (Free)** - Default, works without API key
-   - Best for: Getting started, testing
-   - Set: `AI_PROVIDER=huggingface`
-
-2. **OpenAI (Paid)** - Best quality results
-   - Best for: Production, high-quality output
-   - Set: `AI_PROVIDER=openai` and `OPENAI_API_KEY=your-key`
-
-3. **Anthropic Claude (Paid)** - Excellent quality
-   - Best for: Production, detailed analysis
-   - Set: `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=your-key`
-
-4. **Local/Ollama (Free)** - Run locally
-   - Best for: Privacy, offline use
-   - Requires: Ollama installed locally
-   - Set: `AI_PROVIDER=local`
-
-## Running the Application
-
-### Start Backend Server
-
-```bash
-cd backend
-
-# Activate virtual environment if not active
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
-
-# Run the server
-python -m app.main
-
-# Or using uvicorn directly:
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Backend will be available at: http://localhost:8000
-API Documentation: http://localhost:8000/docs
-
-### Start Frontend Development Server
-
-```bash
-cd frontend
-
-# Run the development server
-npm run dev
-```
-
-Frontend will be available at: http://localhost:5173
-
-## Usage Guide
-
-### 1. Register/Login
-- Navigate to http://localhost:5173
-- Create a new account or login
-
-### 2. Upload Resume
-- Go to "Resumes" page
-- Click "Upload Resume"
-- Select a PDF or DOCX file
-- Click "Parse Resume" to extract data
-
-### 3. Import Jobs
-- Go to "Jobs" page
-- Click "Import Job"
-- Fill in job details (title, company, description)
-- Submit the form
-
-### 4. Match Resume to Job
-- Select a job from the list
-- Click "Calculate Match"
-- View match score and skills analysis
-
-### 5. Apply to Jobs
-- Click "Apply" on a job
-- Application will be created and tracked
-
-### 6. Track Applications
-- Go to "Applications" page
-- View all applications
-- Update status, add notes
-- Track progress
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user
-
-### Resumes
-- `POST /api/resumes/upload` - Upload resume
-- `GET /api/resumes/` - List resumes
-- `GET /api/resumes/{id}` - Get resume
-- `POST /api/resumes/{id}/parse` - Parse resume
-- `DELETE /api/resumes/{id}` - Delete resume
-
-### Jobs
-- `POST /api/jobs/import` - Import job listing
-- `GET /api/jobs/` - List jobs
-- `GET /api/jobs/{id}` - Get job details
-
-### Applications
-- `POST /api/applications/` - Create application
-- `GET /api/applications/` - List applications
-- `GET /api/applications/{id}` - Get application
-- `PATCH /api/applications/{id}` - Update application
-- `DELETE /api/applications/{id}` - Delete application
-
-### Matching
-- `POST /api/matching/match` - Calculate match score
-- `POST /api/matching/tailor-resume` - Generate tailored resume
-- `POST /api/matching/generate-cover-letter` - Generate cover letter
+- **Language**: Python 3.8+
+- **ML/NLP**: scikit-learn (TF-IDF), difflib
+- **Data Processing**: numpy
+- **Web Scraping Ready**: requests, beautifulsoup4 (for future real scraping)
 
 ## Project Structure
 
 ```
 MGMT590-GroupProject/
-├── backend/
-│   ├── app/
-│   │   ├── api/          # API routes
-│   │   ├── ai/           # AI provider abstraction
-│   │   ├── models/       # Database models
-│   │   ├── services/     # Business logic
-│   │   ├── utils/        # Utilities
-│   │   ├── config.py     # Configuration
-│   │   ├── database.py   # Database setup
-│   │   └── main.py       # FastAPI app
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── components/   # React components
-│   │   ├── pages/        # Page components
-│   │   ├── services/     # API client
-│   │   ├── store/        # State management
-│   │   ├── types/        # TypeScript types
-│   │   ├── App.tsx       # Main app
-│   │   └── main.tsx      # Entry point
-│   ├── package.json
-│   └── vite.config.ts
-├── README.md
-└── PROMPTS.md
+├── main.py              # CLI application entry point
+├── resume_parser.py     # Resume input and validation
+├── job_search.py        # Job search (currently mock data)
+├── similarity.py        # TF-IDF similarity computation
+├── exporter.py          # Tailored resume export
+├── utils.py             # Helper functions
+├── requirements.txt     # Python dependencies
+├── README.md           # This file
+└── PROMPTS.md          # Project prompts log
 ```
 
-## Development
+## Installation
 
-### Backend Development
+### Prerequisites
+
+- Python 3.8 or higher
+- pip (Python package manager)
+
+### Setup
+
+1. **Clone or download the repository**
 
 ```bash
-# Run tests (when implemented)
-pytest
-
-# Format code
-black app/
-
-# Type checking
-mypy app/
+cd "C:\DEVOPS FOLDER\MGMT590-GroupProject"
 ```
 
-### Frontend Development
+2. **Create a virtual environment (recommended)**
 
 ```bash
-# Build for production
-npm run build
+# Windows
+python -m venv venv
+venv\Scripts\activate
 
-# Preview production build
-npm run preview
-
-# Lint code
-npm run lint
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-## Building for Production
-
-### Backend
+3. **Install dependencies**
 
 ```bash
-cd backend
-
-# Set production environment variables in .env
-DEBUG=False
-DATABASE_URL=postgresql://user:pass@localhost/dbname
-
-# Run with production server
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
+pip install -r requirements.txt
 ```
 
-### Frontend
+## Running the Application
+
+### Start the CLI
 
 ```bash
-cd frontend
-
-# Build
-npm run build
-
-# Output in dist/ directory
-# Deploy dist/ to your hosting service
+python main.py
 ```
+
+### Basic Workflow
+
+1. **Upload Resume** (Option 1)
+   - Choose to load from file or paste text
+   - File path example: `C:\Users\YourName\Documents\resume.txt`
+   - Or paste your resume text directly
+
+2. **Enter Target Companies** (Option 2)
+   - Enter comma-separated company names
+   - Example: `Google, Microsoft, Apple, Amazon`
+
+3. **Enter Desired Role** (Option 3)
+   - Specify the job title you're seeking
+   - Example: `Software Engineer Intern`
+
+4. **Run Job Search** (Option 4)
+   - Searches for jobs at specified companies
+   - Computes similarity scores automatically
+   - Currently uses mock data (easily swappable for real APIs)
+
+5. **View Ranked Results** (Option 5)
+   - See jobs sorted by match score
+   - View detailed information for any job
+
+6. **Export Tailored Resume** (Option 6)
+   - Generate customized resume summaries
+   - Export for single job or multiple top matches
+   - Creates comparison reports
+
+7. **View Session Info** (Option 7)
+   - Check current session state
+   - Verify loaded resume, companies, and role
+
+8. **Clear Session** (Option 8)
+   - Start over with fresh data
+
+9. **Exit** (Option 9)
+   - Safely exit the application
+
+## Usage Examples
+
+### Example 1: Quick Job Search
+
+```
+1. Select Option 1 → Option 1 → Enter: resume.txt
+2. Select Option 2 → Enter: Google, Microsoft, Apple
+3. Select Option 3 → Enter: Software Engineer Intern
+4. Select Option 4 → Wait for search and ranking
+5. Select Option 5 → Review ranked results
+6. Select Option 6 → Option 1 → Enter job number → Export
+```
+
+### Example 2: Pasting Resume Directly
+
+```
+1. Select Option 1 → Option 2 → Paste your resume text
+2. Press Ctrl+Z then Enter (Windows) or Ctrl+D (macOS/Linux)
+3. Continue with Options 2-6 as above
+```
+
+## Features in Detail
+
+### Resume Parser
+
+- **Validation**: Ensures resume meets minimum requirements (100+ characters)
+- **Normalization**: Cleans whitespace and formatting
+- **Sanitization**: Enforces length limits and removes problematic characters
+- **Preview**: Shows resume preview for verification
+
+### Job Search
+
+- **Mock Data**: Currently provides realistic job descriptions
+- **Extensible**: Designed to swap in real scraping or API calls
+- **Error Handling**: Gracefully handles search failures
+- **Categorization**: Automatically categorizes roles (intern, engineer, data scientist, etc.)
+
+### Similarity Scoring
+
+- **TF-IDF Vectorization**: Industry-standard text similarity
+- **Cosine Similarity**: Measures document similarity (0-1 scale)
+- **Automatic Fallback**: Uses difflib if TF-IDF fails
+- **Keyword Extraction**: Identifies overlapping skills and terms
+
+### Export Features
+
+- **Tailored Summaries**: Highlights matching keywords and skills
+- **Recommendations**: Provides actionable resume improvement tips
+- **Batch Export**: Export for multiple top jobs at once
+- **Comparison Reports**: Overview of all job matches with scores
+- **Timestamped Files**: Prevents overwriting previous exports
+
+## Error Handling
+
+The application includes comprehensive error handling:
+
+- **File Errors**: Clear messages for missing/inaccessible files
+- **Input Validation**: Prompts for valid input on errors
+- **Search Failures**: Continues operation even if individual searches fail
+- **No Stack Traces**: User-friendly error messages only
+- **Graceful Degradation**: Fallback mechanisms for critical operations
+
+## Extending the Application
+
+### Adding Real Job Scraping
+
+Replace the mock implementation in `job_search.py`:
+
+```python
+def search_jobs(company_name: str, role: str) -> List[Dict[str, str]]:
+    # Implement actual web scraping here
+    # Example: Use requests + BeautifulSoup
+    # Return list of job dictionaries
+    pass
+```
+
+### Adding New Similarity Metrics
+
+Extend `similarity.py` to add custom scoring:
+
+```python
+def compute_similarity_custom(resume_text, job_descriptions):
+    # Implement your similarity metric
+    return scores
+```
+
+### Customizing Export Format
+
+Modify `exporter.py` to change output format:
+
+```python
+def generate_tailored_summary(resume_text, job):
+    # Customize the export format
+    # Add new sections or modify existing ones
+    pass
+```
+
+## Limitations and Future Enhancements
+
+### Current Limitations
+
+- Mock job search data (not real job postings)
+- Text file resume input only (no PDF/DOCX parsing)
+- No application tracking
+- No login/authentication system
+- No database persistence
+
+### Potential Enhancements
+
+- Real job scraping from Indeed, LinkedIn, Glassdoor
+- PDF/DOCX resume parsing
+- Multiple resume support
+- Application tracking system
+- Email notifications
+- Web interface option
+- Database for history tracking
+- API for programmatic access
 
 ## Troubleshooting
 
-### Backend Issues
+### Common Issues
 
-**Database connection errors:**
-- Check DATABASE_URL in .env
-- Ensure database file permissions (SQLite)
-- Verify PostgreSQL is running (if using PostgreSQL)
+**"Module not found" errors:**
+```bash
+# Ensure virtual environment is activated and dependencies installed
+pip install -r requirements.txt
+```
 
-**AI provider errors:**
-- Verify API keys are set correctly
-- Check internet connection (for cloud providers)
-- Try switching to different provider
+**File not found when loading resume:**
+- Use absolute path: `C:\Users\YourName\Documents\resume.txt`
+- Or navigate to project directory first
 
-**File upload errors:**
-- Check uploads/ directory permissions
-- Verify MAX_FILE_SIZE setting
-- Ensure file format is supported (PDF, DOCX)
+**No jobs found:**
+- This is expected with mock data
+- Try different role keywords (intern, engineer, scientist, devops, frontend)
 
-### Frontend Issues
+**Low similarity scores:**
+- Ensure resume contains technical keywords
+- Try different job roles that match your background
+- Mock data may not perfectly align with all resumes
 
-**API connection errors:**
-- Verify backend is running on port 8000
-- Check CORS settings in backend
-- Confirm VITE_API_URL in frontend .env
+**Export file not found:**
+- Check current directory for exported files
+- Look for files starting with `tailored_resume_`
 
-**Authentication issues:**
-- Clear localStorage
-- Check JWT token expiration
-- Verify SECRET_KEY hasn't changed
+## Development
 
-## Future Enhancements (Phase 2 & 3)
+### Code Quality
 
-- Automated job scraping from job boards
-- Automated application form filling
-- Email notifications
-- Interview preparation assistance
-- Analytics dashboard
-- Networking suggestions
-- Multi-resume support
-- Team collaboration features
+- **Type Hints**: All functions include type annotations
+- **Documentation**: Comprehensive docstrings
+- **Modular**: Clean separation of concerns
+- **Testable**: Functions designed for easy testing
+- **Comments**: Clear explanations throughout
+
+### Testing
+
+To add unit tests (pytest):
+
+```bash
+pip install pytest
+pytest
+```
+
+### Code Style
+
+Follow PEP 8 guidelines:
+
+```bash
+pip install black flake8
+black .
+flake8 .
+```
 
 ## Contributing
 
-1. Create a feature branch
-2. Make your changes
-3. Test thoroughly
-4. Submit a pull request
+This is a minimal, educational project. Contributions welcome:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with clear comments
+4. Test thoroughly
+5. Submit pull request
 
 ## License
 
-[Your License Here]
+This project is for educational purposes. Modify and use as needed.
 
 ## Support
 
-For issues and questions:
-- Create an issue in the repository
-- Check documentation at /docs
-- Review API documentation at http://localhost:8000/docs
+For issues or questions:
+- Review this README
+- Check code comments
+- Examine PROMPTS.md for project requirements
 
 ## Acknowledgments
 
-- FastAPI for the excellent Python web framework
-- React team for the frontend framework
-- AI providers: HuggingFace, OpenAI, Anthropic
-- All open-source contributors
+Built with:
+- **scikit-learn** for machine learning capabilities
+- **numpy** for numerical operations
+- **Python** for excellent standard library support
 
+---
+
+**Note**: This is a minimal, modular implementation designed for clarity and extensibility. It prioritizes clean code and educational value over feature completeness.

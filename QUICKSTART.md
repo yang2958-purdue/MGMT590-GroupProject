@@ -1,103 +1,104 @@
 # Quick Start Guide
 
-Get up and running in 5 minutes!
+Get the Resume Auto-Fill Bot running in 5 minutes!
 
-## Prerequisites
-
-- Python 3.11+ installed
-- Node.js 18+ installed
-- Terminal/Command Prompt
-
-## Step 1: Setup Backend (2 minutes)
+## 1. Install Dependencies
 
 ```bash
-# Navigate to backend
-cd backend
-
-# Create virtual environment
+# Windows
 python -m venv venv
-
-# Activate it
-# Windows:
 venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Create .env file with minimal config
-echo "SECRET_KEY=my-secret-key-for-development" > .env
-echo "AI_PROVIDER=huggingface" >> .env
-echo "DATABASE_URL=sqlite:///./app.db" >> .env
-
-# Start backend
-python run.py
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Backend is now running at http://localhost:8000!
-Check API docs at http://localhost:8000/docs
-
-## Step 2: Setup Frontend (2 minutes)
-
-Open a NEW terminal window:
+## 2. Run the Application
 
 ```bash
-# Navigate to frontend
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+python main.py
 ```
 
-Frontend is now running at http://localhost:5173!
+## 3. Quick Test with Sample Resume
 
-## Step 3: Use the Application (1 minute)
+Follow these steps in the CLI menu:
 
-1. Open browser to http://localhost:5173
-2. Click "Sign up" and create an account
-3. Upload a resume (PDF or DOCX)
-4. Click "Parse Resume" to extract data
-5. Go to "Jobs" and import a job listing
-6. Click "Calculate Match" to see how well you match!
+1. **Select Option 1** (Upload or paste resume)
+   - Choose **Option 1** (Load from file)
+   - Enter: `sample_resume.txt`
+   - You should see "✓ Successfully loaded resume..."
 
-## Default Configuration
+2. **Select Option 2** (Enter target companies)
+   - Enter: `Google, Microsoft, Amazon, Apple`
+   - You should see "✓ Set 4 target companies..."
 
-The app comes with sensible defaults:
+3. **Select Option 3** (Enter desired role)
+   - Enter: `Software Engineer Intern`
+   - You should see "✓ Set desired role..."
 
-- **Database**: SQLite (no setup needed)
-- **AI Provider**: HuggingFace (free, no API key needed)
-- **Storage**: Local filesystem
+4. **Select Option 4** (Run job search)
+   - Wait a moment for processing
+   - You should see "✓ Found X job postings" and "✓ Ranked X jobs by relevance"
 
-## Next Steps
+5. **Select Option 5** (View ranked results)
+   - Browse through the ranked job matches
+   - Note the match scores (shown as percentages)
+   - Optionally enter a job number to see details
 
-- Add your AI provider API keys in `backend/.env` for better results
-- Explore the API documentation at http://localhost:8000/docs
-- Check out the full README.md for detailed configuration options
+6. **Select Option 6** (Export tailored resume)
+   - Choose **Option 1** (Export for specific job)
+   - Enter the job number (e.g., `1` for the top match)
+   - A tailored resume file will be created in your current directory
+
+7. **Select Option 9** (Exit)
+   - Safely exit the application
+
+## 4. View Your Exported Resume
+
+Look for files named:
+```
+tailored_resume_[Company]_[Position]_[Timestamp].txt
+```
+
+Example:
+```
+tailored_resume_Google_Software_Engineer_20260213_143022.txt
+```
+
+## Tips
+
+- **Use Your Own Resume**: Create a `.txt` file with your actual resume for better results
+- **Try Different Roles**: Test with various job titles (Data Scientist, Frontend Engineer, DevOps Engineer)
+- **Batch Export**: Use Option 6 → Option 2 to export multiple tailored resumes at once
+- **Session Info**: Use Option 7 to check what's currently loaded
 
 ## Troubleshooting
 
-**Backend won't start:**
-- Make sure virtual environment is activated
-- Check if port 8000 is available
-- Verify Python version: `python --version` (should be 3.11+)
+**Import errors?**
+```bash
+pip install --upgrade -r requirements.txt
+```
 
-**Frontend won't start:**
-- Check if port 5173 is available
-- Verify Node version: `node --version` (should be 18+)
-- Try deleting node_modules and running `npm install` again
+**Sample resume not found?**
+```bash
+# Make sure you're in the project directory
+cd "C:\DEVOPS FOLDER\MGMT590-GroupProject"
+```
 
-**Can't parse resumes:**
-- HuggingFace may be slow on first request (model loading)
-- Check internet connection
-- Try with a different AI provider
+**Low match scores?**
+- This is normal with mock data
+- Try different role keywords that match the sample resume
+- Use your own resume for more accurate matching
 
-## Support
+## Next Steps
 
-- Full documentation: See README.md
-- API documentation: http://localhost:8000/docs
-- Report issues: Create a GitHub issue
+- Read the full [README.md](README.md) for detailed documentation
+- Modify `job_search.py` to add real job scraping
+- Customize `exporter.py` to change output format
+- Add your own similarity metrics in `similarity.py`
+
+Happy job hunting! 🚀
 
