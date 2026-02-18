@@ -307,3 +307,4 @@ This update brings **professional-grade file format support** to the Resume Auto
 **Last Updated**: 2026-02-13
 **Version**: 2.0 (Multi-Format Support)
 
+

@@ -255,3 +255,4 @@ For maximum compatibility and simplicity, use **TXT**.
 
 **Ready to upload your resume?** Just run `python main.py` and select any supported format! 🚀
 
+
