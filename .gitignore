@@ -4,9 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
-env/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -19,74 +16,62 @@ parts/
 sdist/
 var/
 wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-venv/
-ENV/
-env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Output files
-tailored_resume_*.txt
-*.log
-
-# Sample/test resume files (keep sample_resume.txt, ignore others)
-sample_resume.pdf
-sample_resume.docx
-*_resume.pdf
-*_resume.docx
-
-# Environment variables
-.env
-.env.local
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Environment variables
+.env
+.env.local
 
-# Pyre type checker
-.pyre/
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Tailored resumes output
+backend/tailored_resumes/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+frontend/dist/
+frontend/build/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Cache
+.cache/
+*.cache
+
+# Temporary files
+*.tmp
+*.temp

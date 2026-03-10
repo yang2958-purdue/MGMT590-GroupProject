@@ -1,334 +1,386 @@
-# Resume Auto-Fill Bot
-
-A minimal, modular CLI-based tool for matching resumes to job postings using TF-IDF similarity scoring.
-
-## Overview
-
-This lightweight command-line application helps job seekers identify the best-matching job postings for their resume. It uses machine learning (TF-IDF vectorization and cosine similarity) to rank job opportunities and generate tailored resume summaries.
-
-## Features
-
-- **Resume Input**: Upload from file (.txt, .pdf, .docx) or paste text directly
-- **Visual File Browser**: Native file picker dialog for easy file selection
-- **Multi-Format Support**: Handles TXT, PDF, and Word documents
-- **Multi-Company Search**: Search across multiple companies simultaneously
-- **Intelligent Matching**: TF-IDF-based similarity scoring with difflib fallback
-- **Ranked Results**: Jobs sorted by relevance to your resume
-- **Tailored Exports**: Generate customized resume summaries for specific jobs
-- **Interactive CLI**: User-friendly menu-driven interface
-- **Modular Design**: Clean separation of concerns for easy extension
-
-## Technology Stack
-
-- **Language**: Python 3.8+
-- **ML/NLP**: scikit-learn (TF-IDF), difflib
-- **Data Processing**: numpy
-- **Document Parsing**: PyPDF2 (PDF), python-docx (Word)
-- **GUI**: tkinter (built-in file browser)
-- **Web Scraping Ready**: requests, beautifulsoup4 (for future real scraping)
-
-## Project Structure
-
-```
-MGMT590-GroupProject/
-├── main.py              # CLI application entry point
-├── resume_parser.py     # Resume input and validation
-├── job_search.py        # Job search (currently mock data)
-├── similarity.py        # TF-IDF similarity computation
-├── exporter.py          # Tailored resume export
-├── utils.py             # Helper functions
-├── requirements.txt     # Python dependencies
-├── README.md           # This file
-└── PROMPTS.md          # Project prompts log
-```
-
-## Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- pip (Python package manager)
-
-### Setup
-
-1. **Clone or download the repository**
-
-```bash
-cd "C:\DEVOPS FOLDER\MGMT590-GroupProject"
-```
-
-2. **Create a virtual environment (recommended)**
-
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-3. **Install dependencies**
-
-```bash
-pip install -r requirements.txt
-```
-
-## Running the Application
-
-### Start the CLI
-
-```bash
-python main.py
-```
-
-### Basic Workflow
-
-1. **Upload Resume** (Option 1)
-   - Choose to load from file or paste text
-   - File path example: `C:\Users\YourName\Documents\resume.txt`
-   - Or paste your resume text directly
-
-2. **Enter Target Companies** (Option 2)
-   - Enter comma-separated company names
-   - Example: `Google, Microsoft, Apple, Amazon`
-
-3. **Enter Desired Role** (Option 3)
-   - Specify the job title you're seeking
-   - Example: `Software Engineer Intern`
-
-4. **Run Job Search** (Option 4)
-   - Searches for jobs at specified companies
-   - Computes similarity scores automatically
-   - Currently uses mock data (easily swappable for real APIs)
-
-5. **View Ranked Results** (Option 5)
-   - See jobs sorted by match score
-   - View detailed information for any job
-
-6. **Export Tailored Resume** (Option 6)
-   - Generate customized resume summaries
-   - Export for single job or multiple top matches
-   - Creates comparison reports
-
-7. **View Session Info** (Option 7)
-   - Check current session state
-   - Verify loaded resume, companies, and role
-
-8. **Clear Session** (Option 8)
-   - Start over with fresh data
-
-9. **Exit** (Option 9)
-   - Safely exit the application
-
-## Usage Examples
-
-### Example 1: Quick Job Search
-
-```
-1. Select Option 1 → Option 1 → Browse and select your resume file
-   (OR Option 2 → Enter path like: C:\path\to\resume.txt)
-2. Select Option 2 → Enter: Google, Microsoft, Apple
-3. Select Option 3 → Enter: Software Engineer Intern
-4. Select Option 4 → Wait for search and ranking
-5. Select Option 5 → Review ranked results
-6. Select Option 6 → Option 1 → Enter job number → Export
-```
-
-### Example 2: Pasting Resume Directly
-
-```
-1. Select Option 1 → Option 2 → Paste your resume text
-2. Press Ctrl+Z then Enter (Windows) or Ctrl+D (macOS/Linux)
-3. Continue with Options 2-6 as above
-```
-
-## Features in Detail
-
-### Resume Parser
-
-- **File Browser**: Visual file selection dialog (Windows-friendly!)
-- **Multiple Formats**: Supports TXT, PDF (.pdf), and Word (.docx) documents
-- **Automatic Format Detection**: Intelligently handles different file types
-- **Multiple Input Methods**: Browse files, enter path, or paste text
-- **Validation**: Ensures resume meets minimum requirements (100+ characters)
-- **Normalization**: Cleans whitespace and formatting
-- **Sanitization**: Enforces length limits and removes problematic characters
-- **Preview**: Shows resume preview for verification
-
-### Job Search
-
-- **Mock Data**: Currently provides realistic job descriptions
-- **Extensible**: Designed to swap in real scraping or API calls
-- **Error Handling**: Gracefully handles search failures
-- **Categorization**: Automatically categorizes roles (intern, engineer, data scientist, etc.)
-
-### Similarity Scoring
-
-- **TF-IDF Vectorization**: Industry-standard text similarity
-- **Cosine Similarity**: Measures document similarity (0-1 scale)
-- **Automatic Fallback**: Uses difflib if TF-IDF fails
-- **Keyword Extraction**: Identifies overlapping skills and terms
-
-### Export Features
-
-- **Tailored Summaries**: Highlights matching keywords and skills
-- **Recommendations**: Provides actionable resume improvement tips
-- **Batch Export**: Export for multiple top jobs at once
-- **Comparison Reports**: Overview of all job matches with scores
-- **Timestamped Files**: Prevents overwriting previous exports
-
-## Error Handling
-
-The application includes comprehensive error handling:
-
-- **File Errors**: Clear messages for missing/inaccessible files
-- **Input Validation**: Prompts for valid input on errors
-- **Search Failures**: Continues operation even if individual searches fail
-- **No Stack Traces**: User-friendly error messages only
-- **Graceful Degradation**: Fallback mechanisms for critical operations
-
-## Extending the Application
-
-### Adding Real Job Scraping
-
-Replace the mock implementation in `job_search.py`:
-
-```python
-def search_jobs(company_name: str, role: str) -> List[Dict[str, str]]:
-    # Implement actual web scraping here
-    # Example: Use requests + BeautifulSoup
-    # Return list of job dictionaries
-    pass
-```
-
-### Adding New Similarity Metrics
-
-Extend `similarity.py` to add custom scoring:
-
-```python
-def compute_similarity_custom(resume_text, job_descriptions):
-    # Implement your similarity metric
-    return scores
-```
-
-### Customizing Export Format
-
-Modify `exporter.py` to change output format:
-
-```python
-def generate_tailored_summary(resume_text, job):
-    # Customize the export format
-    # Add new sections or modify existing ones
-    pass
-```
-
-## Limitations and Future Enhancements
-
-### Current Limitations
-
-- Mock job search data (not real job postings)
-- Text file resume input only (no PDF/DOCX parsing)
-- No application tracking
-- No login/authentication system
-- No database persistence
-
-### Potential Enhancements
-
-- Real job scraping from Indeed, LinkedIn, Glassdoor
-- PDF/DOCX resume parsing
-- Multiple resume support
-- Application tracking system
-- Email notifications
-- Web interface option
-- Database for history tracking
-- API for programmatic access
-
-## Troubleshooting
-
-### Common Issues
-
-**"Module not found" errors:**
-```bash
-# Ensure virtual environment is activated and dependencies installed
-pip install -r requirements.txt
-```
-
-**File not found when loading resume:**
-- Use absolute path: `C:\Users\YourName\Documents\resume.txt`
-- Or navigate to project directory first
-
-**No jobs found:**
-- This is expected with mock data
-- Try different role keywords (intern, engineer, scientist, devops, frontend)
-
-**Low similarity scores:**
-- Ensure resume contains technical keywords
-- Try different job roles that match your background
-- Mock data may not perfectly align with all resumes
-
-**Export file not found:**
-- Check current directory for exported files
-- Look for files starting with `tailored_resume_`
-
-## Development
-
-### Code Quality
-
-- **Type Hints**: All functions include type annotations
-- **Documentation**: Comprehensive docstrings
-- **Modular**: Clean separation of concerns
-- **Testable**: Functions designed for easy testing
-- **Comments**: Clear explanations throughout
-
-### Testing
-
-To add unit tests (pytest):
-
-```bash
-pip install pytest
-pytest
-```
-
-### Code Style
-
-Follow PEP 8 guidelines:
-
-```bash
-pip install black flake8
-black .
-flake8 .
-```
-
-## Contributing
-
-This is a minimal, educational project. Contributions welcome:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes with clear comments
-4. Test thoroughly
-5. Submit pull request
-
-## License
-
-This project is for educational purposes. Modify and use as needed.
-
-## Support
-
-For issues or questions:
-- Review this README
-- Check code comments
-- Examine PROMPTS.md for project requirements
-
-## Acknowledgments
-
-Built with:
-- **scikit-learn** for machine learning capabilities
-- **numpy** for numerical operations
-- **Python** for excellent standard library support
+# 🎯 Job Search & Resume Tailoring Tool
+
+An AI-powered application that helps you find relevant jobs and automatically tailor your resume for each position using Claude AI.
+
+## 📋 Features
+
+### Phase 1 (MVP) - Current Implementation
+- **Resume Upload & Parsing**: Upload PDF, DOCX, or TXT resumes with automatic skill extraction
+- **Job Search**: Search across multiple companies using SerpAPI (Google Jobs)
+- **Smart Fit Scoring**: 
+  - Fast TF-IDF cosine similarity for quick ranking
+  - Optional Claude AI scoring for detailed analysis
+- **AI Resume Tailoring**: Automatically customize your resume for specific jobs using Claude API
+- **Multi-Step Wizard UI**: Clean, modern React interface with 6-step workflow
+
+### Planned Features (Phase 2 & 3)
+- Company career page direct scraping (Greenhouse, Lever, Workday)
+- Enhanced caching layer (Redis)
+- Browser automation for auto-apply (Playwright)
+- Form-filling AI agent
 
 ---
 
-**Note**: This is a minimal, modular implementation designed for clarity and extensibility. It prioritizes clean code and educational value over feature completeness.
+## 🏗️ Architecture
+
+### Tech Stack
+- **Frontend**: React 18 + Vite
+- **Backend**: FastAPI (Python)
+- **AI**: Claude API (Anthropic) - Sonnet 3.5
+- **Job Search**: SerpAPI (Google Jobs)
+- **Document Processing**: PyPDF2, python-docx
+- **ML**: scikit-learn (TF-IDF scoring)
+
+### Project Structure
+```
+job-search-tool/
+├── backend/
+│   ├── main.py                 # FastAPI application
+│   ├── requirements.txt        # Python dependencies
+│   ├── services/
+│   │   ├── resume_parser.py    # PDF/DOCX/TXT parsing
+│   │   ├── job_scraper.py      # SerpAPI integration
+│   │   ├── fit_scorer.py       # TF-IDF + Claude AI scoring
+│   │   └── resume_tailor.py    # Claude AI resume customization
+│   └── models/
+│       └── schemas.py          # Pydantic data models
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx             # Main wizard orchestrator
+│   │   ├── components/         # 6 wizard step components
+│   │   └── api/
+│   │       └── client.js       # Axios API client
+│   ├── package.json
+│   └── vite.config.js
+├── README.md
+└── PROMPTS.md
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.9+ 
+- Node.js 18+
+- Claude API key ([Get one here](https://console.anthropic.com/))
+- SerpAPI key ([Get one here](https://serpapi.com/)) - Optional but recommended
+
+### Backend Setup
+
+1. **Navigate to backend directory**
+   ```bash
+   cd backend
+   ```
+
+2. **Create and activate virtual environment**
+   
+   On Windows:
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\activate
+   ```
+   
+   On macOS/Linux:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables**
+   
+   Create a `.env` file in the `backend/` directory:
+   ```env
+   # Required for resume tailoring
+   ANTHROPIC_API_KEY=your_claude_api_key_here
+   
+   # Required for job search (highly recommended)
+   SERPAPI_API_KEY=your_serpapi_key_here
+   
+   # Optional configuration
+   DEBUG=True
+   HOST=0.0.0.0
+   PORT=8000
+   CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+   ```
+
+5. **Run the backend server**
+   ```bash
+   python main.py
+   ```
+   
+   The API will be available at `http://localhost:8000`
+   
+   API documentation: `http://localhost:8000/docs`
+
+### Frontend Setup
+
+1. **Navigate to frontend directory**
+   ```bash
+   cd frontend
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+   
+   The app will be available at `http://localhost:3000`
+
+4. **Build for production** (optional)
+   ```bash
+   npm run build
+   npm run preview
+   ```
+
+---
+
+## 📖 How to Use
+
+### Step-by-Step Workflow
+
+1. **Upload Resume** (Step 1)
+   - Drag and drop your resume (PDF, DOCX, or TXT)
+   - The system will automatically parse and extract skills, experience, and education
+
+2. **Select Companies** (Step 2)
+   - Add target companies manually or select from suggestions
+   - You can add as many companies as you want
+
+3. **Specify Job Titles** (Step 3)
+   - Enter job titles you're interested in (e.g., "Senior Software Engineer")
+   - Use specific titles for better matches
+
+4. **Job Search** (Step 4)
+   - The system automatically searches for jobs and calculates fit scores
+   - This step uses TF-IDF for fast initial scoring
+
+5. **View Ranked Results** (Step 5)
+   - Browse jobs sorted by fit score (0-10)
+   - See matching and missing skills for each job
+   - Click any job to expand details
+   - Select a job to tailor your resume
+
+6. **Tailor Resume** (Step 6)
+   - Claude AI automatically rewrites your resume for the selected job
+   - Review the changes made
+   - Download the tailored resume as DOCX
+   - Apply to the job!
+
+---
+
+## 🔑 API Endpoints
+
+### Resume Endpoints
+- `POST /api/resume/upload` - Upload and parse resume
+- `POST /api/resume/tailor` - Tailor resume for a job
+- `GET /api/resume/download/{tailored_id}` - Download tailored resume
+
+### Job Search Endpoints
+- `POST /api/jobs/search` - Search for jobs
+- `POST /api/jobs/score` - Score a single job fit
+- `POST /api/jobs/score-batch` - Score multiple jobs
+
+### Session Endpoints
+- `GET /api/session` - List session items
+- `GET /api/session/{item_id}` - Get specific item
+- `DELETE /api/session/{item_id}` - Delete item
+
+### Health Check
+- `GET /` - Basic health check
+- `GET /api/health` - Detailed health check with service status
+
+---
+
+## 💡 Configuration Tips
+
+### API Keys
+
+**Claude API (Required for resume tailoring)**
+- Sign up at [console.anthropic.com](https://console.anthropic.com/)
+- Cost: ~$0.01 per resume tailoring (very affordable)
+- Model used: Claude 3.5 Sonnet
+
+**SerpAPI (Recommended for job search)**
+- Sign up at [serpapi.com](https://serpapi.com/)
+- Free tier: 100 searches/month
+- Paid: ~$50/month for 5,000 searches
+- Without this key, job search will be limited
+
+### Performance Optimization
+
+**Fit Scoring Strategy**
+- Default: Fast TF-IDF scoring for all jobs (~100ms per job)
+- Optional: Claude AI scoring (slower but more accurate, ~2s per job)
+- Recommendation: Use TF-IDF for initial ranking, then AI scoring for top 5-10 jobs
+
+**Caching**
+- Fit scores are cached in memory to avoid repeat API calls
+- For production: Configure Redis for persistent caching
+
+---
+
+## 🧪 Testing
+
+### Test Backend API
+```bash
+cd backend
+python -m pytest  # (tests to be added)
+```
+
+### Manual Testing
+1. Start both backend and frontend servers
+2. Upload a sample resume
+3. Search for jobs at 2-3 companies
+4. Verify fit scores are calculated
+5. Tailor resume for a top-ranked job
+6. Download and review the tailored resume
+
+### Check API Health
+```bash
+curl http://localhost:8000/api/health
+```
+
+Expected response should show service status and API key configuration.
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Failed to upload resume"**
+- Check file format (must be PDF, DOCX, or TXT)
+- Ensure file is not corrupted
+- Check backend logs for parsing errors
+
+**"Job search failed" or "No jobs found"**
+- Verify SerpAPI key is configured correctly
+- Check if you have remaining API credits
+- Try broader search terms (fewer companies, generic titles)
+
+**"Resume tailoring failed"**
+- Verify Claude API key is configured
+- Check you have API credits/billing enabled
+- Ensure job description is not empty
+
+**Backend won't start**
+- Check Python version (3.9+ required)
+- Verify all dependencies are installed: `pip install -r requirements.txt`
+- Check if port 8000 is already in use
+
+**Frontend won't connect to backend**
+- Verify backend is running on port 8000
+- Check CORS settings in backend `.env`
+- Clear browser cache and reload
+
+---
+
+## 💰 Cost Estimation
+
+### Per Job Application (Typical Use)
+- Resume parsing: Free
+- Job search (SerpAPI): ~$0.01 per search query
+- TF-IDF fit scoring: Free
+- Claude AI fit scoring (optional): ~$0.005 per job
+- Resume tailoring (Claude): ~$0.01 per tailoring
+
+**Total per application**: $0.01 - $0.03
+
+### Monthly Budget (Active Job Seeker)
+- 50 job searches: ~$0.50
+- 50 resumes tailored: ~$0.50
+- **Total**: ~$1-5/month depending on usage
+
+This is **significantly cheaper** than premium job search services ($30-100/month).
+
+---
+
+## 🔐 Security Notes
+
+- API keys are stored in `.env` file (never commit this to git!)
+- Session storage is in-memory (data cleared on server restart)
+- For production: Use proper authentication, HTTPS, and database storage
+- Resume files are processed in memory and not permanently stored
+
+---
+
+## 🛣️ Roadmap
+
+### Phase 1 ✅ (Current - MVP)
+- [x] Resume parsing (PDF/DOCX/TXT)
+- [x] SerpAPI job search
+- [x] TF-IDF fit scoring
+- [x] Claude AI resume tailoring
+- [x] Multi-step React wizard UI
+
+### Phase 2 🚧 (1-2 weeks)
+- [ ] Claude AI detailed fit scoring
+- [ ] Company career page scraping (Greenhouse, Lever)
+- [ ] DOCX/PDF export improvements
+- [ ] Redis caching layer
+- [ ] User accounts and saved searches
+
+### Phase 3 🔮 (Future)
+- [ ] Browser automation (Playwright)
+- [ ] Auto-apply to jobs
+- [ ] Form-filling AI agent
+- [ ] Application tracking dashboard
+- [ ] Email notifications
+
+---
+
+## 🤝 Contributing
+
+This is a class project for MGMT 590. Contributions are welcome!
+
+1. Create a feature branch: `git checkout -b feature/your-feature`
+2. Make your changes
+3. Test thoroughly
+4. Submit a pull request to `main`
+
+---
+
+## 📝 License
+
+This project is for educational purposes as part of MGMT 590.
+
+---
+
+## 👥 Team
+
+MGMT 590 Group Project - 2026
+
+---
+
+## 📚 Resources
+
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [React Documentation](https://react.dev/)
+- [Claude API Documentation](https://docs.anthropic.com/)
+- [SerpAPI Documentation](https://serpapi.com/google-jobs-api)
+- [scikit-learn TF-IDF Guide](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html)
+
+---
+
+## 🆘 Support
+
+For questions or issues:
+1. Check the [Troubleshooting](#-troubleshooting) section
+2. Review API documentation at `http://localhost:8000/docs`
+3. Check the project's Git repository issues
+
+---
+
+**Happy Job Hunting! 🎉**
+
