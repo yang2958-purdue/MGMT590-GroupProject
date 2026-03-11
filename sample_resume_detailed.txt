@@ -1,0 +1,131 @@
+MICHAEL RODRIGUEZ
+Full Stack Developer & Cloud Architect
+michael.rodriguez@techmail.com | +1 (415) 789-0123
+Portfolio: michaeldev.io | GitHub: github.com/mrodriguez
+San Francisco Bay Area, CA
+
+═══════════════════════════════════════════════════════════════
+
+PROFESSIONAL SUMMARY
+
+Innovative Full Stack Developer with 7+ years of experience architecting and deploying enterprise-scale applications. Specialized in modern JavaScript frameworks, Python backend services, and cloud infrastructure. Passionate about building user-centric products that solve real-world problems. Track record of reducing infrastructure costs by 40% while improving system reliability.
+
+═══════════════════════════════════════════════════════════════
+
+WORK EXPERIENCE
+
+Lead Full Stack Engineer | CloudScale Technologies | Remote
+March 2021 - Present (4 years)
+
+• Architected microservices platform processing 10M+ daily transactions with 99.99% uptime
+• Led team of 8 developers using agile methodologies and modern DevOps practices
+• Reduced AWS infrastructure costs by $180K annually through optimization and right-sizing
+• Built real-time analytics dashboard using React and WebSocket, adopted by 5,000+ enterprise users
+• Implemented comprehensive CI/CD pipeline with automated testing, reducing deployment time by 85%
+• Technologies: React, TypeScript, Node.js, Python, FastAPI, PostgreSQL, Redis, AWS, Kubernetes
+
+Senior Software Engineer | DataFlow Solutions | San Francisco, CA
+January 2019 - February 2021 (2 years)
+
+• Developed RESTful APIs handling 2M+ requests per day with p99 latency under 100ms
+• Built payment integration system processing $25M+ in annual transactions
+• Migrated monolithic application to microservices architecture, improving scalability by 300%
+• Collaborated with UX team to redesign customer portal, increasing user engagement by 55%
+• Mentored 4 junior developers through pair programming and code review sessions
+• Technologies: Python, Django, React, PostgreSQL, Docker, Jenkins, AWS Lambda
+
+Software Developer | StartupHub Inc. | Palo Alto, CA  
+June 2017 - December 2018 (1.5 years)
+
+• Developed full-stack features for B2B SaaS platform serving 10,000+ business users
+• Created automated testing suite with 85% code coverage using Jest and Pytest
+• Optimized database queries reducing average page load time from 3.2s to 0.8s
+• Implemented user authentication and authorization system supporting OAuth2 and SAML
+• Technologies: JavaScript, Vue.js, Flask, MySQL, Redis, Git, CircleCI
+
+═══════════════════════════════════════════════════════════════
+
+TECHNICAL SKILLS
+
+Languages:
+• Expert: Python, JavaScript, TypeScript, SQL
+• Proficient: Go, Bash, HTML, CSS
+
+Frontend Development:
+• React, Vue.js, Next.js, Redux, React Query
+• Tailwind CSS, Material-UI, Styled Components
+• Webpack, Vite, Responsive Design, Accessibility (WCAG)
+
+Backend Development:
+• FastAPI, Django, Flask, Express.js, Node.js
+• RESTful APIs, GraphQL, WebSocket, gRPC
+• Microservices Architecture, Event-Driven Design
+
+Cloud & DevOps:
+• AWS (EC2, S3, Lambda, RDS, EKS, CloudFront, Route53)
+• Docker, Kubernetes, Terraform, Helm
+• CI/CD: Jenkins, GitHub Actions, GitLab CI, CircleCI
+• Monitoring: Datadog, Prometheus, Grafana, ELK Stack
+
+Databases:
+• PostgreSQL, MySQL, MongoDB, Redis
+• Database optimization, indexing, query tuning
+• ORMs: SQLAlchemy, Sequelize, Mongoose
+
+Tools & Methodologies:
+• Git, GitHub, GitLab, Bitbucket
+• Agile/Scrum, Kanban, Test-Driven Development (TDD)
+• Code Review, Pair Programming, Technical Documentation
+
+═══════════════════════════════════════════════════════════════
+
+EDUCATION
+
+Bachelor of Science in Computer Science
+Stanford University | Stanford, CA
+Graduated: May 2017 | GPA: 3.9/4.0
+Relevant Coursework: Algorithms, Database Systems, Distributed Systems, Machine Learning
+
+═══════════════════════════════════════════════════════════════
+
+CERTIFICATIONS
+
+• AWS Certified Solutions Architect - Professional (2023)
+• Certified Kubernetes Administrator (CKA) (2022)
+• AWS Certified Developer - Associate (2021)
+
+═══════════════════════════════════════════════════════════════
+
+NOTABLE PROJECTS
+
+Open Source Contributions
+• Core contributor to FastAPI framework (50+ merged PRs)
+• Maintainer of popular React component library (2,500+ GitHub stars)
+• Published 5 NPM packages with 100K+ monthly downloads
+
+Side Projects
+• DevTools Monitor - Full-stack monitoring dashboard for developers
+  Built with React, FastAPI, PostgreSQL, deployed on AWS with Terraform
+  Used by 1,000+ developers for application performance tracking
+
+• Budget AI - Personal finance app with AI-powered insights
+  React Native mobile app with Python backend and machine learning models
+  Featured in TechCrunch as "Top 10 FinTech Apps of 2023"
+
+═══════════════════════════════════════════════════════════════
+
+ACHIEVEMENTS
+
+• Reduced system downtime by 95% through proactive monitoring and automated failover
+• Improved application performance by 60% through code optimization and caching strategies
+• Led successful migration of 500K+ users to new platform with zero data loss
+• Presented at PyCon 2023 on "Building Scalable APIs with FastAPI"
+• Mentored 15+ junior developers who were promoted to senior positions
+
+═══════════════════════════════════════════════════════════════
+
+LANGUAGES
+
+• English: Native
+• Spanish: Professional working proficiency
+• Mandarin: Basic conversational

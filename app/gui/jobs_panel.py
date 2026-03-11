@@ -94,17 +94,19 @@ class JobsPanel(QWidget):
         self.select_btn.setEnabled(False)
         self.select_btn.setStyleSheet("""
             QPushButton {
-                background-color: #007bff;
+                background-color: #0d7377;
                 color: white;
                 padding: 10px;
                 font-weight: bold;
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #0056b3;
+                background-color: #14ffec;
+                color: #1e1e1e;
             }
             QPushButton:disabled {
-                background-color: #cccccc;
+                background-color: #404040;
+                color: #707070;
             }
         """)
         
@@ -119,7 +121,7 @@ class JobsPanel(QWidget):
         
         # Status label
         self.status_label = QLabel("Click 'Refresh' or 'Search' to load jobs")
-        self.status_label.setStyleSheet("color: gray;")
+        self.status_label.setStyleSheet("color: #909090;")
         
         # Add to main layout
         layout.addLayout(search_layout)

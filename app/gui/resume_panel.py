@@ -55,7 +55,7 @@ class ResumePanel(QWidget):
         upload_layout = QVBoxLayout()
         
         upload_info = QLabel("Supported formats: PDF, DOCX, TXT, JPG, PNG")
-        upload_info.setStyleSheet("color: gray;")
+        upload_info.setStyleSheet("color: #909090;")
         
         btn_layout = QHBoxLayout()
         self.upload_btn = QPushButton("📁 Upload File")

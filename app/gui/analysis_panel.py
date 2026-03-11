@@ -56,7 +56,7 @@ class AnalysisPanel(QWidget):
         self.analyze_btn.setEnabled(False)
         self.analyze_btn.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #4caf50;
                 color: white;
                 padding: 15px;
                 font-size: 14px;
@@ -64,17 +64,19 @@ class AnalysisPanel(QWidget):
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #66bb6a;
+                color: #1e1e1e;
             }
             QPushButton:disabled {
-                background-color: #cccccc;
+                background-color: #404040;
+                color: #707070;
             }
         """)
         btn_layout.addWidget(self.analyze_btn)
         btn_layout.addStretch()
         
         self.status_label = QLabel("Load a resume and select a job to analyze")
-        self.status_label.setStyleSheet("color: gray;")
+        self.status_label.setStyleSheet("color: #909090;")
         
         # Scroll area for results
         scroll = QScrollArea()
@@ -113,11 +115,11 @@ class AnalysisPanel(QWidget):
         keywords_layout = QVBoxLayout()
         
         matched_label = QLabel("✓ Matched Keywords")
-        matched_label.setStyleSheet("font-weight: bold; color: green;")
+        matched_label.setStyleSheet("font-weight: bold; color: #4caf50;")
         self.matched_list = QListWidget()
         
         missing_label = QLabel("✗ Missing Keywords")
-        missing_label.setStyleSheet("font-weight: bold; color: red;")
+        missing_label.setStyleSheet("font-weight: bold; color: #f44336;")
         self.missing_list = QListWidget()
         
         keywords_layout.addWidget(matched_label)
@@ -134,11 +136,11 @@ class AnalysisPanel(QWidget):
         skills_layout = QVBoxLayout()
         
         matched_skills_label = QLabel("✓ Matched Skills")
-        matched_skills_label.setStyleSheet("font-weight: bold; color: green;")
+        matched_skills_label.setStyleSheet("font-weight: bold; color: #4caf50;")
         self.matched_skills_list = QListWidget()
         
         missing_skills_label = QLabel("✗ Missing Skills")
-        missing_skills_label.setStyleSheet("font-weight: bold; color: red;")
+        missing_skills_label.setStyleSheet("font-weight: bold; color: #f44336;")
         self.missing_skills_list = QListWidget()
         
         skills_layout.addWidget(matched_skills_label)
@@ -159,11 +161,11 @@ class AnalysisPanel(QWidget):
         ats_layout = QVBoxLayout()
         
         strengths_label = QLabel("✓ Strengths")
-        strengths_label.setStyleSheet("font-weight: bold; color: green;")
+        strengths_label.setStyleSheet("font-weight: bold; color: #4caf50;")
         self.ats_strengths_list = QListWidget()
         
         warnings_label = QLabel("⚠ Warnings")
-        warnings_label.setStyleSheet("font-weight: bold; color: orange;")
+        warnings_label.setStyleSheet("font-weight: bold; color: #ff9800;")
         self.ats_warnings_list = QListWidget()
         
         ats_layout.addWidget(strengths_label)

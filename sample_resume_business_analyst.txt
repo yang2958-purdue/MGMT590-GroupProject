@@ -1,0 +1,114 @@
+JENNIFER MARTINEZ
+Senior Business Analyst
+Email: jennifer.martinez@businesspro.com | Phone: (312) 555-2468
+LinkedIn: linkedin.com/in/jennifermartinez | Location: Chicago, IL
+
+PROFESSIONAL SUMMARY
+
+Results-oriented Senior Business Analyst with 6+ years of experience bridging business needs and technology solutions. Expert in requirements gathering, data analysis, and process improvement. Proven track record of delivering projects that increase efficiency by 40% and reduce costs by $2M+ annually. Strong communicator skilled at translating complex technical concepts for diverse stakeholders.
+
+WORK EXPERIENCE
+
+Senior Business Analyst | Enterprise Solutions Corp | Chicago, IL
+March 2021 - Present
+
+• Lead requirements gathering for $5M+ enterprise software implementation serving 10,000+ users
+• Conduct stakeholder interviews and workshops to identify business needs and pain points
+• Created 50+ detailed business requirements documents (BRDs) and user stories
+• Analyze complex datasets using SQL to identify trends and support decision-making
+• Built interactive Tableau dashboards reducing reporting time by 60%
+• Facilitate UAT sessions with business users, achieving 95% satisfaction rate
+• Collaborate with development teams in Agile environment using JIRA and Confluence
+• Reduced manual processes by 35% through workflow automation recommendations
+
+Business Analyst | Financial Services Group | Chicago, IL
+June 2018 - February 2021
+
+• Analyzed business processes for loan processing system handling $100M+ annually
+• Documented current state and future state process flows using Visio and BPMN
+• Performed gap analysis and feasibility studies for system enhancements
+• Created data models and entity relationship diagrams for database design
+• Conducted cost-benefit analysis for proposed solutions, securing $500K budget approval
+• Led implementation of CRM system, training 200+ staff members
+• Developed Power BI reports for executive leadership dashboards
+• Improved data quality by 45% through data governance initiatives
+
+Junior Business Analyst | Tech Innovations Inc | Schaumburg, IL
+May 2017 - May 2018
+
+• Supported senior analysts in gathering and documenting business requirements
+• Performed data analysis using SQL queries on customer database (500K+ records)
+• Created Excel-based financial models for ROI calculations
+• Participated in Agile ceremonies and maintained product backlog in JIRA
+• Conducted user acceptance testing and documented test cases
+• Developed training materials and user guides for new system features
+
+TECHNICAL SKILLS
+
+Analysis & Documentation:
+• Requirements Analysis, Business Process Modeling (BPMN), Use Cases, User Stories
+• Gap Analysis, Feasibility Studies, Cost-Benefit Analysis, Risk Assessment
+• Process Mapping, Workflow Design, Data Flow Diagrams, UML
+
+Data & Analytics:
+• SQL (PostgreSQL, MySQL, Oracle), Advanced Excel (Pivot Tables, VBA, Power Query)
+• Tableau, Power BI, Google Analytics
+• Statistical Analysis, Data Visualization, KPI Development
+
+Tools & Methodologies:
+• JIRA, Confluence, Trello, Asana
+• MS Visio, Lucidchart, Draw.io
+• Agile/Scrum, Waterfall, SAFe, Lean Six Sigma
+• SharePoint, MS Office Suite
+
+Business Intelligence:
+• ETL Concepts, Data Warehousing Basics
+• Dashboard Development, Report Design
+• Data Quality Management
+
+EDUCATION
+
+Bachelor of Science in Business Administration
+University of Illinois at Chicago | Chicago, IL
+Graduated: May 2017 | GPA: 3.7/4.0
+Concentration: Management Information Systems
+
+CERTIFICATIONS
+
+Certified Business Analysis Professional (CBAP) - IIBA (2022)
+PMI Professional in Business Analysis (PMI-PBA) (2021)
+Agile Analysis Certification - IIBA (2020)
+Tableau Desktop Specialist (2023)
+
+PROJECTS & ACHIEVEMENTS
+
+Enterprise CRM Implementation
+• Led business analysis for $3M Salesforce implementation
+• Gathered requirements from 15 departments across organization
+• Created process maps for 25+ business processes
+• Project delivered on time and 10% under budget
+
+Supply Chain Optimization
+• Analyzed end-to-end supply chain processes identifying bottlenecks
+• Recommended automation solutions reducing processing time by 50%
+• Created business case securing $800K investment approval
+• ROI achieved within 18 months of implementation
+
+Customer Portal Enhancement
+• Conducted user research with 500+ customers to identify pain points
+• Developed requirements for self-service portal features
+• Collaborated with UX team on wireframes and prototypes
+• Portal usage increased by 75% post-launch
+
+PROFESSIONAL DEVELOPMENT
+
+• IIBA Member - Active in Chicago chapter
+• Regular attendee at Business Analysis conferences
+• Mentor for junior analysts through company mentorship program
+• Completed training: Advanced SQL, Data Science Fundamentals, Agile Leadership
+
+SKILLS SUMMARY
+
+Business Analysis | Requirements Gathering | Stakeholder Management | Process Improvement
+Data Analysis | SQL | Tableau | Power BI | Excel | Agile/Scrum | JIRA | Documentation
+Project Coordination | UAT | Change Management | Problem Solving | Communication

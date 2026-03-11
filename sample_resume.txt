@@ -1,0 +1,61 @@
+SARAH CHEN
+Senior Software Engineer
+Email: sarah.chen@email.com | Phone: (555) 123-4567
+LinkedIn: linkedin.com/in/sarahchen | Location: San Francisco, CA
+
+PROFESSIONAL SUMMARY
+Results-driven Senior Software Engineer with 6+ years of experience building scalable web applications and cloud infrastructure. Expert in Python, JavaScript, and modern DevOps practices. Proven track record of leading technical projects and mentoring junior developers.
+
+WORK EXPERIENCE
+
+Senior Software Engineer | TechVentures Inc. | San Francisco, CA
+January 2021 - Present
+- Led development of microservices architecture serving 2M+ daily active users
+- Improved application performance by 45% through database optimization and caching strategies
+- Mentored team of 5 junior engineers, conducting code reviews and technical training
+- Implemented CI/CD pipeline reducing deployment time from 2 hours to 15 minutes
+- Architected and deployed Kubernetes-based infrastructure on AWS EKS
+
+Software Engineer | CloudStart Solutions | Remote
+June 2018 - December 2020
+- Developed RESTful APIs using Python Flask serving 500K+ requests daily
+- Built React-based admin dashboard increasing operational efficiency by 60%
+- Integrated payment processing systems (Stripe, PayPal) handling $5M+ in transactions
+- Collaborated with product team to deliver 15+ features on schedule
+- Reduced bug count by 70% through comprehensive unit and integration testing
+
+Junior Developer | Innovation Labs | Boston, MA
+May 2017 - May 2018
+- Developed web applications using Django and PostgreSQL
+- Participated in agile development process with 2-week sprints
+- Created automated testing scripts improving QA efficiency by 30%
+
+TECHNICAL SKILLS
+
+Languages: Python, JavaScript, TypeScript, SQL, Bash
+Frameworks: React, Django, Flask, FastAPI, Node.js, Express
+Cloud & DevOps: AWS (EC2, S3, Lambda, RDS, EKS), Docker, Kubernetes, Terraform, Jenkins
+Databases: PostgreSQL, MySQL, MongoDB, Redis
+Tools: Git, GitHub Actions, CircleCI, Jira, Datadog
+
+EDUCATION
+
+Bachelor of Science in Computer Science
+Massachusetts Institute of Technology (MIT) | Cambridge, MA
+Graduated: May 2017 | GPA: 3.8/4.0
+
+CERTIFICATIONS
+
+AWS Certified Solutions Architect - Associate | 2022
+Certified Kubernetes Administrator (CKA) | 2021
+
+PROJECTS
+
+Open Source Contribution - Django REST Framework
+- Contributed 12 merged pull requests improving documentation and fixing bugs
+- Active community member with 500+ GitHub stars on personal projects
+
+Personal Project - Budget Tracking App
+- Built full-stack application with React frontend and FastAPI backend
+- Implemented OAuth2 authentication and encrypted data storage
+- Deployed on AWS with automated CI/CD pipeline

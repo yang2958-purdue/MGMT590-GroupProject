@@ -1,0 +1,136 @@
+DAVID THOMPSON
+IT Project Manager | PMP® Certified
+Email: david.thompson@pmexpert.com | Phone: (512) 555-7890
+LinkedIn: linkedin.com/in/davidthompson | Location: Austin, TX
+
+PROFESSIONAL SUMMARY
+
+Strategic IT Project Manager with 9+ years of experience leading complex technology initiatives from inception to delivery. PMP-certified professional skilled in managing cross-functional teams, multi-million dollar budgets, and stakeholder expectations. Track record of delivering 40+ projects on time and within budget, with average ROI of 250%. Expert in Agile, Scrum, and traditional waterfall methodologies.
+
+WORK EXPERIENCE
+
+Senior IT Project Manager | Tech Solutions Enterprise | Austin, TX
+January 2020 - Present
+
+• Manage portfolio of 8-12 concurrent projects with combined budget of $15M+
+• Lead enterprise software implementations (ERP, CRM, HR systems) for Fortune 500 clients
+• Direct cross-functional teams of 20-50 resources including developers, analysts, and QA engineers
+• Reduced project delivery time by 30% through agile transformation initiatives
+• Achieved 98% client satisfaction rating across 25+ major project deliveries
+• Implemented PMO best practices resulting in 40% improvement in project success rate
+• Manage vendor relationships and contracts totaling $5M+ annually
+• Present project status and strategic recommendations to C-level executives
+
+Key Projects:
+• ERP Migration Project ($8M budget, 18-month duration, 5,000+ users)
+  - Led SAP S/4HANA implementation across 12 business units
+  - Managed team of 45 consultants and internal staff
+  - Delivered 2 weeks ahead of schedule, 5% under budget
+  - Zero critical issues post go-live
+
+• Cloud Infrastructure Modernization ($3.5M, 12 months)
+  - Migrated legacy applications to AWS cloud platform
+  - Coordinated with security, network, and application teams
+  - Reduced infrastructure costs by $800K annually
+  - Improved system uptime from 95% to 99.9%
+
+IT Project Manager | Digital Innovations Corp | Austin, TX
+June 2017 - December 2019
+
+• Managed 15+ software development and infrastructure projects
+• Established Agile/Scrum practices across 5 development teams
+• Led mobile app development project generating $2M in first-year revenue
+• Implemented JIRA and Confluence for project tracking and documentation
+• Reduced project risks through comprehensive risk management framework
+• Mentored 3 junior project managers who were promoted to senior roles
+• Coordinated with product owners to prioritize features and manage backlogs
+
+Associate Project Manager | Tech Startup Inc | San Antonio, TX
+May 2015 - May 2017
+
+• Supported senior PM in managing software development projects
+• Coordinated project schedules, resources, and deliverables
+• Facilitated daily standups, sprint planning, and retrospectives
+• Tracked project metrics and created status reports for leadership
+• Managed project budgets ranging from $100K to $500K
+• Assisted in vendor selection and contract negotiations
+
+TECHNICAL COMPETENCIES
+
+Project Management:
+• Full SDLC Management (Agile, Scrum, Waterfall, Hybrid)
+• Budget Management & Financial Tracking
+• Resource Planning & Allocation
+• Risk & Issue Management
+• Change Management & Control
+• Quality Assurance & Testing Coordination
+• Vendor & Contract Management
+
+Tools & Software:
+• MS Project, Smartsheet, Monday.com, Wrike
+• JIRA, Confluence, Azure DevOps, Rally
+• MS Office Suite (Expert level: Excel, PowerPoint, Visio)
+• ServiceNow, Salesforce, SharePoint
+• Slack, Teams, Zoom (Virtual Team Management)
+
+Technical Knowledge:
+• Cloud Platforms: AWS, Azure, Google Cloud
+• DevOps & CI/CD Pipelines
+• Enterprise Software: SAP, Oracle, Salesforce, Workday
+• Database Fundamentals: SQL queries, data concepts
+• Networking & Infrastructure Basics
+• Information Security & Compliance (SOC 2, HIPAA, GDPR)
+
+Methodologies:
+• Agile/Scrum (Certified Scrum Master)
+• SAFe (Scaled Agile Framework)
+• Lean, Kanban, Six Sigma
+• PRINCE2, PMBOK (PMI Framework)
+
+EDUCATION
+
+Master of Business Administration (MBA)
+University of Texas at Austin - McCombs School of Business
+Graduated: May 2019 | Focus: Technology Management
+
+Bachelor of Science in Management Information Systems
+Texas A&M University | College Station, TX
+Graduated: May 2015 | GPA: 3.6/4.0
+
+CERTIFICATIONS
+
+• Project Management Professional (PMP®) - PMI (2018, Renewed 2021)
+• Certified Scrum Master (CSM) - Scrum Alliance (2019)
+• Certified SAFe® 5 Practitioner (2022)
+• AWS Certified Cloud Practitioner (2023)
+• ITIL Foundation Certificate (2020)
+• Microsoft Certified: Azure Fundamentals (2021)
+
+PROFESSIONAL ACHIEVEMENTS
+
+• "Project Manager of the Year" - Tech Solutions Enterprise (2022)
+• Successfully delivered 40+ projects with 100% on-time delivery rate
+• Managed projects totaling over $30M in budget value
+• Achieved average project ROI of 250% across all initiatives
+• Zero major project failures or cancellations in career
+• Published article: "Agile Transformation in Enterprise IT" - PM Network Magazine (2023)
+
+LEADERSHIP & PROFESSIONAL DEVELOPMENT
+
+• PMI Member - Austin Chapter Board Member (2021-Present)
+• Guest lecturer at UT Austin for Project Management course
+• Mentor through PMI mentorship program - 5 mentees successfully certified
+• Regular speaker at local PMI chapter meetings
+• Volunteer PM for non-profit tech initiatives
+
+CORE COMPETENCIES
+
+Project Planning & Execution | Stakeholder Management | Team Leadership
+Budget & Cost Management | Risk Mitigation | Agile Transformation
+Vendor Management | Process Improvement | Strategic Planning
+Communication & Presentation | Conflict Resolution | Negotiation
+Change Management | Quality Assurance | Problem Solving
+
+REFERENCES
+
+Available upon request

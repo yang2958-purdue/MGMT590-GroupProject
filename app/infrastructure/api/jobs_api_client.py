@@ -155,6 +155,135 @@ class JobsAPIClient:
                 skills=["JavaScript", "TypeScript", "React", "Node.js", "MongoDB", "REST APIs"],
                 posted_date="2024-02-08",
                 salary_range="$90,000 - $130,000"
+            ),
+            JobListing(
+                id="job_004",
+                title="Senior Business Analyst",
+                company="Global Consulting Group",
+                location="Chicago, IL",
+                employment_type="Full-time",
+                description="""We are seeking an experienced Business Analyst to bridge the gap between business needs 
+                and technology solutions. You will work with stakeholders to gather requirements, analyze business processes, 
+                and drive data-driven decision making.""",
+                requirements=[
+                    "5+ years of business analysis experience",
+                    "Strong analytical and problem-solving skills",
+                    "Experience with requirements gathering and documentation",
+                    "Proficiency in SQL and data analysis tools",
+                    "Bachelor's degree in Business, IT, or related field"
+                ],
+                preferred_qualifications=[
+                    "Experience with Agile/Scrum methodologies",
+                    "Knowledge of business intelligence tools (Tableau, Power BI)",
+                    "Project management experience",
+                    "Industry certifications (CBAP, PMI-PBA)"
+                ],
+                skills=["SQL", "Excel", "Tableau", "Power BI", "JIRA", "Requirements Analysis", "Data Analysis", "Agile"],
+                posted_date="2024-02-10",
+                salary_range="$85,000 - $120,000"
+            ),
+            JobListing(
+                id="job_005",
+                title="IT Project Manager",
+                company="Enterprise Solutions Inc",
+                location="Austin, TX",
+                employment_type="Full-time",
+                description="""Lead technology projects from initiation to completion. Manage cross-functional teams, 
+                budgets, timelines, and stakeholder expectations. Drive successful delivery of enterprise software implementations 
+                and infrastructure upgrades.""",
+                requirements=[
+                    "7+ years of project management experience in IT",
+                    "PMP or equivalent certification required",
+                    "Experience managing projects with budgets over $1M",
+                    "Strong leadership and communication skills",
+                    "Bachelor's degree in Computer Science, Business, or related field"
+                ],
+                preferred_qualifications=[
+                    "Agile/Scrum Master certification",
+                    "Experience with enterprise software implementations (ERP, CRM)",
+                    "Knowledge of SDLC and DevOps practices",
+                    "Experience in healthcare or financial services"
+                ],
+                skills=["Project Management", "Agile", "Scrum", "JIRA", "MS Project", "Risk Management", "Budget Management", "Stakeholder Management"],
+                posted_date="2024-02-12",
+                salary_range="$110,000 - $150,000"
+            ),
+            JobListing(
+                id="job_006",
+                title="Management Consultant",
+                company="Strategic Advisors LLC",
+                location="Boston, MA",
+                employment_type="Full-time",
+                description="""Join our consulting team to help clients solve complex business challenges. 
+                Conduct research, analyze data, develop strategic recommendations, and support implementation. 
+                Work across various industries including healthcare, finance, and technology.""",
+                requirements=[
+                    "3+ years of consulting or strategy experience",
+                    "MBA or equivalent advanced degree",
+                    "Strong analytical and quantitative skills",
+                    "Excellent presentation and communication abilities",
+                    "Experience with data analysis and visualization"
+                ],
+                preferred_qualifications=[
+                    "Experience at top-tier consulting firm",
+                    "Industry expertise in healthcare or finance",
+                    "Advanced Excel and PowerPoint skills",
+                    "Experience leading client engagements"
+                ],
+                skills=["Strategy", "Management Consulting", "Excel", "PowerPoint", "Data Analysis", "Financial Modeling", "Stakeholder Management", "Problem Solving"],
+                posted_date="2024-02-14",
+                salary_range="$95,000 - $140,000"
+            ),
+            JobListing(
+                id="job_007",
+                title="Business Intelligence Analyst",
+                company="DataDriven Solutions",
+                location="Seattle, WA",
+                employment_type="Full-time",
+                description="""Transform data into actionable insights. Design and build dashboards, reports, and analytics 
+                solutions. Work with business stakeholders to understand requirements and deliver self-service BI capabilities.""",
+                requirements=[
+                    "4+ years of BI/analytics experience",
+                    "Expert knowledge of SQL and database technologies",
+                    "Proficiency in Tableau, Power BI, or similar tools",
+                    "Strong understanding of data warehousing concepts",
+                    "Bachelor's degree in Computer Science, Information Systems, or related field"
+                ],
+                preferred_qualifications=[
+                    "Experience with ETL tools (Informatica, SSIS, Talend)",
+                    "Knowledge of Python or R for data analysis",
+                    "Cloud data platform experience (Snowflake, BigQuery)",
+                    "Experience with dimensional modeling"
+                ],
+                skills=["SQL", "Tableau", "Power BI", "Excel", "ETL", "Data Warehousing", "Python", "Data Visualization"],
+                posted_date="2024-02-15",
+                salary_range="$80,000 - $115,000"
+            ),
+            JobListing(
+                id="job_008",
+                title="Digital Transformation Consultant",
+                company="Innovation Partners",
+                location="Remote",
+                employment_type="Full-time",
+                description="""Help organizations navigate digital transformation initiatives. Assess current state, 
+                develop transformation roadmaps, and guide implementation of new technologies and processes. 
+                Focus on cloud adoption, automation, and digital customer experiences.""",
+                requirements=[
+                    "5+ years of consulting or transformation experience",
+                    "Understanding of cloud technologies (AWS, Azure, GCP)",
+                    "Experience with change management and organizational design",
+                    "Strong project management skills",
+                    "Bachelor's degree in Business, IT, or related field"
+                ],
+                preferred_qualifications=[
+                    "Experience with Agile transformation",
+                    "Knowledge of DevOps and CI/CD practices",
+                    "Certification in Change Management (Prosci, ADKAR)",
+                    "Experience in retail or manufacturing sectors"
+                ],
+                skills=["Digital Transformation", "Cloud", "Change Management", "Agile", "Business Process", "Strategy", "Project Management", "Stakeholder Engagement"],
+                posted_date="2024-02-16",
+                salary_range="$100,000 - $145,000"
             )
         ]
         

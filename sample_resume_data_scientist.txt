@@ -1,0 +1,96 @@
+ALEXANDRA PATEL
+Data Scientist | Machine Learning Engineer
+Email: alex.patel@datamail.com | Phone: (617) 555-9876
+LinkedIn: linkedin.com/in/alexpatel | Location: Boston, MA
+
+PROFESSIONAL SUMMARY
+
+Data Scientist with 5+ years of experience building machine learning models and delivering data-driven insights. Expert in Python, statistical analysis, and deep learning frameworks. Proven ability to translate complex data into actionable business recommendations, resulting in $5M+ in revenue impact.
+
+WORK EXPERIENCE
+
+Senior Data Scientist | Analytics Pro Inc. | Boston, MA
+July 2021 - Present
+
+• Developed predictive models improving customer retention by 35%, saving $2.3M annually
+• Built recommendation engine using collaborative filtering, increasing product sales by 28%
+• Led data science team of 4, establishing best practices for model deployment and monitoring
+• Designed and implemented real-time fraud detection system with 94% accuracy
+• Created automated ML pipeline reducing model training time from days to hours
+• Presented insights to C-level executives, influencing strategic product decisions
+
+Data Scientist | RetailTech Solutions | Remote
+June 2019 - June 2021
+
+• Developed demand forecasting models improving inventory accuracy by 42%
+• Analyzed A/B test results for 50+ product experiments, driving 15% conversion increase
+• Built customer segmentation models using K-means and hierarchical clustering
+• Created interactive Tableau dashboards used by 200+ stakeholders across organization
+• Collaborated with engineering team to deploy models to production using AWS SageMaker
+
+Junior Data Analyst | Market Research Corp | New York, NY
+May 2018 - May 2019
+
+• Conducted statistical analysis on market trends using Python and R
+• Created data visualizations and reports for client presentations
+• Automated data collection processes, reducing manual effort by 60%
+• Performed exploratory data analysis on datasets with 10M+ records
+
+TECHNICAL SKILLS
+
+Programming Languages: Python, R, SQL, Scala
+Machine Learning: Scikit-learn, TensorFlow, PyTorch, Keras, XGBoost
+Data Analysis: Pandas, NumPy, SciPy, Statsmodels
+Visualization: Matplotlib, Seaborn, Plotly, Tableau, Power BI
+Big Data: Apache Spark, Hadoop, Hive, PySpark
+Cloud Platforms: AWS (SageMaker, S3, EC2, Lambda), GCP, Azure ML
+MLOps: MLflow, Kubeflow, Docker, Kubernetes
+Databases: PostgreSQL, MySQL, MongoDB, Snowflake, Redshift
+Tools: Git, Jupyter, VS Code, DataBricks, Airflow
+
+EDUCATION
+
+Master of Science in Data Science
+Massachusetts Institute of Technology (MIT) | Cambridge, MA
+Graduated: May 2018 | GPA: 3.95/4.0
+Thesis: "Deep Learning Approaches for Time Series Forecasting"
+
+Bachelor of Science in Statistics
+University of California, Berkeley | Berkeley, CA
+Graduated: May 2016 | GPA: 3.8/4.0
+Minor: Computer Science
+
+CERTIFICATIONS
+
+AWS Certified Machine Learning - Specialty (2023)
+TensorFlow Developer Certificate (2022)
+Google Professional Data Engineer (2021)
+
+PUBLICATIONS & PRESENTATIONS
+
+• "Improving Recommendation Systems with Graph Neural Networks" - KDD 2023
+• "Practical MLOps: From Jupyter to Production" - PyData Boston 2022
+• "Ethical AI: Bias Detection in ML Models" - AI Summit 2022
+
+PROJECTS
+
+Customer Churn Prediction Model
+• Built ensemble model combining XGBoost and neural networks achieving 92% accuracy
+• Deployed to production using FastAPI and Docker, serving real-time predictions
+• Model identified at-risk customers, enabling proactive retention campaigns
+
+NLP Sentiment Analysis System
+• Developed BERT-based sentiment classifier for customer reviews (500K+ reviews)
+• Achieved 89% accuracy on multi-class sentiment classification
+• Integrated into business intelligence dashboard for real-time sentiment tracking
+
+Time Series Forecasting Dashboard
+• Created Prophet and LSTM models for sales forecasting across 50+ product categories
+• Built interactive Streamlit dashboard for business users
+• Improved forecast accuracy by 25% compared to previous statistical models
+
+AWARDS & RECOGNITION
+
+• "Data Scientist of the Year" - Analytics Pro Inc. (2023)
+• Winner, Kaggle Competition: Predict Customer Lifetime Value (Top 1%)
+• MIT Data Science Competition - 1st Place (2018)

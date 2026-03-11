@@ -56,7 +56,7 @@ class OptimizationPanel(QWidget):
         self.optimize_btn.setEnabled(False)
         self.optimize_btn.setStyleSheet("""
             QPushButton {
-                background-color: #6f42c1;
+                background-color: #9c27b0;
                 color: white;
                 padding: 15px;
                 font-size: 14px;
@@ -64,10 +64,12 @@ class OptimizationPanel(QWidget):
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #5a32a3;
+                background-color: #ba68c8;
+                color: #1e1e1e;
             }
             QPushButton:disabled {
-                background-color: #cccccc;
+                background-color: #404040;
+                color: #707070;
             }
         """)
         
@@ -85,7 +87,7 @@ class OptimizationPanel(QWidget):
         btn_layout.addStretch()
         
         self.status_label = QLabel("Load a resume and select a job to optimize")
-        self.status_label.setStyleSheet("color: gray;")
+        self.status_label.setStyleSheet("color: #909090;")
         
         # Splitter for original and optimized
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -140,7 +142,7 @@ class OptimizationPanel(QWidget):
             "Please review and verify all changes for accuracy before using the optimized resume."
         )
         disclaimer.setWordWrap(True)
-        disclaimer.setStyleSheet("color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px;")
+        disclaimer.setStyleSheet("color: #ffc107; background-color: #3a3015; padding: 10px; border-radius: 5px; border: 1px solid #ffc107;")
         
         # Add to main layout
         layout.addLayout(btn_layout)

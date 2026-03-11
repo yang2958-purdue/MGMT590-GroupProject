@@ -47,20 +47,25 @@ class ScoreCard(QWidget):
         self.score_label.setText(f"{score:.1f}")
         self.grade_label.setText(grade)
         
-        # Color coding
+        # Color coding (dark theme)
         if score >= 80:
-            color = "#28a745"  # Green
+            color = "#4caf50"  # Bright green
+            bg_color = "#1b3a1e"
         elif score >= 60:
             color = "#ffc107"  # Yellow
+            bg_color = "#3a3015"
         else:
-            color = "#dc3545"  # Red
+            color = "#f44336"  # Red
+            bg_color = "#3a1515"
         
-        self.score_label.setStyleSheet(f"color: {color};")
+        self.score_label.setStyleSheet(f"color: {color}; background-color: transparent;")
+        self.grade_label.setStyleSheet(f"color: {color}; background-color: transparent;")
+        self.title_label.setStyleSheet("color: #b0b0b0; background-color: transparent;")
         
-        # Add background
+        # Add dark theme background
         self.setStyleSheet(f"""
             ScoreCard {{
-                background-color: #f8f9fa;
+                background-color: {bg_color};
                 border: 2px solid {color};
                 border-radius: 10px;
                 padding: 10px;
