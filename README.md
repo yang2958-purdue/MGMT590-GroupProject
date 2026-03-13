@@ -1,334 +1,188 @@
-# Resume Auto-Fill Bot
+# Resume Auto-Fill Assistant - Chrome Extension
 
-A minimal, modular CLI-based tool for matching resumes to job postings using TF-IDF similarity scoring.
+> **📚 New here?** See [`INDEX.md`](INDEX.md) for a complete documentation guide  
+> **🚀 Quick Start?** Jump to [`QUICKSTART.md`](QUICKSTART.md) for 3-minute setup  
+> **🌐 Using Edge?** See [`EDGE_INSTALLATION.md`](EDGE_INSTALLATION.md) for Microsoft Edge setup
 
-## Overview
+A Chrome extension that intelligently parses your resume and automatically fills out online forms with your information.
 
-This lightweight command-line application helps job seekers identify the best-matching job postings for their resume. It uses machine learning (TF-IDF vectorization and cosine similarity) to rank job opportunities and generate tailored resume summaries.
+**✅ Works on:** Chrome, Microsoft Edge, Brave, and all Chromium-based browsers!
 
 ## Features
 
-- **Resume Input**: Upload from file (.txt, .pdf, .docx) or paste text directly
-- **Visual File Browser**: Native file picker dialog for easy file selection
-- **Multi-Format Support**: Handles TXT, PDF, and Word documents
-- **Multi-Company Search**: Search across multiple companies simultaneously
-- **Intelligent Matching**: TF-IDF-based similarity scoring with difflib fallback
-- **Ranked Results**: Jobs sorted by relevance to your resume
-- **Tailored Exports**: Generate customized resume summaries for specific jobs
-- **Interactive CLI**: User-friendly menu-driven interface
-- **Modular Design**: Clean separation of concerns for easy extension
+- 📄 **Resume Upload & Parsing**: Upload PDF or DOCX resume files - automatically extracts name, email, phone, and more
+- 🤖 **Intelligent Auto-Fill**: Automatically fills form fields with appropriate resume data based on field labels
+- 🔍 **Form Detection**: Detects all form fields on a page including text inputs, dropdowns, checkboxes, and radio buttons
+- ⌨️ **Keyboard Toggle**: Press Ctrl+Shift+Z to activate auto-fill mode
+- 📊 **Field Counter**: Shows the number of detected form fields and auto-fill status
+- 🎨 **Modern UI**: Beautiful side panel interface with real-time status updates and parsed data display
 
-## Technology Stack
+## Installation Instructions
 
-- **Language**: Python 3.8+
-- **ML/NLP**: scikit-learn (TF-IDF), difflib
-- **Data Processing**: numpy
-- **Document Parsing**: PyPDF2 (PDF), python-docx (Word)
-- **GUI**: tkinter (built-in file browser)
-- **Web Scraping Ready**: requests, beautifulsoup4 (for future real scraping)
+### Step 1: Generate Icon Files (Optional but Recommended)
 
-## Project Structure
+The project includes SVG icons, but Chrome works best with PNG format:
+
+**Option A - Browser Method (Easiest):**
+1. Open `generate-icons.html` in your web browser
+2. Three PNG files will automatically download
+3. Save them in the project directory
+
+**Option B - Use SVG files:**
+- SVG icons are already included (`icon16.svg`, `icon48.svg`, `icon128.svg`)
+- Chrome may show warnings but will still work
+- To use SVG, no action needed - they're already referenced in `manifest.json`
+
+### Step 2: Verify Files
+
+Make sure you have all the following files in your project directory:
+- `manifest.json`
+- `sidepanel.html`
+- `sidepanel.js`
+- `content.js`
+- `background.js`
+- `icon16.svg/png`, `icon48.svg/png`, `icon128.svg/png` (icons)
+
+### Step 3: Load Extension in Chrome
+
+1. Open Google Chrome browser
+2. Navigate to `chrome://extensions/`
+3. Enable **Developer mode** by toggling the switch in the top-right corner
+4. Click the **Load unpacked** button
+5. Select the project directory folder: `C:\DEVOPS FOLDER\MGMT590-GroupProject`
+6. The extension should now appear in your extensions list
+
+### Step 4: Open the Side Panel
+
+1. Click on the extension icon in your Chrome toolbar
+2. The side panel will open on the left side of your screen
+3. You're now ready to use the extension!
+
+## How to Use
+
+### Step 1: Upload Your PDF Resume
+
+1. Open the side panel by clicking the extension icon
+2. In the "Upload Resume" section:
+   - **Recommended**: Upload your actual PDF resume
+   - **Option A**: Click the upload area and select your PDF file
+   - **Option B**: Drag and drop your PDF resume directly onto the upload area
+3. The extension will automatically parse your PDF and extract key information:
+   - Full name, first name, last name
+   - Email address
+   - Phone number
+   - Additional data (address, education, skills)
+4. **Check the Console** (Press F12) to see detailed parsing logs
+5. Extracted data will be displayed in the side panel
+6. Click "Clear Resume" to remove the uploaded file
+
+**📕 PDF Resume Tips:**
+- Use text-based PDFs (not scanned images)
+- Ensure your name is at the top
+- Use standard contact info format
+- See [`PDF_RESUME_GUIDE.md`](PDF_RESUME_GUIDE.md) for detailed PDF guidance
+
+### Step 2: Auto-Fill Online Forms
+
+1. Navigate to any web page with a form (job applications, surveys, etc.)
+2. The extension automatically scans and detects all form fields
+3. The side panel displays:
+   - **Total fields detected** on the page
+   - Breakdown by field type (text, dropdown, checkbox, radio)
+   - Number of fields already filled
+4. Press **Ctrl+Shift+Z** to activate auto-fill mode
+5. The extension will:
+   - Move through each form field sequentially
+   - Automatically fill text fields with matching resume data
+   - Highlight fields as they are processed (blue = focused, green = auto-filled)
+   - Interact with dropdowns, checkboxes, and radio buttons
+6. Press **Ctrl+Shift+Z** again to deactivate auto-fill mode
+
+### Smart Field Mapping
+
+The extension intelligently maps your resume data to form fields based on field labels:
+
+- **"First Name"** → Your first name from resume
+- **"Last Name"** → Your last name from resume  
+- **"Email"** → Your email address from resume
+- **"Phone"** / **"Mobile"** → Your phone number from resume
+- **"Name"** → Your full name from resume
+- And more...
+
+## Technical Details
+
+### Files Structure
 
 ```
 MGMT590-GroupProject/
-├── main.py              # CLI application entry point
-├── resume_parser.py     # Resume input and validation
-├── job_search.py        # Job search (currently mock data)
-├── similarity.py        # TF-IDF similarity computation
-├── exporter.py          # Tailored resume export
-├── utils.py             # Helper functions
-├── requirements.txt     # Python dependencies
-├── README.md           # This file
-└── PROMPTS.md          # Project prompts log
+├── manifest.json          # Chrome extension configuration
+├── sidepanel.html         # Side panel UI
+├── sidepanel.js           # Side panel functionality & resume parsing
+├── content.js             # Form detection & auto-fill logic
+├── resume-parser.js       # Resume data extraction module
+├── background.js          # Background service worker
+├── icon16.png            # Extension icon (16x16)
+├── icon48.png            # Extension icon (48x48)
+├── icon128.png           # Extension icon (128x128)
+├── README.md             # This file
+└── PROMPTS.md            # Project prompts log
 ```
 
-## Installation
+### Permissions
 
-### Prerequisites
+The extension requires the following permissions:
+- `activeTab`: To interact with the current tab
+- `storage`: To save uploaded resume files
+- `sidePanel`: To display the side panel UI
+- `<all_urls>`: To run cursor control on all web pages
 
-- Python 3.8 or higher
-- pip (Python package manager)
+### Cursor Movement Pattern
 
-### Setup
-
-1. **Clone or download the repository**
-
-```bash
-cd "C:\DEVOPS FOLDER\MGMT590-GroupProject"
-```
-
-2. **Create a virtual environment (recommended)**
-
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-3. **Install dependencies**
-
-```bash
-pip install -r requirements.txt
-```
-
-## Running the Application
-
-### Start the CLI
-
-```bash
-python main.py
-```
-
-### Basic Workflow
-
-1. **Upload Resume** (Option 1)
-   - Choose to load from file or paste text
-   - File path example: `C:\Users\YourName\Documents\resume.txt`
-   - Or paste your resume text directly
-
-2. **Enter Target Companies** (Option 2)
-   - Enter comma-separated company names
-   - Example: `Google, Microsoft, Apple, Amazon`
-
-3. **Enter Desired Role** (Option 3)
-   - Specify the job title you're seeking
-   - Example: `Software Engineer Intern`
-
-4. **Run Job Search** (Option 4)
-   - Searches for jobs at specified companies
-   - Computes similarity scores automatically
-   - Currently uses mock data (easily swappable for real APIs)
-
-5. **View Ranked Results** (Option 5)
-   - See jobs sorted by match score
-   - View detailed information for any job
-
-6. **Export Tailored Resume** (Option 6)
-   - Generate customized resume summaries
-   - Export for single job or multiple top matches
-   - Creates comparison reports
-
-7. **View Session Info** (Option 7)
-   - Check current session state
-   - Verify loaded resume, companies, and role
-
-8. **Clear Session** (Option 8)
-   - Start over with fresh data
-
-9. **Exit** (Option 9)
-   - Safely exit the application
-
-## Usage Examples
-
-### Example 1: Quick Job Search
-
-```
-1. Select Option 1 → Option 1 → Browse and select your resume file
-   (OR Option 2 → Enter path like: C:\path\to\resume.txt)
-2. Select Option 2 → Enter: Google, Microsoft, Apple
-3. Select Option 3 → Enter: Software Engineer Intern
-4. Select Option 4 → Wait for search and ranking
-5. Select Option 5 → Review ranked results
-6. Select Option 6 → Option 1 → Enter job number → Export
-```
-
-### Example 2: Pasting Resume Directly
-
-```
-1. Select Option 1 → Option 2 → Paste your resume text
-2. Press Ctrl+Z then Enter (Windows) or Ctrl+D (macOS/Linux)
-3. Continue with Options 2-6 as above
-```
-
-## Features in Detail
-
-### Resume Parser
-
-- **File Browser**: Visual file selection dialog (Windows-friendly!)
-- **Multiple Formats**: Supports TXT, PDF (.pdf), and Word (.docx) documents
-- **Automatic Format Detection**: Intelligently handles different file types
-- **Multiple Input Methods**: Browse files, enter path, or paste text
-- **Validation**: Ensures resume meets minimum requirements (100+ characters)
-- **Normalization**: Cleans whitespace and formatting
-- **Sanitization**: Enforces length limits and removes problematic characters
-- **Preview**: Shows resume preview for verification
-
-### Job Search
-
-- **Mock Data**: Currently provides realistic job descriptions
-- **Extensible**: Designed to swap in real scraping or API calls
-- **Error Handling**: Gracefully handles search failures
-- **Categorization**: Automatically categorizes roles (intern, engineer, data scientist, etc.)
-
-### Similarity Scoring
-
-- **TF-IDF Vectorization**: Industry-standard text similarity
-- **Cosine Similarity**: Measures document similarity (0-1 scale)
-- **Automatic Fallback**: Uses difflib if TF-IDF fails
-- **Keyword Extraction**: Identifies overlapping skills and terms
-
-### Export Features
-
-- **Tailored Summaries**: Highlights matching keywords and skills
-- **Recommendations**: Provides actionable resume improvement tips
-- **Batch Export**: Export for multiple top jobs at once
-- **Comparison Reports**: Overview of all job matches with scores
-- **Timestamped Files**: Prevents overwriting previous exports
-
-## Error Handling
-
-The application includes comprehensive error handling:
-
-- **File Errors**: Clear messages for missing/inaccessible files
-- **Input Validation**: Prompts for valid input on errors
-- **Search Failures**: Continues operation even if individual searches fail
-- **No Stack Traces**: User-friendly error messages only
-- **Graceful Degradation**: Fallback mechanisms for critical operations
-
-## Extending the Application
-
-### Adding Real Job Scraping
-
-Replace the mock implementation in `job_search.py`:
-
-```python
-def search_jobs(company_name: str, role: str) -> List[Dict[str, str]]:
-    # Implement actual web scraping here
-    # Example: Use requests + BeautifulSoup
-    # Return list of job dictionaries
-    pass
-```
-
-### Adding New Similarity Metrics
-
-Extend `similarity.py` to add custom scoring:
-
-```python
-def compute_similarity_custom(resume_text, job_descriptions):
-    # Implement your similarity metric
-    return scores
-```
-
-### Customizing Export Format
-
-Modify `exporter.py` to change output format:
-
-```python
-def generate_tailored_summary(resume_text, job):
-    # Customize the export format
-    # Add new sections or modify existing ones
-    pass
-```
-
-## Limitations and Future Enhancements
-
-### Current Limitations
-
-- Mock job search data (not real job postings)
-- Text file resume input only (no PDF/DOCX parsing)
-- No application tracking
-- No login/authentication system
-- No database persistence
-
-### Potential Enhancements
-
-- Real job scraping from Indeed, LinkedIn, Glassdoor
-- PDF/DOCX resume parsing
-- Multiple resume support
-- Application tracking system
-- Email notifications
-- Web interface option
-- Database for history tracking
-- API for programmatic access
+- **Movement Type**: Circular
+- **Radius**: 100 pixels from center
+- **Speed**: Adjustable rotation speed
+- **Center Point**: Middle of the viewport
 
 ## Troubleshooting
 
-### Common Issues
+### Extension Not Loading
+- Make sure Developer mode is enabled in `chrome://extensions/`
+- Verify all required files are in the project directory
+- Check the Chrome console for any error messages
 
-**"Module not found" errors:**
-```bash
-# Ensure virtual environment is activated and dependencies installed
-pip install -r requirements.txt
-```
+### Cursor Control Not Working
+- Ensure you're pressing Ctrl+Shift+Z (all three keys together)
+- Check that the content script is loaded (look for console message)
+- Refresh the web page and try again
 
-**File not found when loading resume:**
-- Use absolute path: `C:\Users\YourName\Documents\resume.txt`
-- Or navigate to project directory first
-
-**No jobs found:**
-- This is expected with mock data
-- Try different role keywords (intern, engineer, scientist, devops, frontend)
-
-**Low similarity scores:**
-- Ensure resume contains technical keywords
-- Try different job roles that match your background
-- Mock data may not perfectly align with all resumes
-
-**Export file not found:**
-- Check current directory for exported files
-- Look for files starting with `tailored_resume_`
+### Side Panel Not Opening
+- Click the extension icon in the toolbar
+- Make sure the extension is enabled in `chrome://extensions/`
+- Try reloading the extension
 
 ## Development
 
-### Code Quality
+This extension uses:
+- **Manifest V3**: Latest Chrome extension format
+- **HTML/CSS/JavaScript**: No external frameworks required
+- **Chrome Storage API**: For resume file persistence
+- **Chrome Side Panel API**: For the UI interface
 
-- **Type Hints**: All functions include type annotations
-- **Documentation**: Comprehensive docstrings
-- **Modular**: Clean separation of concerns
-- **Testable**: Functions designed for easy testing
-- **Comments**: Clear explanations throughout
+## Future Enhancements
 
-### Testing
-
-To add unit tests (pytest):
-
-```bash
-pip install pytest
-pytest
-```
-
-### Code Style
-
-Follow PEP 8 guidelines:
-
-```bash
-pip install black flake8
-black .
-flake8 .
-```
-
-## Contributing
-
-This is a minimal, educational project. Contributions welcome:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes with clear comments
-4. Test thoroughly
-5. Submit pull request
+Potential features to add:
+- Parse resume data (name, email, skills, etc.)
+- Auto-fill form fields on job application pages
+- Multiple movement patterns (linear, random, etc.)
+- Customizable keyboard shortcuts
+- Export/import resume data
 
 ## License
 
-This project is for educational purposes. Modify and use as needed.
-
-## Support
-
-For issues or questions:
-- Review this README
-- Check code comments
-- Examine PROMPTS.md for project requirements
-
-## Acknowledgments
-
-Built with:
-- **scikit-learn** for machine learning capabilities
-- **numpy** for numerical operations
-- **Python** for excellent standard library support
+This project is for educational purposes as part of MGMT590 Group Project.
 
 ---
 
-**Note**: This is a minimal, modular implementation designed for clarity and extensibility. It prioritizes clean code and educational value over feature completeness.
+**Created**: March 13, 2026
+**Version**: 1.0.0
+

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <h2>Generating Icons...</h2>
+    <canvas id="canvas16" width="16" height="16" style="display:none;"></canvas>
+    <canvas id="canvas48" width="48" height="48" style="display:none;"></canvas>
+    <canvas id="canvas128" width="128" height="128" style="display:none;"></canvas>
+    
+    <script>
+        function generateIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // White border
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = size / 16;
+            ctx.strokeRect(size/16, size/16, size - size/8, size - size/8);
+            
+            // Draw "R" letter
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('R', size/2, size/2);
+            
+            return canvas.toDataURL('image/png');
+        }
+        
+        // Generate all icons
+        const icon16 = generateIcon('canvas16', 16);
+        const icon48 = generateIcon('canvas48', 48);
+        const icon128 = generateIcon('canvas128', 128);
+        
+        document.body.innerHTML += '<h3>Right-click each image and save:</h3>';
+        document.body.innerHTML += '<div><p>icon16.png:</p><img src="' + icon16 + '" style="border:1px solid #ccc; image-rendering: pixelated; width: 64px; height: 64px;"></div>';
+        document.body.innerHTML += '<div><p>icon48.png:</p><img src="' + icon48 + '" style="border:1px solid #ccc; image-rendering: pixelated; width: 96px; height: 96px;"></div>';
+        document.body.innerHTML += '<div><p>icon128.png:</p><img src="' + icon128 + '" style="border:1px solid #ccc;"></div>';
+        
+        // Auto-download
+        function downloadIcon(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataUrl;
+            link.click();
+        }
+        
+        setTimeout(() => {
+            downloadIcon(icon16, 'icon16.png');
+            setTimeout(() => downloadIcon(icon48, 'icon48.png'), 100);
+            setTimeout(() => downloadIcon(icon128, 'icon128.png'), 200);
+        }, 500);
+    </script>
+</body>
+</html>
+
