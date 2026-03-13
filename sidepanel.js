@@ -80,6 +80,8 @@ clearButton.addEventListener('click', () => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'cursorStatusUpdate') {
         updateCursorStatus(message.isActive);
+    } else if (message.type === 'keyPressDebug') {
+        updateLastKeyPress(message.keyInfo);
     }
 });
 
@@ -93,6 +95,29 @@ function updateCursorStatus(isActive) {
         cursorStatus.textContent = 'OFF';
         cursorStatus.classList.remove('status-on');
         cursorStatus.classList.add('status-off');
+    }
+}
+
+// Update last key press display
+function updateLastKeyPress(keyInfo) {
+    const lastKeyPress = document.getElementById('lastKeyPress');
+    if (lastKeyPress) {
+        const keyCombo = [];
+        if (keyInfo.ctrlKey) keyCombo.push('Ctrl');
+        if (keyInfo.shiftKey) keyCombo.push('Shift');
+        if (keyInfo.altKey) keyCombo.push('Alt');
+        keyCombo.push(keyInfo.key);
+        
+        lastKeyPress.textContent = keyCombo.join('+');
+        lastKeyPress.style.background = '#e3f2fd';
+        lastKeyPress.style.color = '#1565c0';
+        
+        // Highlight briefly if it's the correct combination
+        if (keyInfo.ctrlKey && keyInfo.shiftKey && (keyInfo.key === 'Z' || keyInfo.key === 'z')) {
+            lastKeyPress.style.background = '#e8f5e9';
+            lastKeyPress.style.color = '#2e7d32';
+            lastKeyPress.textContent = '✅ Ctrl+Shift+Z';
+        }
     }
 }
 

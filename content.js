@@ -1,15 +1,141 @@
-// Content script for cursor control
+// Content script for cursor control and form field detection
 let cursorControlActive = false;
 let animationId = null;
 let cursorElement = null;
-let angle = 0;
-const radius = 100; // Radius of the circle in pixels
-const speed = 0.05; // Speed of rotation
-let centerX = window.innerWidth / 2;
-let centerY = window.innerHeight / 2;
+let detectedFields = [];
+let currentFieldIndex = 0;
+const speed = 2; // Speed of movement between fields (seconds per field)
+let fieldInteractionInterval = null;
 
-// Create custom cursor element
-function createCursor() {
+// Detect all form fields on the page
+function detectFormFields() {
+    detectedFields = [];
+    
+    // Text inputs
+    const textInputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="url"], input:not([type])');
+    textInputs.forEach(input => {
+        if (isVisible(input)) {
+            detectedFields.push({
+                element: input,
+                type: 'text',
+                label: getFieldLabel(input),
+                filled: input.value.length > 0
+            });
+        }
+    });
+    
+    // Textareas
+    const textareas = document.querySelectorAll('textarea');
+    textareas.forEach(textarea => {
+        if (isVisible(textarea)) {
+            detectedFields.push({
+                element: textarea,
+                type: 'textarea',
+                label: getFieldLabel(textarea),
+                filled: textarea.value.length > 0
+            });
+        }
+    });
+    
+    // Dropdowns/Select elements
+    const selects = document.querySelectorAll('select');
+    selects.forEach(select => {
+        if (isVisible(select)) {
+            detectedFields.push({
+                element: select,
+                type: 'dropdown',
+                label: getFieldLabel(select),
+                filled: select.selectedIndex > 0
+            });
+        }
+    });
+    
+    // Radio buttons (group them)
+    const radioGroups = {};
+    const radios = document.querySelectorAll('input[type="radio"]');
+    radios.forEach(radio => {
+        if (isVisible(radio)) {
+            const name = radio.name || 'unnamed';
+            if (!radioGroups[name]) {
+                radioGroups[name] = {
+                    elements: [],
+                    label: getFieldLabel(radio),
+                    checked: false
+                };
+            }
+            radioGroups[name].elements.push(radio);
+            if (radio.checked) radioGroups[name].checked = true;
+        }
+    });
+    
+    Object.values(radioGroups).forEach(group => {
+        if (group.elements.length > 0) {
+            detectedFields.push({
+                element: group.elements[0],
+                type: 'radio',
+                label: group.label,
+                filled: group.checked,
+                group: group.elements
+            });
+        }
+    });
+    
+    // Checkboxes
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        if (isVisible(checkbox)) {
+            detectedFields.push({
+                element: checkbox,
+                type: 'checkbox',
+                label: getFieldLabel(checkbox),
+                filled: checkbox.checked
+            });
+        }
+    });
+    
+    console.log(`✅ Detected ${detectedFields.length} form fields on page`);
+    
+    // Notify side panel
+    notifyFieldCount(detectedFields.length);
+    
+    return detectedFields;
+}
+
+// Check if element is visible
+function isVisible(element) {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    
+    return rect.width > 0 
+        && rect.height > 0 
+        && style.display !== 'none' 
+        && style.visibility !== 'hidden'
+        && style.opacity !== '0';
+}
+
+// Get label for form field
+function getFieldLabel(element) {
+    // Try to find associated label
+    if (element.id) {
+        const label = document.querySelector(`label[for="${element.id}"]`);
+        if (label) return label.textContent.trim();
+    }
+    
+    // Try parent label
+    const parentLabel = element.closest('label');
+    if (parentLabel) return parentLabel.textContent.trim();
+    
+    // Try placeholder
+    if (element.placeholder) return element.placeholder;
+    
+    // Try name attribute
+    if (element.name) return element.name.replace(/[_-]/g, ' ');
+    
+    // Try aria-label
+    if (element.getAttribute('aria-label')) return element.getAttribute('aria-label');
+    
+    return 'Unknown field';
+}
     cursorElement = document.createElement('div');
     cursorElement.id = 'resume-assistant-cursor';
     cursorElement.style.cssText = `
@@ -28,8 +154,29 @@ function createCursor() {
     document.body.appendChild(cursorElement);
 }
 
-// Move cursor in a circle
-function moveCursorInCircle() {
+// Notify side panel of field count
+function notifyFieldCount(count) {
+    try {
+        chrome.runtime.sendMessage({
+            type: 'fieldCountUpdate',
+            count: count,
+            fields: detectedFields.map(f => ({
+                type: f.type,
+                label: f.label,
+                filled: f.filled
+            }))
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                // Side panel not open, that's OK
+            }
+        });
+    } catch (error) {
+        // Silently fail if side panel isn't available
+    }
+}
+
+// Create custom cursor element
+function createCursor() {
     if (!cursorControlActive) return;
     
     // Calculate position on circle
@@ -72,23 +219,13 @@ function startCursorControl() {
     
     cursorControlActive = true;
     
-    // Reset center to current viewport center
-    centerX = window.innerWidth / 2;
-    centerY = window.innerHeight / 2;
-    angle = 0;
-    
-    // Create cursor element if it doesn't exist
-    if (!cursorElement) {
-        createCursor();
-    }
-    
-    // Start animation
-    moveCursorInCircle();
+    // Start field interaction instead of circular motion
+    startFieldInteraction();
     
     // Notify side panel
     notifySidePanel();
     
-    console.log('Cursor control activated');
+    console.log('Cursor control activated - scanning for form fields');
 }
 
 // Stop cursor control
@@ -97,16 +234,8 @@ function stopCursorControl() {
     
     cursorControlActive = false;
     
-    // Cancel animation
-    if (animationId) {
-        cancelAnimationFrame(animationId);
-        animationId = null;
-    }
-    
-    // Hide cursor element
-    if (cursorElement) {
-        cursorElement.style.display = 'none';
-    }
+    // Stop field interaction
+    stopFieldInteraction();
     
     // Notify side panel
     notifySidePanel();
@@ -125,16 +254,59 @@ function toggleCursorControl() {
 
 // Notify side panel of status change
 function notifySidePanel() {
-    chrome.runtime.sendMessage({
-        type: 'cursorStatusUpdate',
-        isActive: cursorControlActive
-    });
+    try {
+        chrome.runtime.sendMessage({
+            type: 'cursorStatusUpdate',
+            isActive: cursorControlActive
+        }, (response) => {
+            // Ignore errors if side panel isn't open
+            if (chrome.runtime.lastError) {
+                // Side panel not open, that's OK
+            }
+        });
+    } catch (error) {
+        // Silently fail if side panel isn't available
+    }
+}
+
+// Send key press info to side panel for debugging
+function notifyKeyPress(keyInfo) {
+    try {
+        chrome.runtime.sendMessage({
+            type: 'keyPressDebug',
+            keyInfo: keyInfo
+        }, (response) => {
+            // Ignore errors if side panel isn't open
+            if (chrome.runtime.lastError) {
+                // Side panel not open, that's OK
+            }
+        });
+    } catch (error) {
+        // Silently fail if side panel isn't available
+    }
 }
 
 // Listen for keyboard events
 document.addEventListener('keydown', (e) => {
+    // Debug: Log all key presses with modifier keys
+    if (e.ctrlKey || e.shiftKey || e.altKey) {
+        const keyInfo = {
+            key: e.key,
+            keyCode: e.keyCode,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey
+        };
+        
+        console.log('Key pressed:', keyInfo);
+        
+        // Send to side panel for visual feedback
+        notifyKeyPress(keyInfo);
+    }
+    
     // Ctrl+Shift+Z combination
     if (e.ctrlKey && e.shiftKey && (e.key === 'Z' || e.key === 'z' || e.keyCode === 90)) {
+        console.log('✅ Ctrl+Shift+Z detected! Toggling cursor control...');
         e.preventDefault(); // Prevent any default browser behavior
         toggleCursorControl();
     }
@@ -148,12 +320,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
-// Handle window resize
-window.addEventListener('resize', () => {
-    centerX = window.innerWidth / 2;
-    centerY = window.innerHeight / 2;
-});
-
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
     stopCursorControl();
@@ -162,5 +328,53 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-console.log('Resume Assistant content script loaded. Press Ctrl+Shift+Z to toggle cursor control.');
+// Detect browser for compatibility
+function detectBrowser() {
+    const userAgent = navigator.userAgent;
+    if (userAgent.indexOf("Edg") > -1) {
+        return "Edge";
+    } else if (userAgent.indexOf("Chrome") > -1) {
+        return "Chrome";
+    } else if (userAgent.indexOf("Chromium") > -1) {
+        return "Chromium";
+    }
+    return "Unknown";
+}
+
+const browserName = detectBrowser();
+console.log(`🌐 Browser detected: ${browserName}`);
+
+// Add CSS for field highlighting
+const style = document.createElement('style');
+style.textContent = `
+    .resume-assistant-highlight {
+        outline: 3px solid #667eea !important;
+        outline-offset: 2px !important;
+        background-color: #f0f4ff !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 0 20px rgba(102, 126, 234, 0.5) !important;
+    }
+`;
+document.head.appendChild(style);
+
+// Scan for fields when page loads
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        detectFormFields();
+    }, 1000);
+});
+
+// Re-scan if DOM changes significantly
+const observer = new MutationObserver(() => {
+    if (!cursorControlActive) {
+        detectFormFields();
+    }
+});
+
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+console.log(`Resume Assistant content script loaded. Press Ctrl+Shift+Z to toggle cursor control. (Running on ${browserName})`);
 
