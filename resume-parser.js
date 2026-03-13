@@ -345,11 +345,9 @@ var ResumeParser = (function() {
         reader.readAsArrayBuffer(file);
     }
     
-    // Improved PDF text extraction
+    // Enhanced PDF text extraction for real-world PDFs
     function extractTextFromPDF(arrayBuffer) {
         var uint8Array = new Uint8Array(arrayBuffer);
-        var text = '';
-        var inTextObject = false;
         var buffer = '';
         
         // Convert to string
@@ -360,30 +358,93 @@ var ResumeParser = (function() {
         
         console.log('📄 PDF buffer size:', buffer.length);
         
-        // Try to extract text between PDF text objects (BT...ET)
-        var textObjects = buffer.match(/\(([^)]+)\)/g);
-        if (textObjects && textObjects.length > 0) {
-            console.log('📝 Found ' + textObjects.length + ' text objects in PDF');
-            for (var i = 0; i < textObjects.length; i++) {
-                var textContent = textObjects[i].replace(/[()]/g, '');
-                // Only keep printable ASCII
-                textContent = textContent.replace(/[^\x20-\x7E]/g, ' ');
-                if (textContent.trim().length > 0) {
-                    text += textContent + ' ';
+        var extractedText = '';
+        
+        // Method 1: Extract text between parentheses (standard PDF text objects)
+        var textInParentheses = buffer.match(/\(([^)]+)\)/g);
+        if (textInParentheses && textInParentheses.length > 0) {
+            console.log('📝 Method 1: Found ' + textInParentheses.length + ' text objects');
+            for (var i = 0; i < textInParentheses.length; i++) {
+                var text = textInParentheses[i].replace(/[()]/g, '');
+                // Decode common PDF escape sequences
+                text = text.replace(/\\n/g, '\n');
+                text = text.replace(/\\r/g, '\n');
+                text = text.replace(/\\t/g, ' ');
+                text = text.replace(/\\\\/g, '\\');
+                // Only keep printable characters
+                text = text.replace(/[^\x20-\x7E\n]/g, ' ');
+                if (text.trim().length > 0) {
+                    extractedText += text + ' ';
                 }
             }
-        } else {
-            // Fallback: try to extract any readable text
-            console.log('⚠️ No text objects found, trying fallback extraction');
-            var cleaned = buffer.replace(/[^\x20-\x7E\n]/g, ' ');
-            text = cleaned;
         }
         
-        // Clean up
-        text = text.replace(/\s+/g, ' ').trim();
-        console.log('📝 Extracted text length:', text.length);
+        // Method 2: Extract text between angle brackets (hex encoded text)
+        var textInBrackets = buffer.match(/<([^>]+)>/g);
+        if (textInBrackets && textInBrackets.length > 0) {
+            console.log('📝 Method 2: Found ' + textInBrackets.length + ' hex-encoded text objects');
+            for (var i = 0; i < textInBrackets.length; i++) {
+                var hex = textInBrackets[i].replace(/[<>]/g, '');
+                // Try to decode hex pairs
+                if (hex.length > 2 && hex.length % 2 === 0) {
+                    var decoded = '';
+                    for (var j = 0; j < hex.length; j += 2) {
+                        var byte = parseInt(hex.substr(j, 2), 16);
+                        if (byte >= 32 && byte <= 126) {
+                            decoded += String.fromCharCode(byte);
+                        }
+                    }
+                    if (decoded.trim().length > 0) {
+                        extractedText += decoded + ' ';
+                    }
+                }
+            }
+        }
         
-        return text;
+        // Method 3: Extract text from stream objects
+        var streamPattern = /stream\s+([\s\S]+?)\s+endstream/g;
+        var streams = buffer.match(streamPattern);
+        if (streams && streams.length > 0) {
+            console.log('📝 Method 3: Found ' + streams.length + ' stream objects');
+            for (var i = 0; i < streams.length; i++) {
+                var streamContent = streams[i].replace(/stream\s+/, '').replace(/\s+endstream/, '');
+                // Extract readable text from stream
+                var readable = streamContent.match(/[A-Za-z0-9@.\-_\s,()]+/g);
+                if (readable) {
+                    for (var j = 0; j < readable.length; j++) {
+                        var text = readable[j].trim();
+                        if (text.length > 2) {
+                            extractedText += text + ' ';
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Clean up extracted text
+        extractedText = extractedText.replace(/\s+/g, ' ').trim();
+        
+        console.log('📝 Total extracted text length:', extractedText.length);
+        console.log('📝 First 300 chars:', extractedText.substring(0, 300));
+        
+        // If we got very little text, try a more aggressive extraction
+        if (extractedText.length < 100) {
+            console.log('⚠️ Low extraction yield, trying aggressive method...');
+            var aggressive = buffer.replace(/[^\x20-\x7E\n]/g, ' ');
+            // Remove PDF commands and operators
+            aggressive = aggressive.replace(/\b(obj|endobj|stream|endstream|xref|trailer|startxref)\b/g, '');
+            aggressive = aggressive.replace(/\/[A-Za-z]+(\[[^\]]*\])?/g, '');
+            aggressive = aggressive.replace(/\d+\s+\d+\s+obj/g, '');
+            aggressive = aggressive.replace(/<<[^>]*>>/g, '');
+            aggressive = aggressive.replace(/\s+/g, ' ').trim();
+            
+            if (aggressive.length > extractedText.length) {
+                console.log('✅ Aggressive method found more text:', aggressive.length, 'chars');
+                extractedText = aggressive;
+            }
+        }
+        
+        return extractedText;
     }
     
     // Parse DOCX file

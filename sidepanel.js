@@ -66,7 +66,23 @@ function handleFile(file) {
 
 // Parse resume and extract data
 function parseResume(file, fileData) {
-    // Read file as text for parsing
+    const fileType = file.type || '';
+    const fileName_lower = file.name.toLowerCase();
+    
+    console.log('📄 Parsing file:', file.name, 'Type:', fileType);
+    
+    // Handle PDF files specially
+    if (fileType === 'application/pdf' || fileName_lower.endsWith('.pdf')) {
+        console.log('📕 Detected PDF file, using enhanced extraction...');
+        parsePDFFile(file, fileData);
+    } else {
+        // Handle text-based files (TXT, DOCX, etc.)
+        parseTextFile(file, fileData);
+    }
+}
+
+// Parse text-based files
+function parseTextFile(file, fileData) {
     const textReader = new FileReader();
     textReader.onload = function(e) {
         const text = e.target.result;
@@ -97,6 +113,143 @@ function parseResume(file, fileData) {
         });
     };
     textReader.readAsText(file);
+}
+
+// Parse PDF files with enhanced extraction
+function parsePDFFile(file, fileData) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        
+        console.log('📕 PDF file loaded, size:', arrayBuffer.byteLength, 'bytes');
+        
+        // Extract text from PDF
+        const text = extractTextFromPDFSimple(arrayBuffer);
+        
+        console.log('📝 Extracted text length:', text.length);
+        console.log('📝 First 300 chars:', text.substring(0, 300));
+        
+        if (text.length < 50) {
+            console.error('⚠️ PDF extraction yielded very little text');
+            const resumeData = {
+                personal: {
+                    firstName: '',
+                    lastName: '',
+                    fullName: '',
+                    email: '',
+                    phone: ''
+                },
+                education: [],
+                skills: [],
+                error: 'Could not extract enough text from PDF. This might be a scanned/image PDF. For best results, use a text-based PDF or export as TXT.'
+            };
+            
+            fileName.textContent = `📄 ${file.name} ⚠️`;
+            displayParsedData(resumeData);
+            
+            // Still store the file
+            chrome.storage.local.set({ 
+                resumeFile: fileData,
+                resumeData: resumeData
+            });
+            return;
+        }
+        
+        // Parse the extracted text
+        const resumeData = parseResumeTextSimple(text);
+        
+        // Store both file data and parsed resume data
+        chrome.storage.local.set({ 
+            resumeFile: fileData,
+            resumeData: resumeData
+        }, () => {
+            console.log('PDF Resume saved and parsed:', resumeData);
+            fileName.textContent = `📄 ${file.name} ✅`;
+            
+            // Show parsed data
+            displayParsedData(resumeData);
+            
+            // Send to content script
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        type: 'resumeDataParsed',
+                        data: resumeData
+                    });
+                }
+            });
+        });
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// Simple PDF text extraction (mirrors resume-parser.js)
+function extractTextFromPDFSimple(arrayBuffer) {
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let buffer = '';
+    
+    // Convert to string
+    for (let i = 0; i < uint8Array.length; i++) {
+        buffer += String.fromCharCode(uint8Array[i]);
+    }
+    
+    let extractedText = '';
+    
+    // Method 1: Extract text between parentheses
+    const textInParentheses = buffer.match(/\(([^)]+)\)/g);
+    if (textInParentheses && textInParentheses.length > 0) {
+        console.log('📝 Found ' + textInParentheses.length + ' text objects in PDF');
+        for (let i = 0; i < textInParentheses.length; i++) {
+            let text = textInParentheses[i].replace(/[()]/g, '');
+            text = text.replace(/\\n/g, '\n');
+            text = text.replace(/\\r/g, '\n');
+            text = text.replace(/\\t/g, ' ');
+            text = text.replace(/[^\x20-\x7E\n]/g, ' ');
+            if (text.trim().length > 0) {
+                extractedText += text + ' ';
+            }
+        }
+    }
+    
+    // Method 2: Extract hex-encoded text
+    const textInBrackets = buffer.match(/<([^>]+)>/g);
+    if (textInBrackets && textInBrackets.length > 0) {
+        for (let i = 0; i < textInBrackets.length; i++) {
+            const hex = textInBrackets[i].replace(/[<>]/g, '');
+            if (hex.length > 2 && hex.length % 2 === 0) {
+                let decoded = '';
+                for (let j = 0; j < hex.length; j += 2) {
+                    const byte = parseInt(hex.substr(j, 2), 16);
+                    if (byte >= 32 && byte <= 126) {
+                        decoded += String.fromCharCode(byte);
+                    }
+                }
+                if (decoded.trim().length > 0) {
+                    extractedText += decoded + ' ';
+                }
+            }
+        }
+    }
+    
+    // Clean up
+    extractedText = extractedText.replace(/\s+/g, ' ').trim();
+    
+    // If very little text, try aggressive extraction
+    if (extractedText.length < 100) {
+        console.log('⚠️ Low yield, trying aggressive extraction...');
+        let aggressive = buffer.replace(/[^\x20-\x7E\n]/g, ' ');
+        aggressive = aggressive.replace(/\b(obj|endobj|stream|endstream|xref|trailer|startxref)\b/g, '');
+        aggressive = aggressive.replace(/\/[A-Za-z]+/g, '');
+        aggressive = aggressive.replace(/\d+\s+\d+\s+obj/g, '');
+        aggressive = aggressive.replace(/<<[^>]*>>/g, '');
+        aggressive = aggressive.replace(/\s+/g, ' ').trim();
+        
+        if (aggressive.length > extractedText.length) {
+            extractedText = aggressive;
+        }
+    }
+    
+    return extractedText;
 }
 
 // Enhanced resume parser for sidepanel

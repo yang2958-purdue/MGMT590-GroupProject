@@ -49,3 +49,19 @@ Parse the data from uploaded resumes and intelligently fill form fields:
 - Display extracted resume data in the side panel
 - Store parsed data in chrome.storage for persistence across pages
 
+---
+
+## 2026-03-13 - Enhanced PDF Resume Parsing
+
+**Timestamp:** Friday, March 13, 2026
+
+**Prompt:**
+Improve resume parsing to work with actual PDF resumes instead of sample text files:
+- Enhance PDF text extraction with multiple methods (standard text objects, hex-encoded, aggressive fallback)
+- Add robust validation for extracted data (name, email, phone)
+- Implement text cleaning to remove PDF artifacts and metadata
+- Provide detailed console logging for debugging
+- Add error handling for scanned/image-based PDFs
+- Create comprehensive PDF resume guide
+- Support real-world PDF resumes from Word, Google Docs, etc.
+

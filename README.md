@@ -60,19 +60,27 @@ Make sure you have all the following files in your project directory:
 
 ## How to Use
 
-### Step 1: Upload Your Resume
+### Step 1: Upload Your PDF Resume
 
 1. Open the side panel by clicking the extension icon
 2. In the "Upload Resume" section:
-   - **Option A**: Click the upload area and select a PDF or DOCX file
-   - **Option B**: Drag and drop a resume file directly onto the upload area
-3. The extension will automatically parse your resume and extract key information:
+   - **Recommended**: Upload your actual PDF resume
+   - **Option A**: Click the upload area and select your PDF file
+   - **Option B**: Drag and drop your PDF resume directly onto the upload area
+3. The extension will automatically parse your PDF and extract key information:
    - Full name, first name, last name
    - Email address
    - Phone number
    - Additional data (address, education, skills)
-4. Extracted data will be displayed in the side panel
-5. Click "Clear Resume" to remove the uploaded file
+4. **Check the Console** (Press F12) to see detailed parsing logs
+5. Extracted data will be displayed in the side panel
+6. Click "Clear Resume" to remove the uploaded file
+
+**📕 PDF Resume Tips:**
+- Use text-based PDFs (not scanned images)
+- Ensure your name is at the top
+- Use standard contact info format
+- See [`PDF_RESUME_GUIDE.md`](PDF_RESUME_GUIDE.md) for detailed PDF guidance
 
 ### Step 2: Auto-Fill Online Forms
 

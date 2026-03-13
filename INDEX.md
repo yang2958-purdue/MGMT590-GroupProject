@@ -26,6 +26,7 @@ Welcome to the Resume Auto-Fill Assistant Chrome Extension!
 | **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** | High-level project overview | Quick project reference |
 | **[TESTING.md](TESTING.md)** | Complete testing guide | Verifying functionality |
 | **[RESUME_PARSING_GUIDE.md](RESUME_PARSING_GUIDE.md)** | Resume parsing & auto-fill details | Using the auto-fill feature |
+| **[PDF_RESUME_GUIDE.md](PDF_RESUME_GUIDE.md)** | PDF resume parsing guide | Using PDF resumes (recommended) |
 | **[KEYBOARD_TEST.md](KEYBOARD_TEST.md)** | Keyboard input testing | Testing keyboard shortcuts |
 | **[EDGE_INSTALLATION.md](EDGE_INSTALLATION.md)** | Microsoft Edge setup | Installing on Edge browser |
 
