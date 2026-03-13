@@ -136,6 +136,9 @@ function getFieldLabel(element) {
     
     return 'Unknown field';
 }
+
+// Create custom cursor element
+function createCursor() {
     cursorElement = document.createElement('div');
     cursorElement.id = 'resume-assistant-cursor';
     cursorElement.style.cssText = `
@@ -152,6 +155,142 @@ function getFieldLabel(element) {
         display: none;
     `;
     document.body.appendChild(cursorElement);
+}
+
+// Highlight a form field
+function highlightField(field) {
+    // Remove previous highlights
+    document.querySelectorAll('.resume-assistant-highlight').forEach(el => {
+        el.classList.remove('resume-assistant-highlight');
+    });
+    
+    // Add highlight to current field
+    field.element.classList.add('resume-assistant-highlight');
+    
+    // Scroll into view
+    field.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Move cursor indicator to field
+    const rect = field.element.getBoundingClientRect();
+    if (cursorElement) {
+        cursorElement.style.left = `${rect.left + rect.width / 2}px`;
+        cursorElement.style.top = `${rect.top + rect.height / 2}px`;
+        cursorElement.style.display = 'block';
+    }
+}
+
+// Interact with form field (click, focus, etc.)
+function interactWithField(field) {
+    console.log(`📝 Interacting with ${field.type}: ${field.label}`);
+    
+    const element = field.element;
+    
+    // Highlight the field
+    highlightField(field);
+    
+    // Focus the element
+    element.focus();
+    
+    // Trigger click event
+    element.click();
+    
+    // Specific actions based on field type
+    switch (field.type) {
+        case 'text':
+        case 'textarea':
+            // For text fields, just focus (user can type or we can auto-fill later)
+            element.style.backgroundColor = '#e3f2fd';
+            setTimeout(() => {
+                element.style.backgroundColor = '';
+            }, 2000);
+            break;
+            
+        case 'dropdown':
+            // Open dropdown
+            element.focus();
+            // Optionally select first non-empty option
+            if (element.options.length > 1 && element.selectedIndex === 0) {
+                element.selectedIndex = 1;
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            break;
+            
+        case 'radio':
+            // Click first radio in group if none selected
+            if (field.group && !field.filled) {
+                field.group[0].click();
+                field.group[0].dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            break;
+            
+        case 'checkbox':
+            // Toggle checkbox if not checked
+            if (!element.checked) {
+                element.click();
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            break;
+    }
+}
+
+// Move through fields sequentially
+function moveToNextField() {
+    if (!cursorControlActive || detectedFields.length === 0) return;
+    
+    // Get current field
+    const field = detectedFields[currentFieldIndex];
+    
+    if (field) {
+        interactWithField(field);
+    }
+    
+    // Move to next field
+    currentFieldIndex = (currentFieldIndex + 1) % detectedFields.length;
+}
+
+// Start field interaction
+function startFieldInteraction() {
+    // Detect all fields first
+    detectFormFields();
+    
+    if (detectedFields.length === 0) {
+        console.log('⚠️ No form fields detected on this page');
+        return;
+    }
+    
+    // Create cursor element
+    if (!cursorElement) {
+        createCursor();
+    }
+    
+    // Start moving through fields
+    currentFieldIndex = 0;
+    moveToNextField();
+    
+    // Continue moving through fields at intervals
+    fieldInteractionInterval = setInterval(() => {
+        moveToNextField();
+    }, speed * 1000);
+}
+
+// Stop field interaction
+function stopFieldInteraction() {
+    if (fieldInteractionInterval) {
+        clearInterval(fieldInteractionInterval);
+        fieldInteractionInterval = null;
+    }
+    
+    // Remove highlights
+    document.querySelectorAll('.resume-assistant-highlight').forEach(el => {
+        el.classList.remove('resume-assistant-highlight');
+    });
+    
+    // Hide cursor
+    if (cursorElement) {
+        cursorElement.style.display = 'none';
+    }
+    
+    currentFieldIndex = 0;
 }
 
 // Notify side panel of field count
@@ -173,44 +312,6 @@ function notifyFieldCount(count) {
     } catch (error) {
         // Silently fail if side panel isn't available
     }
-}
-
-// Create custom cursor element
-function createCursor() {
-    if (!cursorControlActive) return;
-    
-    // Calculate position on circle
-    const x = centerX + radius * Math.cos(angle);
-    const y = centerY + radius * Math.sin(angle);
-    
-    // Update cursor position
-    if (cursorElement) {
-        cursorElement.style.left = `${x}px`;
-        cursorElement.style.top = `${y}px`;
-        cursorElement.style.display = 'block';
-    }
-    
-    // Move mouse cursor (dispatch mouse event)
-    const element = document.elementFromPoint(x, y);
-    if (element) {
-        const event = new MouseEvent('mousemove', {
-            view: window,
-            bubbles: true,
-            cancelable: true,
-            clientX: x,
-            clientY: y
-        });
-        element.dispatchEvent(event);
-    }
-    
-    // Increment angle for next frame
-    angle += speed;
-    if (angle >= Math.PI * 2) {
-        angle = 0;
-    }
-    
-    // Continue animation
-    animationId = requestAnimationFrame(moveCursorInCircle);
 }
 
 // Start cursor control
