@@ -1,0 +1,34 @@
+John Michael Smith
+
+john.smith@email.com
+(555) 123-4567
+123 Main Street, San Francisco, CA 94102
+
+PROFESSIONAL SUMMARY
+Experienced software engineer with 5 years of expertise in full-stack development, cloud computing, and agile methodologies.
+
+EDUCATION
+
+Bachelor of Science in Computer Science
+Stanford University
+2015 - 2019
+
+EXPERIENCE
+
+Senior Software Engineer
+Tech Corp Inc.
+2021 - Present
+- Led development of cloud-based applications
+- Managed team of 5 engineers
+- Implemented CI/CD pipelines
+
+Software Engineer
+StartUp LLC
+2019 - 2021
+- Developed web applications using React and Node.js
+- Collaborated with cross-functional teams
+- Reduced load times by 40%
+
+SKILLS
+JavaScript, Python, React, Node.js, AWS, Docker, Kubernetes, Git, Agile, SQL, MongoDB
+

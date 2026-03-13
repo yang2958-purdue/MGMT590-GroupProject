@@ -25,6 +25,9 @@ Welcome to the Resume Auto-Fill Assistant Chrome Extension!
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | System design & data flow | Understanding how it works |
 | **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** | High-level project overview | Quick project reference |
 | **[TESTING.md](TESTING.md)** | Complete testing guide | Verifying functionality |
+| **[RESUME_PARSING_GUIDE.md](RESUME_PARSING_GUIDE.md)** | Resume parsing & auto-fill details | Using the auto-fill feature |
+| **[KEYBOARD_TEST.md](KEYBOARD_TEST.md)** | Keyboard input testing | Testing keyboard shortcuts |
+| **[EDGE_INSTALLATION.md](EDGE_INSTALLATION.md)** | Microsoft Edge setup | Installing on Edge browser |
 
 ### Project Management
 | File | Purpose | When to Use |
@@ -39,11 +42,12 @@ Welcome to the Resume Auto-Fill Assistant Chrome Extension!
 ### Extension Core
 | File | Lines | Purpose |
 |------|-------|---------|
-| **manifest.json** | 35 | Extension configuration (Manifest V3) |
+| **manifest.json** | 40 | Extension configuration (Manifest V3) |
 | **background.js** | 20 | Background service worker |
-| **content.js** | 150 | Cursor control logic & keyboard handling |
-| **sidepanel.html** | 180 | Side panel UI with styling |
-| **sidepanel.js** | 100 | File upload & status management |
+| **content.js** | 530+ | Form detection, auto-fill & keyboard handling |
+| **resume-parser.js** | 270+ | Resume text parsing & data extraction |
+| **sidepanel.html** | 200+ | Side panel UI with styling |
+| **sidepanel.js** | 200+ | File upload, parsing & status management |
 
 ### Assets
 | File | Type | Purpose |
@@ -90,16 +94,22 @@ Welcome to the Resume Auto-Fill Assistant Chrome Extension!
 2. Check [`TESTING.md`](TESTING.md) - Edge cases
 3. Check [`SETUP.md`](SETUP.md) - Common issues
 
+**...use the resume auto-fill feature**
+1. Read [`RESUME_PARSING_GUIDE.md`](RESUME_PARSING_GUIDE.md)
+2. Upload `sample-resume.txt` to test
+3. Visit a form page and press Ctrl+Shift+Z
+
 ---
 
 ## 📊 Project Statistics
 
-- **Total Documentation:** 7 files (~40 pages)
-- **Total Code:** 5 files (~485 lines)
-- **Total Project Files:** 17 files
+- **Total Documentation:** 10 files (~60 pages)
+- **Total Code:** 6 files (~1,200+ lines)
+- **Total Project Files:** 20+ files
 - **Development Time:** 1 session
-- **Version:** 1.0.0
+- **Version:** 1.1.0
 - **Created:** March 13, 2026
+- **Last Updated:** March 13, 2026 (Resume parsing feature added)
 
 ---
 
@@ -128,8 +138,12 @@ Welcome to the Resume Auto-Fill Assistant Chrome Extension!
 |---------|------------|------|
 | Side Panel | Click extension icon | `sidepanel.html` |
 | Upload Resume | Drag/drop or click | `sidepanel.js` |
-| Toggle Cursor | Press Right Arrow (→) | `content.js` |
-| Circular Motion | Auto when active | `content.js` |
+| Parse Resume | Auto on upload | `sidepanel.js`, `resume-parser.js` |
+| Form Detection | Auto on page load | `content.js` |
+| Toggle Auto-Fill | Press Ctrl+Shift+Z | `content.js` |
+| Smart Fill Fields | Auto when active | `content.js` |
+| Field Counter | Check side panel | `sidepanel.html` |
+| Parsed Data Display | Check side panel | `sidepanel.html` |
 | Status Display | Check side panel | `sidepanel.html` |
 | Clear Resume | Click button | `sidepanel.js` |
 
@@ -194,7 +208,7 @@ Step 4: Examine TESTING.md (validation)
 ```
 MGMT590-GroupProject/
 │
-├── 📘 Documentation (7 files)
+├── 📘 Documentation (10 files)
 │   ├── INDEX.md ...................... This file
 │   ├── QUICKSTART.md ................ 3-minute setup
 │   ├── README.md .................... Main documentation
@@ -202,22 +216,27 @@ MGMT590-GroupProject/
 │   ├── ARCHITECTURE.md .............. Technical design
 │   ├── PROJECT_SUMMARY.md ........... Project overview
 │   ├── TESTING.md ................... Test procedures
+│   ├── RESUME_PARSING_GUIDE.md ...... Resume parsing & auto-fill
+│   ├── KEYBOARD_TEST.md ............. Keyboard testing guide
+│   ├── EDGE_INSTALLATION.md ......... Edge browser setup
 │   └── PROMPTS.md ................... Requirements log
 │
-├── 💻 Source Code (5 files)
+├── 💻 Source Code (6 files)
 │   ├── manifest.json ................ Extension config
 │   ├── background.js ................ Service worker
-│   ├── content.js ................... Cursor control
+│   ├── content.js ................... Form detection & auto-fill
+│   ├── resume-parser.js ............. Resume data extraction
 │   ├── sidepanel.html ............... UI layout
-│   └── sidepanel.js ................. UI logic
+│   └── sidepanel.js ................. UI logic & parsing
 │
 ├── 🎨 Assets (3 files)
 │   ├── icon16.svg ................... Small icon
 │   ├── icon48.svg ................... Medium icon
 │   └── icon128.svg .................. Large icon
 │
-└── 🛠️ Utilities (1 file)
-    └── generate-icons.html .......... Icon generator
+└── 🛠️ Utilities & Samples (2 files)
+    ├── generate-icons.html .......... Icon generator
+    └── sample-resume.txt ............ Test resume file
 ```
 
 ---
@@ -228,11 +247,13 @@ MGMT590-GroupProject/
 - [ ] Generate icons (or use SVG)
 - [ ] Load extension in Chrome
 - [ ] Click extension icon
-- [ ] Upload a test resume
-- [ ] Navigate to a website
-- [ ] Press Right Arrow (→)
-- [ ] Verify cursor moves in circle
-- [ ] Press Right Arrow (→) to stop
+- [ ] Upload a test resume (use sample-resume.txt)
+- [ ] Verify extracted data appears in side panel
+- [ ] Navigate to a form page (e.g., https://www.w3schools.com/html/html_forms.asp)
+- [ ] Check field count in side panel
+- [ ] Press Ctrl+Shift+Z to activate auto-fill
+- [ ] Watch fields get auto-filled with resume data
+- [ ] Press Ctrl+Shift+Z to stop
 - [ ] Check side panel status updates
 
 **All checked?** You're all set! 🎉

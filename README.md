@@ -4,16 +4,18 @@
 > **🚀 Quick Start?** Jump to [`QUICKSTART.md`](QUICKSTART.md) for 3-minute setup  
 > **🌐 Using Edge?** See [`EDGE_INSTALLATION.md`](EDGE_INSTALLATION.md) for Microsoft Edge setup
 
-A Chrome extension that allows you to upload resumes and control your cursor on web pages with circular movement patterns.
+A Chrome extension that intelligently parses your resume and automatically fills out online forms with your information.
 
 **✅ Works on:** Chrome, Microsoft Edge, Brave, and all Chromium-based browsers!
 
 ## Features
 
-- 📄 **Resume Upload**: Upload PDF or DOCX resume files via drag-and-drop or file selection
-- 🎯 **Cursor Control**: Automated cursor movement in circular patterns on web pages
-- ⌨️ **Keyboard Toggle**: Press Ctrl+Shift+Z to toggle cursor control on/off
-- 🎨 **Modern UI**: Beautiful side panel interface with real-time status updates
+- 📄 **Resume Upload & Parsing**: Upload PDF or DOCX resume files - automatically extracts name, email, phone, and more
+- 🤖 **Intelligent Auto-Fill**: Automatically fills form fields with appropriate resume data based on field labels
+- 🔍 **Form Detection**: Detects all form fields on a page including text inputs, dropdowns, checkboxes, and radio buttons
+- ⌨️ **Keyboard Toggle**: Press Ctrl+Shift+Z to activate auto-fill mode
+- 📊 **Field Counter**: Shows the number of detected form fields and auto-fill status
+- 🎨 **Modern UI**: Beautiful side panel interface with real-time status updates and parsed data display
 
 ## Installation Instructions
 
@@ -58,22 +60,46 @@ Make sure you have all the following files in your project directory:
 
 ## How to Use
 
-### Upload a Resume
+### Step 1: Upload Your Resume
 
 1. Open the side panel by clicking the extension icon
 2. In the "Upload Resume" section:
    - **Option A**: Click the upload area and select a PDF or DOCX file
    - **Option B**: Drag and drop a resume file directly onto the upload area
-3. Your resume will be saved locally in Chrome storage
-4. Click "Clear Resume" to remove the uploaded file
+3. The extension will automatically parse your resume and extract key information:
+   - Full name, first name, last name
+   - Email address
+   - Phone number
+   - Additional data (address, education, skills)
+4. Extracted data will be displayed in the side panel
+5. Click "Clear Resume" to remove the uploaded file
 
-### Control the Cursor
+### Step 2: Auto-Fill Online Forms
 
-1. Navigate to any web page where you want to control the cursor
-2. Press **Ctrl+Shift+Z** on your keyboard to activate cursor control
-3. The cursor will automatically move in a circular pattern on the page
-4. Press **Ctrl+Shift+Z** again to deactivate cursor control
-5. The side panel shows the current status (ON/OFF) in real-time
+1. Navigate to any web page with a form (job applications, surveys, etc.)
+2. The extension automatically scans and detects all form fields
+3. The side panel displays:
+   - **Total fields detected** on the page
+   - Breakdown by field type (text, dropdown, checkbox, radio)
+   - Number of fields already filled
+4. Press **Ctrl+Shift+Z** to activate auto-fill mode
+5. The extension will:
+   - Move through each form field sequentially
+   - Automatically fill text fields with matching resume data
+   - Highlight fields as they are processed (blue = focused, green = auto-filled)
+   - Interact with dropdowns, checkboxes, and radio buttons
+6. Press **Ctrl+Shift+Z** again to deactivate auto-fill mode
+
+### Smart Field Mapping
+
+The extension intelligently maps your resume data to form fields based on field labels:
+
+- **"First Name"** → Your first name from resume
+- **"Last Name"** → Your last name from resume  
+- **"Email"** → Your email address from resume
+- **"Phone"** / **"Mobile"** → Your phone number from resume
+- **"Name"** → Your full name from resume
+- And more...
 
 ## Technical Details
 
@@ -83,8 +109,9 @@ Make sure you have all the following files in your project directory:
 MGMT590-GroupProject/
 ├── manifest.json          # Chrome extension configuration
 ├── sidepanel.html         # Side panel UI
-├── sidepanel.js           # Side panel functionality
-├── content.js             # Cursor control logic
+├── sidepanel.js           # Side panel functionality & resume parsing
+├── content.js             # Form detection & auto-fill logic
+├── resume-parser.js       # Resume data extraction module
 ├── background.js          # Background service worker
 ├── icon16.png            # Extension icon (16x16)
 ├── icon48.png            # Extension icon (48x48)

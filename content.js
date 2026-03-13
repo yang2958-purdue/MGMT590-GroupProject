@@ -6,6 +6,7 @@ let detectedFields = [];
 let currentFieldIndex = 0;
 const speed = 2; // Speed of movement between fields (seconds per field)
 let fieldInteractionInterval = null;
+let resumeData = null; // Parsed resume data
 
 // Detect all form fields on the page
 function detectFormFields() {
@@ -167,6 +168,56 @@ function highlightField(field) {
     }
 }
 
+// Get appropriate value from resume data based on field label
+function getResumeValueForField(field) {
+    if (!resumeData || !resumeData.personal) return null;
+    
+    const label = field.label.toLowerCase();
+    const personal = resumeData.personal;
+    
+    // First name
+    if (label.includes('first') && label.includes('name')) {
+        return personal.firstName;
+    }
+    
+    // Last name
+    if (label.includes('last') && label.includes('name')) {
+        return personal.lastName;
+    }
+    
+    // Full name
+    if (label.includes('name') && !label.includes('user') && !label.includes('company')) {
+        return personal.fullName || personal.firstName;
+    }
+    
+    // Email
+    if (label.includes('email') || label.includes('e-mail')) {
+        return personal.email;
+    }
+    
+    // Phone
+    if (label.includes('phone') || label.includes('tel') || label.includes('mobile') || label.includes('cell')) {
+        return personal.phone;
+    }
+    
+    // City
+    if (label.includes('city')) {
+        return personal.city;
+    }
+    
+    // State
+    if (label.includes('state') || label.includes('province')) {
+        return personal.state;
+    }
+    
+    // ZIP code
+    if (label.includes('zip') || label.includes('postal')) {
+        return personal.zipCode;
+    }
+    
+    return null;
+}
+
 // Interact with form field (click, focus, etc.)
 function interactWithField(field) {
     console.log('📝 Interacting with ' + field.type + ': ' + field.label);
@@ -186,8 +237,17 @@ function interactWithField(field) {
     switch (field.type) {
         case 'text':
         case 'textarea':
-            // For text fields, just focus (user can type or we can auto-fill later)
-            element.style.backgroundColor = '#e3f2fd';
+            // Try to auto-fill with resume data
+            const value = getResumeValueForField(field);
+            if (value && !element.value) { // Only fill if field is empty
+                element.value = value;
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log('✅ Auto-filled: ' + field.label + ' = ' + value);
+                element.style.backgroundColor = '#d1fae5'; // Green highlight for filled
+            } else {
+                element.style.backgroundColor = '#e3f2fd'; // Blue highlight for focused
+            }
             setTimeout(function() {
                 element.style.backgroundColor = '';
             }, 2000);
@@ -428,6 +488,10 @@ document.addEventListener('keydown', function(e) {
 chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     if (message.type === 'getCursorStatus') {
         sendResponse({ isActive: cursorControlActive });
+    } else if (message.type === 'resumeDataParsed') {
+        resumeData = message.data;
+        console.log('✅ Resume data received in content script:', resumeData);
+        sendResponse({ success: true });
     }
     return true;
 });
@@ -457,6 +521,14 @@ const observer = new MutationObserver(function() {
 observer.observe(document.body, {
     childList: true,
     subtree: true
+});
+
+// Load resume data from storage on page load
+chrome.storage.local.get(['resumeData'], function(result) {
+    if (result.resumeData) {
+        resumeData = result.resumeData;
+        console.log('✅ Resume data loaded from storage:', resumeData);
+    }
 });
 
 console.log('Resume Assistant content script loaded. Press Ctrl+Shift+Z to toggle cursor control. (Running on ' + browserName + ')');

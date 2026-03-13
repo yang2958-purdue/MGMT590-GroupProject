@@ -35,3 +35,17 @@ Implement form field detection and interaction features:
 - Move through fields sequentially instead of circular cursor movement
 - Highlight fields as they are selected
 
+---
+
+## 2026-03-13 - Resume Parsing and Intelligent Auto-Fill
+
+**Timestamp:** Friday, March 13, 2026
+
+**Prompt:**
+Parse the data from uploaded resumes and intelligently fill form fields:
+- Extract key information from resume: name (first, last), email, phone, address, education, etc.
+- Map extracted data to form fields based on field labels
+- Automatically fill fields with appropriate resume data when Ctrl+Shift+Z is activated
+- Display extracted resume data in the side panel
+- Store parsed data in chrome.storage for persistence across pages
+

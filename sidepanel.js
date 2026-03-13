@@ -44,11 +44,11 @@ uploadArea.addEventListener('drop', (e) => {
 
 // Handle file upload
 function handleFile(file) {
-    fileName.textContent = `📄 ${file.name}`;
+    fileName.textContent = `📄 ${file.name} (Parsing...)`;
     fileInfo.classList.add('show');
     clearButton.disabled = false;
     
-    // Read file and store in chrome storage
+    // Read file and parse resume
     const reader = new FileReader();
     reader.onload = function(e) {
         const fileData = {
@@ -58,11 +58,99 @@ function handleFile(file) {
             uploadedAt: new Date().toISOString()
         };
         
-        chrome.storage.local.set({ resumeFile: fileData }, () => {
-            console.log('Resume saved to storage');
-        });
+        // Parse resume based on file type
+        parseResume(file, fileData);
     };
     reader.readAsDataURL(file);
+}
+
+// Parse resume and extract data
+function parseResume(file, fileData) {
+    // Read file as text for parsing
+    const textReader = new FileReader();
+    textReader.onload = function(e) {
+        const text = e.target.result;
+        
+        // Parse resume text
+        const resumeData = parseResumeTextSimple(text);
+        
+        // Store both file data and parsed resume data
+        chrome.storage.local.set({ 
+            resumeFile: fileData,
+            resumeData: resumeData
+        }, () => {
+            console.log('Resume saved and parsed:', resumeData);
+            fileName.textContent = `📄 ${file.name} ✅`;
+            
+            // Show parsed data
+            displayParsedData(resumeData);
+            
+            // Send to content script
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        type: 'resumeDataParsed',
+                        data: resumeData
+                    });
+                }
+            });
+        });
+    };
+    textReader.readAsText(file);
+}
+
+// Simple resume parser for sidepanel
+function parseResumeTextSimple(text) {
+    const data = {
+        personal: {
+            firstName: '',
+            lastName: '',
+            fullName: '',
+            email: '',
+            phone: ''
+        },
+        education: [],
+        skills: []
+    };
+    
+    // Extract email
+    const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    if (emailMatch) data.personal.email = emailMatch[0];
+    
+    // Extract phone
+    const phoneMatch = text.match(/(\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}/);
+    if (phoneMatch) data.personal.phone = phoneMatch[0];
+    
+    // Extract name (first non-empty line usually)
+    const lines = text.split('\n').filter(l => l.trim().length > 0);
+    if (lines.length > 0) {
+        const nameLine = lines[0].trim();
+        const nameWords = nameLine.split(/\s+/);
+        data.personal.fullName = nameLine;
+        data.personal.firstName = nameWords[0] || '';
+        data.personal.lastName = nameWords[nameWords.length - 1] || '';
+    }
+    
+    return data;
+}
+
+// Display parsed resume data
+function displayParsedData(data) {
+    // Create or update parsed data display
+    let parsedSection = document.getElementById('parsedDataSection');
+    if (!parsedSection) {
+        parsedSection = document.createElement('div');
+        parsedSection.id = 'parsedDataSection';
+        parsedSection.style.cssText = 'margin-top: 10px; padding: 10px; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 6px; font-size: 12px;';
+        fileInfo.appendChild(parsedSection);
+    }
+    
+    let html = '<strong style="color: #0369a1;">📋 Extracted Data:</strong><br>';
+    if (data.personal.fullName) html += '<div>👤 Name: ' + data.personal.fullName + '</div>';
+    if (data.personal.email) html += '<div>📧 Email: ' + data.personal.email + '</div>';
+    if (data.personal.phone) html += '<div>📞 Phone: ' + data.personal.phone + '</div>';
+    
+    parsedSection.innerHTML = html;
 }
 
 // Clear button handler
