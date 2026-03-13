@@ -21,3 +21,17 @@ Create a basic chrome extension using HTML and JSON that:
 **Prompt:**
 Change the cursor toggle button from Right Arrow key to Ctrl+Shift+Z
 
+---
+
+## 2026-03-13 - Form Field Detection and Auto-Fill
+
+**Timestamp:** Friday, March 13, 2026
+
+**Prompt:**
+Implement form field detection and interaction features:
+- Search for places to click (dropdown menus, multiple choice questions, text input areas)
+- Auto-click and interact with detected form fields
+- Add a counter on the side panel showing the number of identified questions/fields on the form page
+- Move through fields sequentially instead of circular cursor movement
+- Highlight fields as they are selected
+

@@ -82,6 +82,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         updateCursorStatus(message.isActive);
     } else if (message.type === 'keyPressDebug') {
         updateLastKeyPress(message.keyInfo);
+    } else if (message.type === 'fieldCountUpdate') {
+        updateFieldCount(message.count, message.fields);
     }
 });
 
@@ -121,6 +123,51 @@ function updateLastKeyPress(keyInfo) {
     }
 }
 
+// Update field count display
+function updateFieldCount(count, fields) {
+    const fieldCountEl = document.getElementById('fieldCount');
+    const fieldBreakdownEl = document.getElementById('fieldBreakdown');
+    
+    if (fieldCountEl) {
+        fieldCountEl.textContent = count;
+        
+        // Update color based on count
+        if (count > 0) {
+            fieldCountEl.style.background = '#e8f5e9';
+            fieldCountEl.style.color = '#2e7d32';
+        } else {
+            fieldCountEl.style.background = '#ffebee';
+            fieldCountEl.style.color = '#c62828';
+        }
+    }
+    
+    // Show breakdown if fields exist
+    if (fieldBreakdownEl && fields && fields.length > 0) {
+        fieldBreakdownEl.style.display = 'block';
+        
+        // Count by type
+        let textCount = 0;
+        let dropdownCount = 0;
+        let choiceCount = 0;
+        let filledCount = 0;
+        
+        fields.forEach(field => {
+            if (field.type === 'text' || field.type === 'textarea') textCount++;
+            else if (field.type === 'dropdown') dropdownCount++;
+            else if (field.type === 'radio' || field.type === 'checkbox') choiceCount++;
+            
+            if (field.filled) filledCount++;
+        });
+        
+        document.getElementById('textFieldCount').textContent = textCount;
+        document.getElementById('dropdownCount').textContent = dropdownCount;
+        document.getElementById('choiceCount').textContent = choiceCount;
+        document.getElementById('filledCount').textContent = filledCount;
+    } else if (fieldBreakdownEl) {
+        fieldBreakdownEl.style.display = 'none';
+    }
+}
+
 // Check for stored resume on load
 chrome.storage.local.get('resumeFile', (result) => {
     if (result.resumeFile) {
@@ -134,7 +181,11 @@ chrome.storage.local.get('resumeFile', (result) => {
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
         chrome.tabs.sendMessage(tabs[0].id, { type: 'getCursorStatus' }, (response) => {
-            if (response && response.isActive !== undefined) {
+            // Handle response if available
+            if (chrome.runtime.lastError) {
+                // Content script may not be ready yet, that's OK
+                console.log('Waiting for content script to load...');
+            } else if (response && response.isActive !== undefined) {
                 updateCursorStatus(response.isActive);
             }
         });

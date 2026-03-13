@@ -196,6 +196,34 @@
         </div>
 
         <div class="section">
+            <div class="section-title">Form Field Detection</div>
+            <div class="status-section">
+                <div class="status-item">
+                    <span class="status-label">Fields Detected:</span>
+                    <span class="status-value" id="fieldCount" style="background: #e3f2fd; color: #1565c0; font-weight: bold; font-size: 18px;">0</span>
+                </div>
+                <div id="fieldBreakdown" style="margin-top: 10px; font-size: 12px; color: #666; display: none;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>📝 Text Fields:</span>
+                        <span id="textFieldCount">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>📋 Dropdowns:</span>
+                        <span id="dropdownCount">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>⭕ Radio/Checkbox:</span>
+                        <span id="choiceCount">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>✅ Filled:</span>
+                        <span id="filledCount">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
             <div class="section-title">Cursor Control Status</div>
             <div class="status-section">
                 <div class="status-item">
@@ -204,7 +232,7 @@
                 </div>
                 <div class="status-item">
                     <span class="status-label">Movement:</span>
-                    <span class="status-value" id="movementStatus">Circular</span>
+                    <span class="status-value" id="movementStatus">Field-to-Field</span>
                 </div>
                 <div class="status-item">
                     <span class="status-label">Last Key Press:</span>

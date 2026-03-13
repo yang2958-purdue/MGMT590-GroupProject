@@ -1,9 +1,12 @@
 # Resume Auto-Fill Assistant - Chrome Extension
 
 > **📚 New here?** See [`INDEX.md`](INDEX.md) for a complete documentation guide  
-> **🚀 Quick Start?** Jump to [`QUICKSTART.md`](QUICKSTART.md) for 3-minute setup
+> **🚀 Quick Start?** Jump to [`QUICKSTART.md`](QUICKSTART.md) for 3-minute setup  
+> **🌐 Using Edge?** See [`EDGE_INSTALLATION.md`](EDGE_INSTALLATION.md) for Microsoft Edge setup
 
 A Chrome extension that allows you to upload resumes and control your cursor on web pages with circular movement patterns.
+
+**✅ Works on:** Chrome, Microsoft Edge, Brave, and all Chromium-based browsers!
 
 ## Features
 

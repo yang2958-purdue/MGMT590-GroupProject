@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "Resume Auto-Fill Assistant",
   "version": "1.0.0",
-  "description": "Chrome extension to upload resumes and control cursor on web pages",
+  "description": "Auto-fill assistant for resumes and forms - Works on Chrome, Edge, and Chromium browsers",
+  "author": "MGMT590 Group Project",
   "permissions": [
     "activeTab",
     "storage",
