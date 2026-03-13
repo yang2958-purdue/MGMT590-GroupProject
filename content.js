@@ -141,19 +141,7 @@ function getFieldLabel(element) {
 function createCursor() {
     cursorElement = document.createElement('div');
     cursorElement.id = 'resume-assistant-cursor';
-    cursorElement.style.cssText = `
-        position: fixed;
-        width: 20px;
-        height: 20px;
-        background: radial-gradient(circle, #667eea 0%, #764ba2 100%);
-        border: 2px solid white;
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 2147483647;
-        box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
-        transition: all 0.1s ease;
-        display: none;
-    `;
+    cursorElement.style.cssText = 'position: fixed; width: 20px; height: 20px; background: radial-gradient(circle, #667eea 0%, #764ba2 100%); border: 2px solid white; border-radius: 50%; pointer-events: none; z-index: 2147483647; box-shadow: 0 0 10px rgba(102, 126, 234, 0.5); transition: all 0.1s ease; display: none;';
     document.body.appendChild(cursorElement);
 }
 
@@ -173,15 +161,15 @@ function highlightField(field) {
     // Move cursor indicator to field
     const rect = field.element.getBoundingClientRect();
     if (cursorElement) {
-        cursorElement.style.left = `${rect.left + rect.width / 2}px`;
-        cursorElement.style.top = `${rect.top + rect.height / 2}px`;
+        cursorElement.style.left = (rect.left + rect.width / 2) + 'px';
+        cursorElement.style.top = (rect.top + rect.height / 2) + 'px';
         cursorElement.style.display = 'block';
     }
 }
 
 // Interact with form field (click, focus, etc.)
 function interactWithField(field) {
-    console.log(`📝 Interacting with ${field.type}: ${field.label}`);
+    console.log('📝 Interacting with ' + field.type + ': ' + field.label);
     
     const element = field.element;
     
@@ -200,7 +188,7 @@ function interactWithField(field) {
         case 'textarea':
             // For text fields, just focus (user can type or we can auto-fill later)
             element.style.backgroundColor = '#e3f2fd';
-            setTimeout(() => {
+            setTimeout(function() {
                 element.style.backgroundColor = '';
             }, 2000);
             break;
@@ -268,7 +256,7 @@ function startFieldInteraction() {
     moveToNextField();
     
     // Continue moving through fields at intervals
-    fieldInteractionInterval = setInterval(() => {
+    fieldInteractionInterval = setInterval(function() {
         moveToNextField();
     }, speed * 1000);
 }
@@ -281,7 +269,7 @@ function stopFieldInteraction() {
     }
     
     // Remove highlights
-    document.querySelectorAll('.resume-assistant-highlight').forEach(el => {
+    document.querySelectorAll('.resume-assistant-highlight').forEach(function(el) {
         el.classList.remove('resume-assistant-highlight');
     });
     
@@ -299,12 +287,14 @@ function notifyFieldCount(count) {
         chrome.runtime.sendMessage({
             type: 'fieldCountUpdate',
             count: count,
-            fields: detectedFields.map(f => ({
-                type: f.type,
-                label: f.label,
-                filled: f.filled
-            }))
-        }, (response) => {
+            fields: detectedFields.map(function(f) {
+                return {
+                    type: f.type,
+                    label: f.label,
+                    filled: f.filled
+                };
+            })
+        }, function(response) {
             if (chrome.runtime.lastError) {
                 // Side panel not open, that's OK
             }
@@ -359,7 +349,7 @@ function notifySidePanel() {
         chrome.runtime.sendMessage({
             type: 'cursorStatusUpdate',
             isActive: cursorControlActive
-        }, (response) => {
+        }, function(response) {
             // Ignore errors if side panel isn't open
             if (chrome.runtime.lastError) {
                 // Side panel not open, that's OK
@@ -376,7 +366,7 @@ function notifyKeyPress(keyInfo) {
         chrome.runtime.sendMessage({
             type: 'keyPressDebug',
             keyInfo: keyInfo
-        }, (response) => {
+        }, function(response) {
             // Ignore errors if side panel isn't open
             if (chrome.runtime.lastError) {
                 // Side panel not open, that's OK
@@ -387,8 +377,29 @@ function notifyKeyPress(keyInfo) {
     }
 }
 
+// Detect browser for compatibility
+function detectBrowser() {
+    const userAgent = navigator.userAgent;
+    if (userAgent.indexOf("Edg") > -1) {
+        return "Edge";
+    } else if (userAgent.indexOf("Chrome") > -1) {
+        return "Chrome";
+    } else if (userAgent.indexOf("Chromium") > -1) {
+        return "Chromium";
+    }
+    return "Unknown";
+}
+
+const browserName = detectBrowser();
+console.log('🌐 Browser detected: ' + browserName);
+
+// Add CSS for field highlighting
+const style = document.createElement('style');
+style.textContent = '.resume-assistant-highlight { outline: 3px solid #667eea !important; outline-offset: 2px !important; background-color: #f0f4ff !important; transition: all 0.3s ease !important; box-shadow: 0 0 20px rgba(102, 126, 234, 0.5) !important; }';
+document.head.appendChild(style);
+
 // Listen for keyboard events
-document.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', function(e) {
     // Debug: Log all key presses with modifier keys
     if (e.ctrlKey || e.shiftKey || e.altKey) {
         const keyInfo = {
@@ -414,7 +425,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Listen for messages from side panel
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     if (message.type === 'getCursorStatus') {
         sendResponse({ isActive: cursorControlActive });
     }
@@ -422,51 +433,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Cleanup on page unload
-window.addEventListener('beforeunload', () => {
+window.addEventListener('beforeunload', function() {
     stopCursorControl();
     if (cursorElement && cursorElement.parentNode) {
         cursorElement.parentNode.removeChild(cursorElement);
     }
 });
 
-// Detect browser for compatibility
-function detectBrowser() {
-    const userAgent = navigator.userAgent;
-    if (userAgent.indexOf("Edg") > -1) {
-        return "Edge";
-    } else if (userAgent.indexOf("Chrome") > -1) {
-        return "Chrome";
-    } else if (userAgent.indexOf("Chromium") > -1) {
-        return "Chromium";
-    }
-    return "Unknown";
-}
-
-const browserName = detectBrowser();
-console.log(`🌐 Browser detected: ${browserName}`);
-
-// Add CSS for field highlighting
-const style = document.createElement('style');
-style.textContent = `
-    .resume-assistant-highlight {
-        outline: 3px solid #667eea !important;
-        outline-offset: 2px !important;
-        background-color: #f0f4ff !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 0 20px rgba(102, 126, 234, 0.5) !important;
-    }
-`;
-document.head.appendChild(style);
-
 // Scan for fields when page loads
-window.addEventListener('load', () => {
-    setTimeout(() => {
+window.addEventListener('load', function() {
+    setTimeout(function() {
         detectFormFields();
     }, 1000);
 });
 
 // Re-scan if DOM changes significantly
-const observer = new MutationObserver(() => {
+const observer = new MutationObserver(function() {
     if (!cursorControlActive) {
         detectFormFields();
     }
@@ -477,5 +459,4 @@ observer.observe(document.body, {
     subtree: true
 });
 
-console.log(`Resume Assistant content script loaded. Press Ctrl+Shift+Z to toggle cursor control. (Running on ${browserName})`);
-
+console.log('Resume Assistant content script loaded. Press Ctrl+Shift+Z to toggle cursor control. (Running on ' + browserName + ')');
