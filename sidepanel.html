@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Auto-Fill Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            max-width: 400px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-align: center;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #555;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+        }
+
+        .upload-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #2e7d32;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .status-section {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-value {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+
+        .status-off {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .status-on {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .info-box {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #e65100;
+        }
+
+        .button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 15px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Resume Assistant</h1>
+        
+        <div class="section">
+            <div class="section-title">Upload Resume</div>
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">
+                    <strong>Click to upload</strong> or drag and drop<br>
+                    PDF or DOCX files
+                </div>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,.docx">
+            <div class="file-info" id="fileInfo">
+                <div class="file-name" id="fileName"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Cursor Control Status</div>
+            <div class="status-section">
+                <div class="status-item">
+                    <span class="status-label">Cursor Control:</span>
+                    <span class="status-value status-off" id="cursorStatus">OFF</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Movement:</span>
+                    <span class="status-value" id="movementStatus">Circular</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="info-box">
+                💡 <strong>Tip:</strong> Press the <strong>Right Arrow Key (→)</strong> to toggle cursor control on/off
+            </div>
+        </div>
+
+        <button class="button" id="clearButton" disabled>Clear Resume</button>
+    </div>
+
+    <script src="sidepanel.js"></script>
+</body>
+</html>
+
