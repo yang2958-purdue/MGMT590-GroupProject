@@ -199,3 +199,124 @@ These are perfect for testing with the provided sample resumes!
 ---
 
 **Ready to test?** Run `python main.py` and start with `sample_resume.txt`! 🚀
+
+---
+
+## 🤖 Testing Browser Autofill (NEW!)
+
+### Setup
+
+```bash
+# Install Playwright browsers (one-time)
+playwright install chromium
+```
+
+### Test Workflow
+
+#### 1. Basic Autofill Test
+
+1. **Load resume**: Use `sample_resume.txt` (Sarah Chen)
+
+2. **Go to Browser Autofill tab** (Tab 5)
+
+3. **Enter a test URL**: Use a safe test form
+   ```
+   Test options:
+   - https://form.jotform.com/test-form
+   - https://www.w3schools.com/html/tryit.asp?filename=tryhtml_form_submit
+   - Any job application URL you want to test
+   ```
+
+4. **Configure settings**:
+   - Uncheck "Run in background" (to see the browser)
+   - Check "Pause for review" (recommended)
+
+5. **Click "Start Autofill"**
+
+6. **What happens**:
+   - Browser opens and navigates to URL
+   - Form fields are detected
+   - Fields are filled with resume data
+   - Browser pauses for your review
+   - Check results in "Last Autofill Results" section
+
+#### 2. Platform-Specific Test
+
+Test with real (but non-critical) application:
+
+**Workday Example**:
+```
+Search Google for: "workday demo careers"
+Find a demo job posting
+Copy the "Apply" URL
+Use in autofill tab
+```
+
+**Greenhouse Example**:
+```
+Find any company using Greenhouse
+Example: greenhouse.io/demo
+Copy application URL
+Test autofill
+```
+
+#### 3. Results Verification
+
+After autofill completes, check:
+- ✅ Number of fields filled (should be 5-15)
+- ✅ Mapped fields list (shows what was detected)
+- ✅ Any errors (fields that couldn't be filled)
+- ✅ Screenshot file created (autofill_YYYYMMDD_HHMMSS.png)
+
+### Expected Results
+
+**For Sarah Chen (Software Engineer) on generic form:**
+- Fields filled: 8-12
+- Success rate: 70-90%
+- Typical fields:
+  - ✓ Name (first/last or full)
+  - ✓ Email
+  - ✓ Phone
+  - ✓ LinkedIn URL
+  - ✓ Years of experience (6)
+  - ✓ Education level (Bachelor's)
+
+**For Jennifer Martinez (Business Analyst) on Workday:**
+- Fields filled: 10-15
+- Success rate: 80-95%
+- Platform-specific fields detected
+- Workday dropdowns handled
+
+### Troubleshooting Autofill
+
+**"Playwright not found"**
+```bash
+playwright install chromium
+```
+
+**"No fields filled"**
+- Form may require login
+- Page may load slowly (try again)
+- Check if JavaScript-heavy form loaded
+
+**"Element not found" errors**
+- Normal for some fields
+- Review what was filled
+- Manually fill missing fields
+
+**Browser doesn't appear**
+- Check "Run in background" is unchecked
+- Or set BROWSER_HEADLESS=false in .env
+
+### Safety Notes
+
+⚠️ **Important:**
+- Applications are NEVER auto-submitted
+- Always review before submitting
+- Use visible mode first time
+- Test with non-critical jobs first
+- Screenshots saved for your records
+
+---
+
+**Complete test coverage: Resume parsing, scoring, optimization, AND autofill!** 🎉

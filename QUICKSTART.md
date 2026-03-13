@@ -11,6 +11,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install required packages
 pip install -r requirements.txt
+
+# Install Playwright browsers (for autofill feature)
+playwright install chromium
 ```
 
 ## 2. (Optional) Install Tesseract OCR
@@ -52,6 +55,12 @@ python main.py
    - Go to "Resume Optimization" tab
    - Click "Generate Optimized Resume"
    - Review suggestions and export
+
+5. **Auto-fill Application** *(NEW!)*
+   - Go to "Browser Autofill" tab
+   - Paste job application URL
+   - Click "Start Autofill"
+   - Review and submit manually
 
 ## Common Issues
 

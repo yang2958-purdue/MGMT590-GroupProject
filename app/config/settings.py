@@ -28,6 +28,7 @@ class Settings:
     # Feature Flags
     USE_AGENTIC_ANALYSIS = os.getenv("USE_AGENTIC_ANALYSIS", "false").lower() == "true"
     USE_REMOTE_OCR = os.getenv("USE_REMOTE_OCR", "false").lower() == "true"
+    ENABLE_BROWSER_AUTOFILL = os.getenv("ENABLE_BROWSER_AUTOFILL", "true").lower() == "true"
     
     # File Upload
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -52,6 +53,11 @@ class Settings:
     
     # API Timeouts
     API_TIMEOUT = 30  # seconds
+    
+    # Browser Automation
+    BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "false").lower() == "true"
+    BROWSER_TIMEOUT = int(os.getenv("BROWSER_TIMEOUT", "30000"))  # milliseconds
+    AUTO_SUBMIT_FORMS = os.getenv("AUTO_SUBMIT_FORMS", "false").lower() == "true"
     
     @classmethod
     def ensure_directories(cls):

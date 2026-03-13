@@ -9,6 +9,7 @@ from app.gui.resume_panel import ResumePanel
 from app.gui.jobs_panel import JobsPanel
 from app.gui.analysis_panel import AnalysisPanel
 from app.gui.optimization_panel import OptimizationPanel
+from app.gui.autofill_panel import AutofillPanel
 from app.config.settings import Settings
 
 
@@ -37,12 +38,14 @@ class MainWindow(QMainWindow):
         self.jobs_panel = JobsPanel()
         self.analysis_panel = AnalysisPanel()
         self.optimization_panel = OptimizationPanel()
+        self.autofill_panel = AutofillPanel()
         
         # Add tabs
         self.tabs.addTab(self.resume_panel, "📄 Resume Input")
         self.tabs.addTab(self.jobs_panel, "💼 Job Listings")
         self.tabs.addTab(self.analysis_panel, "📊 Analysis Results")
         self.tabs.addTab(self.optimization_panel, "✨ Resume Optimization")
+        self.tabs.addTab(self.autofill_panel, "🤖 Browser Autofill")
         
         # Set central widget
         self.setCentralWidget(self.tabs)
@@ -261,6 +264,7 @@ class MainWindow(QMainWindow):
         """Handle resume loaded event"""
         self.analysis_panel.set_resume(resume)
         self.optimization_panel.set_resume(resume)
+        self.autofill_panel.set_resume(resume)
         self.status_bar.showMessage("Resume loaded successfully", 3000)
     
     def on_job_selected(self, job):
@@ -311,6 +315,8 @@ class MainWindow(QMainWindow):
         <h3>Current Settings</h3>
         <p><b>AI Provider:</b> {"Agentic" if Settings.USE_AGENTIC_ANALYSIS else "Local"}</p>
         <p><b>OCR Mode:</b> {"Remote API" if Settings.USE_REMOTE_OCR else "Local Tesseract"}</p>
+        <p><b>Browser Autofill:</b> {"Enabled" if Settings.ENABLE_BROWSER_AUTOFILL else "Disabled"}</p>
+        <p><b>Browser Mode:</b> {"Headless" if Settings.BROWSER_HEADLESS else "Visible"}</p>
         <p><b>Jobs API:</b> {Settings.JOBS_API_BASE_URL}</p>
         <p><b>Agent API:</b> {Settings.AGENT_API_BASE_URL}</p>
         <br>

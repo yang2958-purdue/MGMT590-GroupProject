@@ -33,6 +33,14 @@ A powerful desktop application for analyzing resume compatibility with job listi
 - **Side-by-Side Comparison**: Compare original and optimized versions
 - **Export Options**: Save optimized resume as TXT file or copy to clipboard
 
+### 🤖 Browser Autofill *(NEW)*
+- **Intelligent Form Filling**: Automatically fill job application forms
+- **Platform-Specific Support**: Optimized for Workday, Greenhouse, Lever, and more
+- **Smart Field Detection**: Uses labels, IDs, ARIA attributes for accurate mapping
+- **Human Review Mode**: Fill forms but review before submission
+- **No Auto-Submit**: Maintains control - you submit manually
+- **Detailed Reporting**: See which fields were filled and any errors
+
 ## Architecture
 
 The application follows a clean, modular architecture:
@@ -68,6 +76,8 @@ The application follows a clean, modular architecture:
   - **macOS**: `brew install tesseract`
   - **Ubuntu/Debian**: `sudo apt-get install tesseract-ocr`
   - **Windows**: Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
+- Playwright Browsers (for browser autofill feature)
+  - Installed automatically after pip install (see below)
 
 ### Setup Steps
 
@@ -90,6 +100,9 @@ venv\Scripts\activate
 3. **Install dependencies**
 ```bash
 pip install -r requirements.txt
+
+# Install Playwright browsers (for autofill feature)
+playwright install chromium
 ```
 
 4. **Configure environment (optional)**
@@ -153,6 +166,12 @@ python main.py
    - Go to "Resume Optimization" tab
    - Click "Generate Optimized Resume"
    - Review changes and export the optimized version
+
+5. **Auto-fill Application** *(NEW)*
+   - Go to "Browser Autofill" tab
+   - Enter job application form URL
+   - Click "Start Autofill"
+   - Review filled form and submit manually
 
 ### Supported File Formats
 
@@ -354,6 +373,7 @@ MIT License - See LICENSE file for details
 - **scikit-learn**: NLP and machine learning
 - **pytesseract**: OCR capabilities
 - **pypdf & python-docx**: Document parsing
+- **Playwright**: Browser automation for form autofill
 
 ## Support
 
