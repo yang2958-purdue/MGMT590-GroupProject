@@ -24,38 +24,122 @@ var ResumeParser = (function() {
         summary: ''
     };
     
-    // Extract email addresses
-    function extractEmail(text) {
-        var emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-        var emails = text.match(emailRegex);
-        return emails ? emails[0] : '';
+    // Clean text from PDF artifacts and formatting
+    function cleanText(text) {
+        // Remove PDF headers and metadata
+        text = text.replace(/%PDF-[\d.]+/g, '');
+        text = text.replace(/%%EOF/g, '');
+        text = text.replace(/\/[A-Z][a-z]+\s*<<[^>]*>>/g, '');
+        
+        // Remove excessive whitespace and normalize
+        text = text.replace(/\s+/g, ' ');
+        text = text.replace(/[\r\n]+/g, '\n');
+        text = text.trim();
+        
+        // Remove non-printable characters except newlines
+        text = text.replace(/[^\x20-\x7E\n]/g, '');
+        
+        return text;
     }
     
-    // Extract phone numbers
+    // Validate email format
+    function isValidEmail(email) {
+        var emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+        return emailRegex.test(email);
+    }
+    
+    // Validate phone format
+    function isValidPhone(phone) {
+        // Phone should have at least 10 digits
+        var digits = phone.replace(/\D/g, '');
+        return digits.length >= 10 && digits.length <= 15;
+    }
+    
+    // Validate name format
+    function isValidName(name) {
+        // Name should have 2-4 words, each 2+ chars, only letters and spaces
+        if (!name || name.length < 3 || name.length > 50) return false;
+        var words = name.split(/\s+/);
+        if (words.length < 2 || words.length > 4) return false;
+        
+        for (var i = 0; i < words.length; i++) {
+            var word = words[i];
+            if (word.length < 2) return false;
+            if (!/^[A-Za-z'-]+$/.test(word)) return false;
+        }
+        return true;
+    }
+    
+    // Extract email addresses with validation
+    function extractEmail(text) {
+        var emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+        var emails = text.match(emailRegex);
+        
+        if (emails) {
+            for (var i = 0; i < emails.length; i++) {
+                if (isValidEmail(emails[i])) {
+                    return emails[i];
+                }
+            }
+        }
+        return '';
+    }
+    
+    // Extract phone numbers with validation
     function extractPhone(text) {
-        var phoneRegex = /(\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}/g;
-        var phones = text.match(phoneRegex);
-        return phones ? phones[0] : '';
+        // Multiple phone formats
+        var patterns = [
+            /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,  // (123) 456-7890 or 123-456-7890
+            /\+\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,  // +1-123-456-7890
+            /\d{3}[-.\s]\d{3}[-.\s]\d{4}/g  // 123-456-7890
+        ];
+        
+        for (var p = 0; p < patterns.length; p++) {
+            var phones = text.match(patterns[p]);
+            if (phones) {
+                for (var i = 0; i < phones.length; i++) {
+                    var phone = phones[i].trim();
+                    if (isValidPhone(phone)) {
+                        return phone;
+                    }
+                }
+            }
+        }
+        return '';
     }
     
     // Extract name from resume
     function extractName(text) {
-        var lines = text.split('\n');
-        var firstLine = lines[0].trim();
+        var lines = text.split('\n').map(function(line) { return line.trim(); }).filter(function(line) { return line.length > 0; });
         
-        // Assuming name is usually in the first few lines
-        // Look for lines with 2-4 words and proper capitalization
-        for (var i = 0; i < Math.min(5, lines.length); i++) {
+        console.log('📝 Analyzing lines for name extraction:', lines.slice(0, 10));
+        
+        // Try to find name in first 10 lines
+        for (var i = 0; i < Math.min(10, lines.length); i++) {
             var line = lines[i].trim();
-            var words = line.split(/\s+/);
             
-            // Name usually has 2-3 words, all capitalized
-            if (words.length >= 2 && words.length <= 4) {
-                var allCapitalized = words.every(function(word) {
+            // Skip lines with PDF artifacts, URLs, email, phone
+            if (line.match(/%PDF|\/[A-Z]/i) || 
+                line.match(/@/) || 
+                line.match(/https?:\/\//) ||
+                line.match(/\d{3}[-.)]\d{3}/)) {
+                continue;
+            }
+            
+            // Skip lines that are too long or too short
+            if (line.length < 5 || line.length > 50) continue;
+            
+            // Check if line looks like a name
+            if (isValidName(line)) {
+                var words = line.split(/\s+/);
+                
+                // Must have proper capitalization
+                var hasProperCaps = words.every(function(word) {
                     return word.length > 0 && word[0] === word[0].toUpperCase();
                 });
                 
-                if (allCapitalized && !line.match(/@/) && !line.match(/\d{3}/)) {
+                if (hasProperCaps) {
+                    console.log('✅ Found valid name:', line);
                     return {
                         fullName: line,
                         firstName: words[0],
@@ -65,12 +149,11 @@ var ResumeParser = (function() {
             }
         }
         
-        // Fallback to first line
-        var words = firstLine.split(/\s+/);
+        console.log('⚠️ No valid name found');
         return {
-            fullName: firstLine,
-            firstName: words[0] || '',
-            lastName: words[words.length - 1] || ''
+            fullName: '',
+            firstName: '',
+            lastName: ''
         };
     }
     
@@ -192,15 +275,26 @@ var ResumeParser = (function() {
     
     // Main parsing function
     function parseResumeText(text) {
-        console.log('📄 Parsing resume text...');
+        console.log('📄 Parsing resume text (length: ' + text.length + ' chars)...');
+        console.log('📝 First 200 chars:', text.substring(0, 200));
+        
+        // Clean the text first
+        text = cleanText(text);
+        console.log('🧹 After cleaning (first 200 chars):', text.substring(0, 200));
         
         // Extract personal information
         var nameData = extractName(text);
         resumeData.personal.fullName = nameData.fullName;
         resumeData.personal.firstName = nameData.firstName;
         resumeData.personal.lastName = nameData.lastName;
-        resumeData.personal.email = extractEmail(text);
-        resumeData.personal.phone = extractPhone(text);
+        
+        var email = extractEmail(text);
+        resumeData.personal.email = email;
+        console.log('📧 Extracted email:', email);
+        
+        var phone = extractPhone(text);
+        resumeData.personal.phone = phone;
+        console.log('📞 Extracted phone:', phone);
         
         // Extract address
         var addressData = extractAddress(text);
@@ -221,36 +315,73 @@ var ResumeParser = (function() {
         return resumeData;
     }
     
-    // Parse PDF file (simple text extraction)
+    // Parse PDF file with improved text extraction
     function parsePDF(file, callback) {
         var reader = new FileReader();
         reader.onload = function(e) {
-            // For MVP, we'll extract visible text
-            // In production, would use PDF.js library
             var arrayBuffer = e.target.result;
             var text = extractTextFromPDF(arrayBuffer);
+            
+            if (!text || text.length < 50) {
+                console.error('⚠️ PDF text extraction failed or insufficient content');
+                callback({
+                    personal: {
+                        firstName: '',
+                        lastName: '',
+                        fullName: '',
+                        email: '',
+                        phone: ''
+                    },
+                    education: [],
+                    skills: [],
+                    error: 'Could not extract text from PDF. Please use a text-based PDF or try a .txt file.'
+                });
+                return;
+            }
+            
             var data = parseResumeText(text);
             callback(data);
         };
         reader.readAsArrayBuffer(file);
     }
     
-    // Simple PDF text extraction (basic implementation)
+    // Improved PDF text extraction
     function extractTextFromPDF(arrayBuffer) {
         var uint8Array = new Uint8Array(arrayBuffer);
         var text = '';
+        var inTextObject = false;
+        var buffer = '';
         
-        // Convert to string and extract visible text between parentheses
+        // Convert to string
         for (var i = 0; i < uint8Array.length; i++) {
             var char = String.fromCharCode(uint8Array[i]);
-            if (char.match(/[\x20-\x7E]/)) { // Printable ASCII
-                text += char;
-            }
+            buffer += char;
         }
         
-        // Clean up PDF formatting
-        text = text.replace(/\(/g, ' ').replace(/\)/g, ' ');
-        text = text.replace(/\s+/g, ' ');
+        console.log('📄 PDF buffer size:', buffer.length);
+        
+        // Try to extract text between PDF text objects (BT...ET)
+        var textObjects = buffer.match(/\(([^)]+)\)/g);
+        if (textObjects && textObjects.length > 0) {
+            console.log('📝 Found ' + textObjects.length + ' text objects in PDF');
+            for (var i = 0; i < textObjects.length; i++) {
+                var textContent = textObjects[i].replace(/[()]/g, '');
+                // Only keep printable ASCII
+                textContent = textContent.replace(/[^\x20-\x7E]/g, ' ');
+                if (textContent.trim().length > 0) {
+                    text += textContent + ' ';
+                }
+            }
+        } else {
+            // Fallback: try to extract any readable text
+            console.log('⚠️ No text objects found, trying fallback extraction');
+            var cleaned = buffer.replace(/[^\x20-\x7E\n]/g, ' ');
+            text = cleaned;
+        }
+        
+        // Clean up
+        text = text.replace(/\s+/g, ' ').trim();
+        console.log('📝 Extracted text length:', text.length);
         
         return text;
     }

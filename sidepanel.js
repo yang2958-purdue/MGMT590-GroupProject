@@ -99,8 +99,11 @@ function parseResume(file, fileData) {
     textReader.readAsText(file);
 }
 
-// Simple resume parser for sidepanel
+// Enhanced resume parser for sidepanel
 function parseResumeTextSimple(text) {
+    console.log('📄 Parsing resume in sidepanel (length: ' + text.length + ')');
+    console.log('📝 First 200 chars:', text.substring(0, 200));
+    
     const data = {
         personal: {
             firstName: '',
@@ -113,24 +116,89 @@ function parseResumeTextSimple(text) {
         skills: []
     };
     
-    // Extract email
-    const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-    if (emailMatch) data.personal.email = emailMatch[0];
+    // Clean text from PDF artifacts
+    text = text.replace(/%PDF-[\d.]+/g, '');
+    text = text.replace(/%%EOF/g, '');
+    text = text.replace(/\/[A-Z][a-z]+\s*<<[^>]*>>/g, '');
+    text = text.replace(/\s+/g, ' ');
+    text = text.replace(/[^\x20-\x7E\n]/g, ' ');
+    text = text.trim();
     
-    // Extract phone
-    const phoneMatch = text.match(/(\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}/);
-    if (phoneMatch) data.personal.phone = phoneMatch[0];
-    
-    // Extract name (first non-empty line usually)
-    const lines = text.split('\n').filter(l => l.trim().length > 0);
-    if (lines.length > 0) {
-        const nameLine = lines[0].trim();
-        const nameWords = nameLine.split(/\s+/);
-        data.personal.fullName = nameLine;
-        data.personal.firstName = nameWords[0] || '';
-        data.personal.lastName = nameWords[nameWords.length - 1] || '';
+    // Extract email with validation
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+    const emails = text.match(emailRegex);
+    if (emails) {
+        for (let i = 0; i < emails.length; i++) {
+            if (emails[i].length > 5 && emails[i].includes('.')) {
+                data.personal.email = emails[i];
+                console.log('✅ Found email:', emails[i]);
+                break;
+            }
+        }
     }
     
+    // Extract phone with validation
+    const phonePatterns = [
+        /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+        /\+\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g
+    ];
+    
+    for (let p = 0; p < phonePatterns.length; p++) {
+        const phones = text.match(phonePatterns[p]);
+        if (phones) {
+            for (let i = 0; i < phones.length; i++) {
+                const phone = phones[i].trim();
+                const digits = phone.replace(/\D/g, '');
+                if (digits.length >= 10 && digits.length <= 15) {
+                    data.personal.phone = phone;
+                    console.log('✅ Found phone:', phone);
+                    break;
+                }
+            }
+            if (data.personal.phone) break;
+        }
+    }
+    
+    // Extract name - look for valid name in first 10 lines
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    console.log('📝 Lines to check:', lines.slice(0, 10));
+    
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+        const line = lines[i].trim();
+        
+        // Skip lines with artifacts, email, phone, or URLs
+        if (line.match(/%PDF|\/[A-Z]/i) || 
+            line.match(/@/) || 
+            line.match(/https?:\/\//) ||
+            line.match(/\d{3}[-.)]\d{3}/)) {
+            continue;
+        }
+        
+        // Check if looks like a name (2-4 words, 5-50 chars, letters only)
+        if (line.length >= 5 && line.length <= 50) {
+            const words = line.split(/\s+/);
+            
+            if (words.length >= 2 && words.length <= 4) {
+                const allWords = words.every(word => 
+                    word.length >= 2 && /^[A-Za-z'-]+$/.test(word)
+                );
+                
+                const hasProperCaps = words.every(word => 
+                    word[0] === word[0].toUpperCase()
+                );
+                
+                if (allWords && hasProperCaps) {
+                    data.personal.fullName = line;
+                    data.personal.firstName = words[0];
+                    data.personal.lastName = words[words.length - 1];
+                    console.log('✅ Found name:', line);
+                    break;
+                }
+            }
+        }
+    }
+    
+    console.log('✅ Parsed data:', data);
     return data;
 }
 
@@ -146,9 +214,28 @@ function displayParsedData(data) {
     }
     
     let html = '<strong style="color: #0369a1;">📋 Extracted Data:</strong><br>';
-    if (data.personal.fullName) html += '<div>👤 Name: ' + data.personal.fullName + '</div>';
-    if (data.personal.email) html += '<div>📧 Email: ' + data.personal.email + '</div>';
-    if (data.personal.phone) html += '<div>📞 Phone: ' + data.personal.phone + '</div>';
+    let hasData = false;
+    
+    if (data.error) {
+        html += '<div style="color: #dc2626; margin-top: 5px;">⚠️ ' + data.error + '</div>';
+    }
+    
+    if (data.personal.fullName) {
+        html += '<div>👤 Name: ' + data.personal.fullName + '</div>';
+        hasData = true;
+    }
+    if (data.personal.email) {
+        html += '<div>📧 Email: ' + data.personal.email + '</div>';
+        hasData = true;
+    }
+    if (data.personal.phone) {
+        html += '<div>📞 Phone: ' + data.personal.phone + '</div>';
+        hasData = true;
+    }
+    
+    if (!hasData && !data.error) {
+        html += '<div style="color: #ea580c; margin-top: 5px;">⚠️ No data extracted. Try using a .txt file or check the console for details.</div>';
+    }
     
     parsedSection.innerHTML = html;
 }
