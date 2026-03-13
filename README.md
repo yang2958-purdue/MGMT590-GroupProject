@@ -9,7 +9,7 @@ A Chrome extension that allows you to upload resumes and control your cursor on 
 
 - 📄 **Resume Upload**: Upload PDF or DOCX resume files via drag-and-drop or file selection
 - 🎯 **Cursor Control**: Automated cursor movement in circular patterns on web pages
-- ⌨️ **Keyboard Toggle**: Press the Right Arrow key (→) to toggle cursor control on/off
+- ⌨️ **Keyboard Toggle**: Press Ctrl+Shift+Z to toggle cursor control on/off
 - 🎨 **Modern UI**: Beautiful side panel interface with real-time status updates
 
 ## Installation Instructions
@@ -67,9 +67,9 @@ Make sure you have all the following files in your project directory:
 ### Control the Cursor
 
 1. Navigate to any web page where you want to control the cursor
-2. Press the **Right Arrow key (→)** on your keyboard to activate cursor control
+2. Press **Ctrl+Shift+Z** on your keyboard to activate cursor control
 3. The cursor will automatically move in a circular pattern on the page
-4. Press the **Right Arrow key (→)** again to deactivate cursor control
+4. Press **Ctrl+Shift+Z** again to deactivate cursor control
 5. The side panel shows the current status (ON/OFF) in real-time
 
 ## Technical Details
@@ -113,7 +113,7 @@ The extension requires the following permissions:
 - Check the Chrome console for any error messages
 
 ### Cursor Control Not Working
-- Ensure you're pressing the Right Arrow key (→)
+- Ensure you're pressing Ctrl+Shift+Z (all three keys together)
 - Check that the content script is loaded (look for console message)
 - Refresh the web page and try again
 

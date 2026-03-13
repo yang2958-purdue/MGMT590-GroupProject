@@ -64,21 +64,21 @@ Run this checklist before loading the extension:
 
 ### Test 5: Cursor Control Activation
 1. Navigate to any regular webpage (e.g., www.google.com)
-2. Press the **Right Arrow (→)** key on keyboard
+2. Press **Ctrl+Shift+Z** on keyboard
 3. **Expected Result:**
    - A purple circular cursor appears
    - Cursor starts moving in a circle
    - Console shows: "Cursor control activated"
 
 ### Test 6: Side Panel Status Update
-1. Activate cursor control (press Right Arrow)
+1. Activate cursor control (press Ctrl+Shift+Z)
 2. Look at side panel
 3. **Expected Result:**
    - "Cursor Control:" status changes from "OFF" (red) to "ON" (green)
 
 ### Test 7: Cursor Control Deactivation
 1. With cursor control active
-2. Press **Right Arrow (→)** key again
+2. Press **Ctrl+Shift+Z** again
 3. **Expected Result:**
    - Purple cursor disappears
    - Movement stops
@@ -107,9 +107,9 @@ Run this checklist before loading the extension:
 
 ### Test 10: Multi-Tab Testing
 1. Open multiple Chrome tabs
-2. Activate cursor control in Tab 1
+2. Activate cursor control in Tab 1 (Ctrl+Shift+Z)
 3. Switch to Tab 2
-4. Press Right Arrow in Tab 2
+4. Press Ctrl+Shift+Z in Tab 2
 5. **Expected Result:**
    - Each tab has independent cursor control
    - Tab 1 cursor stays active
@@ -232,7 +232,7 @@ If you find issues, document them as:
 - [ ] Side panel opens
 - [ ] Resume upload works (both methods)
 - [ ] Clear resume works
-- [ ] Right Arrow key toggles cursor
+- [ ] Ctrl+Shift+Z toggles cursor
 - [ ] Cursor moves in circle
 - [ ] Side panel status updates
 - [ ] Resume persists after reload

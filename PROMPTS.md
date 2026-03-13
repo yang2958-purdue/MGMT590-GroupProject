@@ -12,3 +12,12 @@ Create a basic chrome extension using HTML and JSON that:
 - Has a keyboard toggle using the right arrow key for on/off
 - For now, cursor should move in a circle when active
 
+---
+
+## 2026-03-13 - Change Keyboard Toggle
+
+**Timestamp:** Friday, March 13, 2026
+
+**Prompt:**
+Change the cursor toggle button from Right Arrow key to Ctrl+Shift+Z
+

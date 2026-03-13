@@ -60,7 +60,7 @@ MGMT590-GroupProject/
 - Mouse event dispatching
 
 ### 4. Keyboard Toggle ✅
-- Right Arrow key (→) activates/deactivates
+- Ctrl+Shift+Z activates/deactivates
 - Works on any webpage
 - Status synced with side panel
 - Console logging for debugging
@@ -231,7 +231,7 @@ This project demonstrates:
 ✅ UI on the left side of screen (side panel)  
 ✅ Resume upload capability (PDF, DOCX)  
 ✅ Mouse cursor control on webpage  
-✅ Keyboard toggle (Right Arrow key)  
+✅ Keyboard toggle (Ctrl+Shift+Z)  
 ✅ Circular cursor movement  
 ✅ README with execution instructions  
 ✅ PROMPTS.md with timestamped entries  

@@ -60,7 +60,7 @@ Display Success Message
 
 ### 2. Cursor Control Flow
 ```
-User Presses Right Arrow Key
+User Presses Ctrl+Shift+Z
       ↓
 content.js (Keyboard Event Listener)
       ↓
@@ -155,9 +155,9 @@ Update UI Display (ON/OFF Badge)
 
 ### Keyboard Interaction
 ```
-Right Arrow Key Press
+Ctrl+Shift+Z Press
       ↓
-event.key === 'ArrowRight'
+event.ctrlKey && event.shiftKey && event.key === 'Z'
       ↓
 toggleCursorControl()
       ↓
@@ -314,7 +314,7 @@ manifest.json
 
 ## Quick Reference
 
-**Toggle Cursor:** Right Arrow (→) key  
+**Toggle Cursor:** Ctrl+Shift+Z  
 **Open Panel:** Click extension icon  
 **Upload File:** Click or drag-drop  
 **Clear File:** Click "Clear Resume" button  

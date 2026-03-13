@@ -24,16 +24,16 @@ Open `generate-icons.html` in your browser → Icons download automatically ✅
    
 3. **Go to any website** (like google.com)
 
-4. **Press Right Arrow key (→)**
+4. **Press Ctrl+Shift+Z**
    - Watch the magic! 🎯
    
-5. **Press Right Arrow (→) again** to stop
+5. **Press Ctrl+Shift+Z again** to stop
 
 ---
 
 ## That's It! 🎉
 
-**Keyboard Shortcut:** Right Arrow (→) = Toggle ON/OFF
+**Keyboard Shortcut:** Ctrl+Shift+Z = Toggle ON/OFF
 
 **Status:** Check the side panel to see if cursor control is ON or OFF
 
@@ -57,7 +57,7 @@ A: Make sure you're on a regular website (not chrome:// pages)
 A: Click the extension icon in toolbar (may be in ⋮ menu)
 
 **Q: How do I stop it?**  
-A: Press Right Arrow (→) key again
+A: Press Ctrl+Shift+Z again
 
 **Q: Is my resume saved?**  
 A: Yes! It's stored locally in Chrome and persists across sessions

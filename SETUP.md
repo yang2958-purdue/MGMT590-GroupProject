@@ -35,7 +35,7 @@ Chrome extensions work best with PNG icons. Choose one method:
 2. Side panel opens on the left
 3. Upload a resume (PDF or DOCX)
 4. Navigate to any webpage
-5. Press **Right Arrow Key (→)** to toggle cursor control
+5. Press **Ctrl+Shift+Z** to toggle cursor control
 6. Watch the cursor move in a circle!
 
 ## Troubleshooting
@@ -52,7 +52,7 @@ Chrome extensions work best with PNG icons. Choose one method:
 
 ### Cursor Control Not Working
 - Make sure you're on an actual webpage (not chrome:// pages)
-- Press Right Arrow key (→)
+- Press Ctrl+Shift+Z (all three keys together)
 - Check browser console for errors (F12)
 
 ## File Checklist
@@ -79,7 +79,7 @@ After successful installation:
 
 - Currently uses SVG icons (convert to PNG recommended)
 - Cursor moves in 100px radius circle
-- Right Arrow key is the toggle
+- Ctrl+Shift+Z is the toggle shortcut
 - Resume stored in Chrome local storage
 - Works on all websites (except Chrome internal pages)
 

@@ -133,8 +133,9 @@ function notifySidePanel() {
 
 // Listen for keyboard events
 document.addEventListener('keydown', (e) => {
-    // Right arrow key (keyCode 39 or key 'ArrowRight')
-    if (e.key === 'ArrowRight' || e.keyCode === 39) {
+    // Ctrl+Shift+Z combination
+    if (e.ctrlKey && e.shiftKey && (e.key === 'Z' || e.key === 'z' || e.keyCode === 90)) {
+        e.preventDefault(); // Prevent any default browser behavior
         toggleCursorControl();
     }
 });
@@ -161,5 +162,5 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-console.log('Resume Assistant content script loaded. Press Right Arrow key to toggle cursor control.');
+console.log('Resume Assistant content script loaded. Press Ctrl+Shift+Z to toggle cursor control.');
 
