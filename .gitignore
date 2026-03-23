@@ -1,13 +1,8 @@
+# Build output
+dist/
+
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
-
-# Build outputs
-.next/
-out/
-dist/
-dist-electron/
 
 # Python
 __pycache__/
@@ -15,11 +10,12 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
-.venv/
-env/
+python-server/.venv/
+python-server/venv/
+
+# Environment
 .env
-backend/config.json
+.env*.local
 
 # IDE / OS
 .idea/
@@ -28,10 +24,6 @@ backend/config.json
 *.swo
 .DS_Store
 Thumbs.db
-
-# Env
-.env*.local
-.env
 
 # Logs
 *.log

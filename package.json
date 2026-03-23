@@ -1,39 +1,22 @@
 {
-  "name": "jobbot",
-  "version": "0.1.0",
-  "description": "Desktop app for job search automation and resume tailoring",
-  "author": "JobBot",
+  "name": "jobbot-extension",
+  "version": "1.0.0",
+  "description": "Browser extension for job search automation and application autofill",
   "private": true,
-  "main": "dist-electron/main.js",
+  "type": "module",
   "scripts": {
-    "dev": "concurrently \"next dev\" \"wait-on http://localhost:3000 && npm run build:electron && electron .\"",
-    "build": "next build && npm run build:electron && electron-builder",
-    "build:next": "next build",
-    "build:electron": "tsc -p tsconfig.electron.json",
-    "electron:dev": "npm run build:electron && electron .",
-    "python:dev": "node -e \"require('child_process').execSync((process.platform==='win32'?'.venv\\\\Scripts\\\\python.exe':'.venv/bin/python') + ' -m uvicorn main:app --port 7823 --reload', {cwd: require('path').join(__dirname,'backend'), stdio:'inherit'})\""
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "clean": "rimraf dist"
   },
   "dependencies": {
-    "next": "14.2.18",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "zustand": "^5.0.1",
-    "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.4",
-    "lucide-react": "^0.454.0"
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^4.9.155",
+    "webextension-polyfill": "^0.12.0"
   },
   "devDependencies": {
-    "electron": "latest",
-    "@types/node": "^22.9.0",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "autoprefixer": "^10.4.20",
-    "concurrently": "^9.1.0",
-    "electron-builder": "^25.1.8",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.14",
-    "typescript": "^5.6.3",
-    "wait-on": "^8.0.1"
+    "rimraf": "^6.0.1",
+    "vite": "^6.2.0",
+    "vite-plugin-static-copy": "^2.3.0"
   }
 }

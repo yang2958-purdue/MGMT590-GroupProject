@@ -1,82 +1,101 @@
-# JobBot
+# JobBot — Browser Extension
 
-JobBot is a self-contained Electron desktop application for job search automation and resume tailoring. It runs locally with no external hosting or database: a Next.js frontend and a FastAPI Python backend (spawned by Electron).
+A self-contained Manifest V3 browser extension for job search automation and application autofill. The extension uses a Chrome Side Panel (Firefox sidebar) UI and a local Python Flask server for job scraping.
 
 ## Prerequisites
 
 - **Node.js** 18+
 - **Python** 3.10+
-- **npm** (or yarn)
+- **Chrome** 114+ (for Side Panel support) or **Firefox** 109+ (for sidebar support)
 
-## Setup
+## Quick Start
 
-1. **Install Node dependencies**
+### 1. Install Node dependencies
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-2. **Set up the Python backend (one-time)**
+### 2. Build the extension
 
-   The backend uses a virtual environment at `backend/.venv`. Create it and install dependencies:
+```bash
+npm run build
+```
 
-   **Windows (PowerShell or cmd):**
-   ```bash
-   cd backend
-   python -m venv .venv
-   .venv\Scripts\pip install -r requirements.txt
-   cd ..
-   ```
+The built extension is output to the `dist/` folder.
 
-   **Mac/Linux:**
-   ```bash
-   cd backend
-   python3 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
-   cd ..
-   ```
+### 3. Load in Chrome
 
-   After this, `npm run python:dev` uses the venv automatically (no need to activate it).
+1. Open `chrome://extensions/`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** and select the `dist/` folder
+4. The JobBot icon appears in the toolbar. Click it to open the side panel.
 
-3. **Run the app (development)**
+### 4. Start the Python scraper server
 
-   - Start the Next.js dev server and Electron together:
+**Windows:**
+```bash
+cd python-server
+start_server.bat
+```
 
-     ```bash
-     npm run dev
-     ```
+**Mac/Linux:**
+```bash
+cd python-server
+chmod +x start_server.sh
+./start_server.sh
+```
 
-   - Or run them in separate terminals (keep Terminal 1 and 2 running):
-     - **Terminal 1:** `npx next dev` — start the frontend (Electron loads from http://localhost:3000).
-     - **Terminal 2:** `npm run python:dev` — start the backend (optional if using `npm run dev`; Electron also starts the backend).
-     - **Terminal 3:** `npm run build:electron && npm run electron:dev` — build and launch Electron. Run this only after Next.js is up, or you’ll see `ERR_CONNECTION_REFUSED` on load.
+The server starts on `http://localhost:5001`. The extension calls this server to fetch job postings.
 
-4. **Backend only (for API testing)**
+### 5. Development workflow
 
-   ```bash
-   npm run python:dev
-   ```
+For live rebuilds during development:
 
-   Then call `http://localhost:7823/health` and other endpoints (e.g. POST `/api/resume/parse` with a file).
+```bash
+npm run dev
+```
 
-## Build (packaging)
+This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/` and click the reload button on the JobBot extension.
 
-1. Export the Next.js static site and build Electron:
+## Project Structure
 
-   ```bash
-   npm run build
-   ```
+```
+├── src/
+│   ├── sidepanel/          # Side Panel UI (main app)
+│   │   ├── pages/          # Upload, Target, Results, Detail, Settings
+│   │   └── components/     # Nav, ResumeUpload, JobTable, etc.
+│   ├── background/         # Service worker
+│   ├── content/            # Content script for autofill
+│   ├── modules/            # Core business logic (ES modules)
+│   │   ├── resumeParser.js # PDF/DOCX → structured resume object
+│   │   ├── storage.js      # chrome.storage.local wrapper
+│   │   ├── jobScraper.js   # Calls Flask server for job postings
+│   │   ├── scorer.js       # Fit score + ATS score (keyword overlap)
+│   │   ├── tailor.js       # Resume tailoring advice + auto-tailor
+│   │   └── autofill.js     # Autofill engine for application forms
+│   ├── data/               # Static data (company seed list)
+│   └── lib/                # Shared constants
+├── python-server/          # Local Flask scraper server
+│   ├── server.py           # Flask app (/health, /scrape)
+│   ├── config.py           # ACTIVE_ADAPTER selector
+│   └── adapters/           # Swappable scraper implementations
+├── manifest.json           # MV3 manifest (source)
+├── icons/                  # Extension icons
+└── dist/                   # Built extension (gitignored)
+```
 
-2. Output is in the `dist/` directory (installers or unpacked app depending on `electron-builder` config).
+## Swapping the Scraper Adapter
 
-**Running the installed app:** The installer does not bundle Python. You must have **Python 3.10+** installed on the machine where you run JobBot. Install it from [python.org](https://www.python.org/downloads/) and ensure **"Add Python to PATH"** is checked. The app will look for Python in standard install locations (e.g. `%LOCALAPPDATA%\\Programs\\Python`) or on your PATH. If Python is missing, JobBot will show an error dialog with these instructions.
+The Python server uses an adapter pattern. To change scrapers, edit one line in `python-server/config.py`:
 
-## Project structure
+```python
+ACTIVE_ADAPTER = "beautifulsoup"   # change to "firecrawl" when ready
+```
 
-- `electron/` – Electron main process, preload script, Python bridge
-- `src/` – Next.js App Router frontend (static export)
-- `backend/` – FastAPI app: resume parsing, job scraping, scoring, tailoring
+## Architecture Notes
 
-## Configuration
-
-API keys (e.g. Anthropic for resume tailoring) are stored in a config file. In development the backend uses `backend/config.json` if `JOBBOT_CONFIG_PATH` is not set; when run from Electron, the path is set to the app user data directory. Use **Settings** in the app sidebar to add an Anthropic API key for the tailor feature.
+- **No external database** — all persistence via `chrome.storage.local`.
+- **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
+- **AI/LLM calls** (scoring, tailoring) are isolated behind a single function in their modules, marked with `// SWAP:` comments for easy replacement.
+- **The JS side** calls `localhost:5001/scrape` and knows nothing about which adapter is active on the server.
