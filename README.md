@@ -1,334 +1,82 @@
-# Resume Auto-Fill Bot
+# JobBot
 
-A minimal, modular CLI-based tool for matching resumes to job postings using TF-IDF similarity scoring.
+JobBot is a self-contained Electron desktop application for job search automation and resume tailoring. It runs locally with no external hosting or database: a Next.js frontend and a FastAPI Python backend (spawned by Electron).
 
-## Overview
+## Prerequisites
 
-This lightweight command-line application helps job seekers identify the best-matching job postings for their resume. It uses machine learning (TF-IDF vectorization and cosine similarity) to rank job opportunities and generate tailored resume summaries.
+- **Node.js** 18+
+- **Python** 3.10+
+- **npm** (or yarn)
 
-## Features
+## Setup
 
-- **Resume Input**: Upload from file (.txt, .pdf, .docx) or paste text directly
-- **Visual File Browser**: Native file picker dialog for easy file selection
-- **Multi-Format Support**: Handles TXT, PDF, and Word documents
-- **Multi-Company Search**: Search across multiple companies simultaneously
-- **Intelligent Matching**: TF-IDF-based similarity scoring with difflib fallback
-- **Ranked Results**: Jobs sorted by relevance to your resume
-- **Tailored Exports**: Generate customized resume summaries for specific jobs
-- **Interactive CLI**: User-friendly menu-driven interface
-- **Modular Design**: Clean separation of concerns for easy extension
+1. **Install Node dependencies**
 
-## Technology Stack
+   ```bash
+   npm install
+   ```
 
-- **Language**: Python 3.8+
-- **ML/NLP**: scikit-learn (TF-IDF), difflib
-- **Data Processing**: numpy
-- **Document Parsing**: PyPDF2 (PDF), python-docx (Word)
-- **GUI**: tkinter (built-in file browser)
-- **Web Scraping Ready**: requests, beautifulsoup4 (for future real scraping)
+2. **Set up the Python backend (one-time)**
 
-## Project Structure
+   The backend uses a virtual environment at `backend/.venv`. Create it and install dependencies:
 
-```
-MGMT590-GroupProject/
-├── main.py              # CLI application entry point
-├── resume_parser.py     # Resume input and validation
-├── job_search.py        # Job search (currently mock data)
-├── similarity.py        # TF-IDF similarity computation
-├── exporter.py          # Tailored resume export
-├── utils.py             # Helper functions
-├── requirements.txt     # Python dependencies
-├── README.md           # This file
-└── PROMPTS.md          # Project prompts log
-```
+   **Windows (PowerShell or cmd):**
+   ```bash
+   cd backend
+   python -m venv .venv
+   .venv\Scripts\pip install -r requirements.txt
+   cd ..
+   ```
 
-## Installation
+   **Mac/Linux:**
+   ```bash
+   cd backend
+   python3 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
+   cd ..
+   ```
 
-### Prerequisites
+   After this, `npm run python:dev` uses the venv automatically (no need to activate it).
 
-- Python 3.8 or higher
-- pip (Python package manager)
+3. **Run the app (development)**
 
-### Setup
+   - Start the Next.js dev server and Electron together:
 
-1. **Clone or download the repository**
+     ```bash
+     npm run dev
+     ```
 
-```bash
-cd "C:\DEVOPS FOLDER\MGMT590-GroupProject"
-```
+   - Or run them in separate terminals (keep Terminal 1 and 2 running):
+     - **Terminal 1:** `npx next dev` — start the frontend (Electron loads from http://localhost:3000).
+     - **Terminal 2:** `npm run python:dev` — start the backend (optional if using `npm run dev`; Electron also starts the backend).
+     - **Terminal 3:** `npm run build:electron && npm run electron:dev` — build and launch Electron. Run this only after Next.js is up, or you’ll see `ERR_CONNECTION_REFUSED` on load.
 
-2. **Create a virtual environment (recommended)**
+4. **Backend only (for API testing)**
 
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
+   ```bash
+   npm run python:dev
+   ```
 
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
+   Then call `http://localhost:7823/health` and other endpoints (e.g. POST `/api/resume/parse` with a file).
 
-3. **Install dependencies**
+## Build (packaging)
 
-```bash
-pip install -r requirements.txt
-```
+1. Export the Next.js static site and build Electron:
 
-## Running the Application
+   ```bash
+   npm run build
+   ```
 
-### Start the CLI
+2. Output is in the `dist/` directory (installers or unpacked app depending on `electron-builder` config).
 
-```bash
-python main.py
-```
+**Running the installed app:** The installer does not bundle Python. You must have **Python 3.10+** installed on the machine where you run JobBot. Install it from [python.org](https://www.python.org/downloads/) and ensure **"Add Python to PATH"** is checked. The app will look for Python in standard install locations (e.g. `%LOCALAPPDATA%\\Programs\\Python`) or on your PATH. If Python is missing, JobBot will show an error dialog with these instructions.
 
-### Basic Workflow
+## Project structure
 
-1. **Upload Resume** (Option 1)
-   - Choose to load from file or paste text
-   - File path example: `C:\Users\YourName\Documents\resume.txt`
-   - Or paste your resume text directly
+- `electron/` – Electron main process, preload script, Python bridge
+- `src/` – Next.js App Router frontend (static export)
+- `backend/` – FastAPI app: resume parsing, job scraping, scoring, tailoring
 
-2. **Enter Target Companies** (Option 2)
-   - Enter comma-separated company names
-   - Example: `Google, Microsoft, Apple, Amazon`
+## Configuration
 
-3. **Enter Desired Role** (Option 3)
-   - Specify the job title you're seeking
-   - Example: `Software Engineer Intern`
-
-4. **Run Job Search** (Option 4)
-   - Searches for jobs at specified companies
-   - Computes similarity scores automatically
-   - Currently uses mock data (easily swappable for real APIs)
-
-5. **View Ranked Results** (Option 5)
-   - See jobs sorted by match score
-   - View detailed information for any job
-
-6. **Export Tailored Resume** (Option 6)
-   - Generate customized resume summaries
-   - Export for single job or multiple top matches
-   - Creates comparison reports
-
-7. **View Session Info** (Option 7)
-   - Check current session state
-   - Verify loaded resume, companies, and role
-
-8. **Clear Session** (Option 8)
-   - Start over with fresh data
-
-9. **Exit** (Option 9)
-   - Safely exit the application
-
-## Usage Examples
-
-### Example 1: Quick Job Search
-
-```
-1. Select Option 1 → Option 1 → Browse and select your resume file
-   (OR Option 2 → Enter path like: C:\path\to\resume.txt)
-2. Select Option 2 → Enter: Google, Microsoft, Apple
-3. Select Option 3 → Enter: Software Engineer Intern
-4. Select Option 4 → Wait for search and ranking
-5. Select Option 5 → Review ranked results
-6. Select Option 6 → Option 1 → Enter job number → Export
-```
-
-### Example 2: Pasting Resume Directly
-
-```
-1. Select Option 1 → Option 2 → Paste your resume text
-2. Press Ctrl+Z then Enter (Windows) or Ctrl+D (macOS/Linux)
-3. Continue with Options 2-6 as above
-```
-
-## Features in Detail
-
-### Resume Parser
-
-- **File Browser**: Visual file selection dialog (Windows-friendly!)
-- **Multiple Formats**: Supports TXT, PDF (.pdf), and Word (.docx) documents
-- **Automatic Format Detection**: Intelligently handles different file types
-- **Multiple Input Methods**: Browse files, enter path, or paste text
-- **Validation**: Ensures resume meets minimum requirements (100+ characters)
-- **Normalization**: Cleans whitespace and formatting
-- **Sanitization**: Enforces length limits and removes problematic characters
-- **Preview**: Shows resume preview for verification
-
-### Job Search
-
-- **Mock Data**: Currently provides realistic job descriptions
-- **Extensible**: Designed to swap in real scraping or API calls
-- **Error Handling**: Gracefully handles search failures
-- **Categorization**: Automatically categorizes roles (intern, engineer, data scientist, etc.)
-
-### Similarity Scoring
-
-- **TF-IDF Vectorization**: Industry-standard text similarity
-- **Cosine Similarity**: Measures document similarity (0-1 scale)
-- **Automatic Fallback**: Uses difflib if TF-IDF fails
-- **Keyword Extraction**: Identifies overlapping skills and terms
-
-### Export Features
-
-- **Tailored Summaries**: Highlights matching keywords and skills
-- **Recommendations**: Provides actionable resume improvement tips
-- **Batch Export**: Export for multiple top jobs at once
-- **Comparison Reports**: Overview of all job matches with scores
-- **Timestamped Files**: Prevents overwriting previous exports
-
-## Error Handling
-
-The application includes comprehensive error handling:
-
-- **File Errors**: Clear messages for missing/inaccessible files
-- **Input Validation**: Prompts for valid input on errors
-- **Search Failures**: Continues operation even if individual searches fail
-- **No Stack Traces**: User-friendly error messages only
-- **Graceful Degradation**: Fallback mechanisms for critical operations
-
-## Extending the Application
-
-### Adding Real Job Scraping
-
-Replace the mock implementation in `job_search.py`:
-
-```python
-def search_jobs(company_name: str, role: str) -> List[Dict[str, str]]:
-    # Implement actual web scraping here
-    # Example: Use requests + BeautifulSoup
-    # Return list of job dictionaries
-    pass
-```
-
-### Adding New Similarity Metrics
-
-Extend `similarity.py` to add custom scoring:
-
-```python
-def compute_similarity_custom(resume_text, job_descriptions):
-    # Implement your similarity metric
-    return scores
-```
-
-### Customizing Export Format
-
-Modify `exporter.py` to change output format:
-
-```python
-def generate_tailored_summary(resume_text, job):
-    # Customize the export format
-    # Add new sections or modify existing ones
-    pass
-```
-
-## Limitations and Future Enhancements
-
-### Current Limitations
-
-- Mock job search data (not real job postings)
-- Text file resume input only (no PDF/DOCX parsing)
-- No application tracking
-- No login/authentication system
-- No database persistence
-
-### Potential Enhancements
-
-- Real job scraping from Indeed, LinkedIn, Glassdoor
-- PDF/DOCX resume parsing
-- Multiple resume support
-- Application tracking system
-- Email notifications
-- Web interface option
-- Database for history tracking
-- API for programmatic access
-
-## Troubleshooting
-
-### Common Issues
-
-**"Module not found" errors:**
-```bash
-# Ensure virtual environment is activated and dependencies installed
-pip install -r requirements.txt
-```
-
-**File not found when loading resume:**
-- Use absolute path: `C:\Users\YourName\Documents\resume.txt`
-- Or navigate to project directory first
-
-**No jobs found:**
-- This is expected with mock data
-- Try different role keywords (intern, engineer, scientist, devops, frontend)
-
-**Low similarity scores:**
-- Ensure resume contains technical keywords
-- Try different job roles that match your background
-- Mock data may not perfectly align with all resumes
-
-**Export file not found:**
-- Check current directory for exported files
-- Look for files starting with `tailored_resume_`
-
-## Development
-
-### Code Quality
-
-- **Type Hints**: All functions include type annotations
-- **Documentation**: Comprehensive docstrings
-- **Modular**: Clean separation of concerns
-- **Testable**: Functions designed for easy testing
-- **Comments**: Clear explanations throughout
-
-### Testing
-
-To add unit tests (pytest):
-
-```bash
-pip install pytest
-pytest
-```
-
-### Code Style
-
-Follow PEP 8 guidelines:
-
-```bash
-pip install black flake8
-black .
-flake8 .
-```
-
-## Contributing
-
-This is a minimal, educational project. Contributions welcome:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes with clear comments
-4. Test thoroughly
-5. Submit pull request
-
-## License
-
-This project is for educational purposes. Modify and use as needed.
-
-## Support
-
-For issues or questions:
-- Review this README
-- Check code comments
-- Examine PROMPTS.md for project requirements
-
-## Acknowledgments
-
-Built with:
-- **scikit-learn** for machine learning capabilities
-- **numpy** for numerical operations
-- **Python** for excellent standard library support
-
----
-
-**Note**: This is a minimal, modular implementation designed for clarity and extensibility. It prioritizes clean code and educational value over feature completeness.
+API keys (e.g. Anthropic for resume tailoring) are stored in a config file. In development the backend uses `backend/config.json` if `JOBBOT_CONFIG_PATH` is not set; when run from Electron, the path is set to the app user data directory. Use **Settings** in the app sidebar to add an Anthropic API key for the tailor feature.

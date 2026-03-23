@@ -1,3 +1,14 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+out/
+dist/
+dist-electron/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -5,88 +16,23 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+.env
+backend/config.json
 
-# Virtual Environment
-venv/
-ENV/
-env/
-
-# IDE
-.vscode/
+# IDE / OS
 .idea/
+.vscode/
 *.swp
 *.swo
-*~
 .DS_Store
+Thumbs.db
 
-# Output files
-tailored_resume_*.txt
-*.log
-
-# Sample/test resume files (keep sample_resume.txt, ignore others)
-sample_resume.pdf
-sample_resume.docx
-*_resume.pdf
-*_resume.docx
-
-# Environment variables
+# Env
+.env*.local
 .env
-.env.local
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
+# Logs
+*.log
+npm-debug.log*
