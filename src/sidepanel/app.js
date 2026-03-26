@@ -15,14 +15,18 @@ const routes = {
   '#/autofill': renderAutofillPage,
 };
 
-function router() {
+async function router() {
   const hash = window.location.hash || '#/upload';
   const render = routes[hash] || renderUploadPage;
   const main = document.getElementById('main');
   main.innerHTML = '';
-  render(main);
+  await Promise.resolve(render(main));
   renderNav(document.getElementById('nav'), hash);
 }
 
-window.addEventListener('hashchange', router);
-window.addEventListener('DOMContentLoaded', router);
+window.addEventListener('hashchange', () => {
+  void router();
+});
+window.addEventListener('DOMContentLoaded', () => {
+  void router();
+});

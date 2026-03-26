@@ -45,7 +45,7 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
     });
 
     if (status === 'pause_required') {
-      highlightField(field.selector);
+      highlightField(field.selector, field.iframePath);
 
       sendStatus('AUTOFILL_PAUSED', {
         currentIndex: i,
@@ -56,7 +56,7 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
       });
 
       const action = await hooks.waitForResume();
-      unhighlightField(field.selector);
+      unhighlightField(field.selector, field.iframePath);
 
       if (action === 'skip') {
         filledCount++;
@@ -68,7 +68,7 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
     }
 
     // status === "ready"
-    setFieldValue(field.selector, value);
+    setFieldValue(field.selector, value, field.iframePath);
     filledCount++;
 
     if (i < fields.length - 1) {
@@ -99,8 +99,9 @@ function escapeAttr(id) {
  * @param {HTMLInputElement} r
  */
 function getRadioOptionLabel(r) {
+  const root = r.ownerDocument;
   if (r.id) {
-    const l = document.querySelector(`label[for="${escapeAttr(r.id)}"]`);
+    const l = root.querySelector(`label[for="${escapeAttr(r.id)}"]`);
     if (l?.textContent?.trim()) return l.textContent.trim();
   }
   const parent = r.closest('label');
@@ -127,7 +128,8 @@ function setRadioGroupValue(el, value) {
     return;
   }
 
-  const group = document.querySelectorAll(`input[type="radio"][name="${escapeAttr(el.name)}"]`);
+  const doc = el.ownerDocument;
+  const group = doc.querySelectorAll(`input[type="radio"][name="${escapeAttr(el.name)}"]`);
 
   for (const r of group) {
     if (r.value === raw || String(r.value).toLowerCase() === raw.toLowerCase()) {
@@ -232,14 +234,34 @@ function setSelectValue(select, value) {
 }
 
 /**
+ * Walk nested same-origin iframes from the top document (content script context).
+ * @param {number[]|undefined} iframePath
+ * @returns {Document | null}
+ */
+function resolveRootDocument(iframePath) {
+  if (!iframePath || iframePath.length === 0) return document;
+  let doc = document;
+  for (const idx of iframePath) {
+    const list = doc.querySelectorAll('iframe');
+    const fr = list[idx];
+    if (!fr?.contentDocument) return null;
+    doc = fr.contentDocument;
+  }
+  return doc;
+}
+
+/**
  * Set a form field's value and dispatch events so that frameworks
  * (React, Angular, Vue) pick up the change.
  *
- * @param {string} selector - CSS selector for the target element.
+ * @param {string} selector - CSS selector for the target element (in the leaf document).
  * @param {string} value    - The value to set.
+ * @param {number[]|undefined} [iframePath] - Nested iframe indices when the control is not in the top document.
  */
-export function setFieldValue(selector, value) {
-  const el = document.querySelector(selector);
+export function setFieldValue(selector, value, iframePath) {
+  const root = resolveRootDocument(iframePath);
+  if (!root) return;
+  const el = root.querySelector(selector);
   if (!el) return;
 
   if (el instanceof HTMLInputElement && el.type === 'checkbox') {
@@ -277,9 +299,12 @@ export function setFieldValue(selector, value) {
 /**
  * Add a visible CSS outline to highlight the currently active field.
  * @param {string} selector
+ * @param {number[]|undefined} [iframePath]
  */
-export function highlightField(selector) {
-  const el = document.querySelector(selector);
+export function highlightField(selector, iframePath) {
+  const root = resolveRootDocument(iframePath);
+  if (!root) return;
+  const el = root.querySelector(selector);
   if (el) {
     el.dataset.prevStyle = el.getAttribute('style') || '';
     el.setAttribute('style', `${el.dataset.prevStyle}; ${HIGHLIGHT_STYLE}`);
@@ -290,9 +315,12 @@ export function highlightField(selector) {
 /**
  * Remove the highlight outline from a field.
  * @param {string} selector
+ * @param {number[]|undefined} [iframePath]
  */
-export function unhighlightField(selector) {
-  const el = document.querySelector(selector);
+export function unhighlightField(selector, iframePath) {
+  const root = resolveRootDocument(iframePath);
+  if (!root) return;
+  const el = root.querySelector(selector);
   if (el) {
     el.setAttribute('style', el.dataset.prevStyle || '');
     delete el.dataset.prevStyle;

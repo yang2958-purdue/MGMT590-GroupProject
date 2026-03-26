@@ -15,6 +15,11 @@
 import { fillFieldsSequentially } from '../modules/autofill/fieldFiller.js';
 import { scanFormFieldsInDocument } from '../modules/autofill/domFieldScanner.js';
 
+const BOUND = '__jobbotContentScriptMsgBound';
+
+if (!globalThis[BOUND]) {
+  globalThis[BOUND] = true;
+
 let resumeResolver = null;
 let isPaused = false;
 
@@ -71,3 +76,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       break;
   }
 });
+
+} // only register message listener once per isolated world

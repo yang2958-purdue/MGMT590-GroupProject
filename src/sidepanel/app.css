@@ -181,6 +181,57 @@ h3 { font-size: 14px; font-weight: 600; }
 .text-muted { color: var(--color-text-muted); }
 .text-sm    { font-size: 12px; }
 
+.ml-12 { margin-left: 12px; }
+
+.flex {
+  display: flex;
+}
+
+.gap-8 {
+  gap: 8px;
+}
+
+.align-start {
+  align-items: flex-start;
+}
+
+.flex-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.flex-noshrink {
+  flex-shrink: 0;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 380px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-subhead {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card code {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
 .spinner {
   width: 24px;
   height: 24px;

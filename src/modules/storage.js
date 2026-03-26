@@ -170,20 +170,40 @@ export async function setSelectedJob(data) {
 }
 
 /**
+ * Manual corrections when the resume parser misread contact, work, education, or skills.
+ * Non-empty values override parsed resume in autofill lookup.
+ *
+ * @typedef {Object} ResumeFieldOverrides
+ * @property {string} [firstName]
+ * @property {string} [lastName]
+ * @property {string} [fullName] - If set, updates `name` and may re-derive first/last when those are empty
+ * @property {string} [email]
+ * @property {string} [phone]
+ * @property {string} [jobTitle] - Maps to workExperience[0].title
+ * @property {string} [company] - Maps to workExperience[0].company
+ * @property {string} [workDates] - Maps to workExperience[0].dates
+ * @property {string} [school] - Maps to education[0].school
+ * @property {string} [degree] - Maps to education[0].degree
+ * @property {string} [eduDates] - Maps to education[0].dates
+ * @property {string} [skills] - Comma-separated; replaces parsed skills list
+ */
+
+/**
  * @typedef {Object} UserProfile
  * @property {string} [citizenship]
- * @property {string} [sponsorship]
- * @property {string} [authorizedToWork] - e.g. Yes / No for work-authorization dropdowns
+ * @property {string} [sponsorship] - Prefer "Yes" / "No" (normalized from settings)
+ * @property {string} [authorizedToWork] - Yes / No for work-authorization dropdowns
  * @property {string} [desiredSalary]
  * @property {string} [linkedin]
  * @property {string} [coverLetter]
  * @property {string} [relocation]
- * @property {string} [sensitiveOptional]
+ * @property {string} [sensitiveOptional] - Veteran / EEO / disability style answers
  * @property {string} [country]
  * @property {string} [city]
  * @property {string} [state]
  * @property {string} [zip]
- * @property {Object.<string, string>} [customAnswers]
+ * @property {ResumeFieldOverrides} [resumeOverrides]
+ * @property {Object.<string, string>} [customAnswers] - Becomes commonAnswers.<key> in autofill lookup
  */
 
 /**
@@ -229,6 +249,7 @@ export async function setSettings(data) {
  * @property {number} totalFields
  * @property {"scanning"|"filling"|"paused"|"complete"|"error"} status
  * @property {string} [errorMessage]
+ * @property {number|null} [contentFrameId] - Frame where the autofill content script was injected (0 = top frame).
  */
 
 /**

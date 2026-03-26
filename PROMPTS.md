@@ -113,3 +113,39 @@
 **Prompt:** Autofill fills wrong values (e.g. phone into a yes/no dropdown) and skips many fields.
 
 **Outcome:** Added `fieldInference.js` for shared label/type heuristics; DOM scan uses it instead of defaulting to `commonAnswers.custom`. `fieldMapper.js` now tries multiple keys (suggested + inferred), rejects phone/email/long text on choice controls, expands profile lookup (`authorizedToWork`, location fields, etc.), and improves work-authorization derivation. `fieldFiller.js` implements `<select>` option matching (including yes/no wording) and full **radio group** selection by name. Documented optional profile keys in `README.md`.
+
+## 2026-03-24 - Expand user profile Settings and resume overrides
+
+**Prompt:** Implement profile expansion: schema, resume overrides (profile over parser), custom keys UI, and wire Settings load/save.
+
+**Outcome:** Extended `UserProfile` / `ResumeFieldOverrides` in `storage.js`. `fieldMapper.js` applies `resumeOverrides` after resume merge, normalizes sponsorship Yes/No, trims profile strings. Rebuilt `settingsPage.js` with application answers, contact/location, resume correction fields, dynamic custom Q&A rows, **Save profile** → `setUserProfile`, load via `getUserProfile`, and scraper **/health** status. Router in `app.js` awaits async settings render. Added layout/CSS helpers and README section **User profile (Settings)**. Logged in `PROMPTS.md`.
+
+## 2026-03-25 - Autofill DOM scan: inject retry + host permission
+
+**Prompt:** (Debug) Field detection still failing after programmatic content-script inject; logs showed `executeScript` blocked without host permission.
+
+**Outcome:** Logs confirmed `chrome.scripting.executeScript` failed with “Extension manifest must request permission to access this host.” Added `<all_urls>` to `host_permissions` in `manifest.json` (alongside Firecrawl). Kept `tabSendMessageWithContentScriptFallback` and content-script duplicate guard; debug ingest logs remain until verification. README Architecture note updated.
+
+## 2026-03-25 - DOM scan: same-origin iframe fields
+
+**Prompt:** (Debug) Still zero fields on Lilly/Phenom apply page after inject + permission fixes.
+
+**Outcome:** Implemented recursive scan into same-origin `iframe` documents in `domFieldScanner.js` (`iframePath` on `FormField`). `fieldFiller.js` resolves the leaf `Document` via `iframePath` for `setFieldValue` / highlight. `inferLabel` uses `ownerDocument` for queries. `firecrawlAdapter.js` typedef updated. Added H7 ingest log for `hasIframePath` / total field count. README updated.
+
+## 2026-03-25 - Autofill: all-frames probe + targeted messaging
+
+**Prompt:** Does autofill only work on specific sites (e.g. Workday)? Lilly careers still shows zero fields.
+
+**Outcome:** Clarified there is no vendor allowlist; UI examples are illustrative. Completed `requestDomFieldScan` using `executeScript` `{ allFrames: true }` to count fillable controls per frame, inject `content/content.js` into frames with inputs (descending count), and return `{ fields, frameId }`. Extended `tabSendMessageWithContentScriptFallback` with `injectFrameId` and `skipInitialSend`; `runAutofillPipeline` stores `contentFrameId` on filling state and passes it for `FILL_FIELDS`, pause, resume, and skip. H8 probe ingest log in `requestDomFieldScan`. Rebuilt with `npm run build`.
+
+## 2026-03-25 - Content script IIFE for programmatic inject
+
+**Prompt:** Issue reproduced (proceed after logs).
+
+**Outcome:** Logs showed H8 probe n=27 on frame 0 but H1/H6 never connected (`Receiving end does not exist` after inject). Root cause: main Vite bundle emitted `content/content.js` as an ES module with `import` from `chunks/`, while `chrome.scripting.executeScript({ files })` loads as a classic script, so the listener never registered. Added `vite.content.config.js` second build (`inlineDynamicImports`, `format: 'iife'`) and `npm run build` runs both steps. Treat `frameId === 0` as main frame (omit `tabs.sendMessage` `frameId`; inject with `{ tabId }` only). Debug instrumentation kept for verification.
+
+## 2026-03-25 - Remove autofill debug instrumentation (post-fix)
+
+**Prompt:** Issue fixed; clean up instrumentation.
+
+**Outcome:** Removed all `fetch`/`127.0.0.1:7526` debug logs and `#region agent log` blocks from `autofillController.js`, `content.js`, and `domFieldScanner.js`. Simplified `tabSendMessageWithContentScriptFallback` `sendOnce` (no logging-only parameters). Rebuilt with `npm run build`.

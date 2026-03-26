@@ -73,6 +73,73 @@ function shouldPause(field) {
  * @param {UserProfile|null} profile
  * @returns {Object.<string, string>}
  */
+/**
+ * @param {string|undefined} s
+ */
+function trimStr(s) {
+  if (s == null) return '';
+  return String(s).trim();
+}
+
+/**
+ * Normalize Yes/No style answers from profile (handles legacy lowercase).
+ * @param {string} s
+ * @returns {string}
+ */
+function normalizeYesNoToken(s) {
+  const t = trimStr(s);
+  if (/^yes$/i.test(t)) return 'Yes';
+  if (/^no$/i.test(t)) return 'No';
+  return t;
+}
+
+/**
+ * Apply manual resume corrections; non-empty fields override `map`.
+ * @param {Object.<string, string>} map
+ * @param {import('../storage.js').ResumeFieldOverrides|null|undefined} ro
+ */
+function applyResumeOverrides(map, ro) {
+  if (!ro) return;
+
+  const first = trimStr(ro.firstName);
+  const last = trimStr(ro.lastName);
+  const full = trimStr(ro.fullName);
+
+  if (first) map['firstName'] = first;
+  if (last) map['lastName'] = last;
+
+  if (full) {
+    map['name'] = full;
+    const parts = full.split(/\s+/);
+    if (!first) map['firstName'] = parts[0] || map['firstName'] || '';
+    if (!last) map['lastName'] = parts.slice(1).join(' ') || map['lastName'] || '';
+  } else if (first || last) {
+    map['name'] = [first, last].filter(Boolean).join(' ');
+  }
+
+  const email = trimStr(ro.email);
+  if (email) map['email'] = email;
+  const phone = trimStr(ro.phone);
+  if (phone) map['phone'] = phone;
+
+  const jt = trimStr(ro.jobTitle);
+  if (jt) map['workExperience[0].title'] = jt;
+  const co = trimStr(ro.company);
+  if (co) map['workExperience[0].company'] = co;
+  const wd = trimStr(ro.workDates);
+  if (wd) map['workExperience[0].dates'] = wd;
+
+  const sch = trimStr(ro.school);
+  if (sch) map['education[0].school'] = sch;
+  const deg = trimStr(ro.degree);
+  if (deg) map['education[0].degree'] = deg;
+  const ed = trimStr(ro.eduDates);
+  if (ed) map['education[0].dates'] = ed;
+
+  const sk = trimStr(ro.skills);
+  if (sk) map['skills'] = sk;
+}
+
 function buildLookup(resume, profile) {
   const map = {};
 
@@ -100,29 +167,37 @@ function buildLookup(resume, profile) {
 
     map['skills'] = (resume.skills || []).join(', ');
     map['coverLetter'] = '';
+  } else {
+    map['coverLetter'] = '';
   }
 
-  if (profile) {
-    map['linkedin'] = profile.linkedin || map['linkedin'] || '';
-    map['coverLetter'] = profile.coverLetter || map['coverLetter'] || '';
+  applyResumeOverrides(map, profile?.resumeOverrides);
 
-    map['commonAnswers.citizenship'] = profile.citizenship || '';
-    map['commonAnswers.sponsorship'] = profile.sponsorship || '';
-    let workAuth = profile.authorizedToWork || '';
+  if (profile) {
+    map['linkedin'] = trimStr(profile.linkedin) || map['linkedin'] || '';
+    map['coverLetter'] = trimStr(profile.coverLetter) || map['coverLetter'] || '';
+
+    map['commonAnswers.citizenship'] = trimStr(profile.citizenship);
+    map['commonAnswers.sponsorship'] = normalizeYesNoToken(profile.sponsorship);
+    let workAuth = trimStr(profile.authorizedToWork);
+    if (/^yes$/i.test(workAuth)) workAuth = 'Yes';
+    else if (/^no$/i.test(workAuth)) workAuth = 'No';
     if (!workAuth && profile.citizenship) workAuth = 'Yes';
-    if (!workAuth && profile.sponsorship === 'No') workAuth = 'Yes';
+    if (!workAuth && map['commonAnswers.sponsorship'] === 'No') workAuth = 'Yes';
     map['commonAnswers.workAuthorization'] = workAuth;
-    map['commonAnswers.salary'] = profile.desiredSalary || '';
-    map['commonAnswers.relocation'] = profile.relocation || '';
-    map['commonAnswers.sensitiveOptional'] = profile.sensitiveOptional || '';
-    map['commonAnswers.country'] = profile.country || '';
-    map['commonAnswers.city'] = profile.city || '';
-    map['commonAnswers.state'] = profile.state || '';
-    map['commonAnswers.zip'] = profile.zip || '';
+    map['commonAnswers.salary'] = trimStr(profile.desiredSalary);
+    map['commonAnswers.relocation'] = trimStr(profile.relocation);
+    map['commonAnswers.sensitiveOptional'] = trimStr(profile.sensitiveOptional);
+    map['commonAnswers.country'] = trimStr(profile.country);
+    map['commonAnswers.city'] = trimStr(profile.city);
+    map['commonAnswers.state'] = trimStr(profile.state);
+    map['commonAnswers.zip'] = trimStr(profile.zip);
 
     if (profile.customAnswers) {
       for (const [k, v] of Object.entries(profile.customAnswers)) {
-        map[`commonAnswers.${k}`] = v;
+        const key = trimStr(k);
+        if (!key) continue;
+        map[`commonAnswers.${key}`] = trimStr(v);
       }
     }
   }

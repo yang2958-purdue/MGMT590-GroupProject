@@ -1,24 +1,38 @@
 /**
  * Scan the live DOM for fillable form controls (content-script context).
  * Produces FormField-shaped objects compatible with fieldMapper / fieldFiller.
+ * Recurses into same-origin iframes (ATS embeds often render the form in an iframe).
  */
 
 import { inferDataKeyFromLabel } from './fieldInference.js';
 
 let _jobbotAfCounter = 0;
 
+const CONTROL_SELECTOR =
+  'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
+  'select:not([disabled]),textarea:not([disabled])';
+
 /**
  * @returns {import('../scraper/firecrawlAdapter.js').FormField[]}
  */
 export function scanFormFieldsInDocument() {
-  const selector =
-    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
-    'select:not([disabled]),textarea:not([disabled])';
-
-  const nodes = Array.from(document.querySelectorAll(selector));
   /** @type {import('../scraper/firecrawlAdapter.js').FormField[]} */
   const out = [];
-  const seenRadioNames = new Set();
+  const seenRadioKeys = new Set();
+
+  scanInto(document, [], out, seenRadioKeys);
+
+  return out;
+}
+
+/**
+ * @param {Document} doc
+ * @param {number[]} iframePath indices from top document into nested iframes
+ * @param {import('../scraper/firecrawlAdapter.js').FormField[]} out
+ * @param {Set<string>} seenRadioKeys
+ */
+function scanInto(doc, iframePath, out, seenRadioKeys) {
+  const nodes = Array.from(doc.querySelectorAll(CONTROL_SELECTOR));
 
   for (const el of nodes) {
     if (!(el instanceof HTMLElement)) continue;
@@ -28,8 +42,9 @@ export function scanFormFieldsInDocument() {
     if (type === 'file') continue;
 
     if (type === 'radio' && el instanceof HTMLInputElement && el.name) {
-      if (seenRadioNames.has(el.name)) continue;
-      seenRadioNames.add(el.name);
+      const rk = `${iframePath.join(',')}::${el.name}`;
+      if (seenRadioKeys.has(rk)) continue;
+      seenRadioKeys.add(rk);
     }
 
     let marker = el.getAttribute('data-jobbot-af');
@@ -54,16 +69,31 @@ export function scanFormFieldsInDocument() {
         el instanceof HTMLTextAreaElement) &&
       (el.required || el.getAttribute('aria-required') === 'true');
 
-    out.push({
+    /** @type {import('../scraper/firecrawlAdapter.js').FormField} */
+    const field = {
       label: labelText || el.getAttribute('name') || fieldType,
       fieldType,
       selector: cssSel,
       isRequired: !!isRequired,
       suggestedDataKey,
-    });
+    };
+    if (iframePath.length) {
+      field.iframePath = [...iframePath];
+    }
+    out.push(field);
   }
 
-  return out;
+  const iframes = doc.querySelectorAll('iframe');
+  for (let i = 0; i < iframes.length; i++) {
+    try {
+      const inner = iframes[i].contentDocument;
+      if (inner) {
+        scanInto(inner, [...iframePath, i], out, seenRadioKeys);
+      }
+    } catch {
+      // cross-origin iframe
+    }
+  }
 }
 
 /**
@@ -71,8 +101,10 @@ export function scanFormFieldsInDocument() {
  * @returns {string}
  */
 function inferLabel(el) {
+  const root = el.ownerDocument;
+
   if (el instanceof HTMLInputElement && el.type === 'radio' && el.name) {
-    const first = document.querySelector(`input[type="radio"][name="${CSS.escape(el.name)}"]`);
+    const first = root.querySelector(`input[type="radio"][name="${CSS.escape(el.name)}"]`);
     if (first) {
       const g = first.closest('fieldset');
       if (g) {
@@ -83,7 +115,7 @@ function inferLabel(el) {
   }
 
   if (el.id) {
-    const lab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    const lab = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
     if (lab?.textContent?.trim()) return lab.textContent.trim().replace(/\s+/g, ' ');
   }
 
@@ -98,7 +130,10 @@ function inferLabel(el) {
 
   const labelledBy = el.getAttribute('aria-labelledby');
   if (labelledBy) {
-    const parts = labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim()).filter(Boolean);
+    const parts = labelledBy
+      .split(/\s+/)
+      .map((id) => root.getElementById(id)?.textContent?.trim())
+      .filter(Boolean);
     if (parts.length) return parts.join(' ').replace(/\s+/g, ' ');
   }
 

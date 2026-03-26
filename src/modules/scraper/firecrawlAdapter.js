@@ -16,10 +16,11 @@ import {
  * @typedef {Object} FormField
  * @property {string} label           - Human-readable field label.
  * @property {string} fieldType       - input | select | textarea | checkbox | radio
- * @property {string} selector        - CSS selector to target the element.
+ * @property {string} selector        - CSS selector to target the element (in the leaf document).
  * @property {boolean} isRequired     - Whether the field appears required.
  * @property {string} suggestedDataKey - Hint for which resume/profile key maps here
  *   (e.g. "firstName", "email", "workExperience[0].title", "commonAnswers.sponsorship").
+ * @property {number[]} [iframePath]   - Indices into nested same-origin iframes from the top document; omit for top-level.
  */
 
 /**

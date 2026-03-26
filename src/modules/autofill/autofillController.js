@@ -35,6 +35,7 @@ import { FILL_DELAY_MS } from '../../config/autofill.config.js';
  * @property {"scanning"|"filling"|"paused"|"complete"|"error"} status
  * @property {number} totalFields        - Total field count (for progress display).
  * @property {string} [errorMessage]     - Error details when status is "error".
+ * @property {number|null} [contentFrameId] - Frame ID where the content script runs (for messaging).
  */
 
 /**
@@ -80,10 +81,13 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     currentIndex: 0,
     totalFields: 0,
     status: 'scanning',
+    contentFrameId: null,
   });
 
   /** @type {import('../scraper/firecrawlAdapter.js').FormField[]} */
   let formFields = [];
+  /** @type {number|null} */
+  let contentFrameId = null;
 
   if (USE_MOCK) {
     formFields = await extractFormFields(pageUrl);
@@ -96,12 +100,14 @@ export async function runAutofillPipeline(tabId, pageUrl) {
   }
 
   if (!formFields.length) {
-    formFields = await requestDomFieldScan(tabId);
+    const scan = await requestDomFieldScan(tabId);
+    formFields = scan.fields;
+    contentFrameId = scan.frameId;
   }
 
   if (!formFields.length) {
     const msg =
-      'No form fields found on this page. Navigate to the application form (e.g. Workday, Greenhouse), then try again.';
+      'No fillable fields were found. Open the application step where the form is visible (some career sites load the form inside a frame), then try again.';
     await setAutofillState({
       tabId,
       jobUrl: pageUrl,
@@ -127,14 +133,29 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     currentIndex: 0,
     totalFields: nonSkipped.length,
     status: 'filling',
+    contentFrameId,
   };
   await setAutofillState(state);
 
-  await chrome.tabs.sendMessage(tabId, {
-    type: 'FILL_FIELDS',
-    fields: filledFields,
-    delayMs: FILL_DELAY_MS,
-  });
+  try {
+    await tabSendMessageWithContentScriptFallback(
+      tabId,
+      {
+        type: 'FILL_FIELDS',
+        fields: filledFields,
+        delayMs: FILL_DELAY_MS,
+      },
+      { injectFrameId: typeof contentFrameId === 'number' ? contentFrameId : undefined },
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await setAutofillState({
+      ...state,
+      status: 'error',
+      errorMessage: msg || 'Could not reach the page to fill fields.',
+    });
+    throw new Error(msg || 'Could not reach the page to fill fields.');
+  }
 
   return state;
 }
@@ -174,7 +195,11 @@ export async function resumeAutofill(tabId) {
     await setAutofillState(state);
   }
 
-  await chrome.tabs.sendMessage(tabId, { type: 'RESUME_AUTOFILL' });
+  await tabSendMessageWithContentScriptFallback(
+    tabId,
+    { type: 'RESUME_AUTOFILL' },
+    { injectFrameId: typeof state?.contentFrameId === 'number' ? state.contentFrameId : undefined },
+  );
 }
 
 /**
@@ -189,7 +214,11 @@ export async function skipField(tabId) {
     await setAutofillState(state);
   }
 
-  await chrome.tabs.sendMessage(tabId, { type: 'SKIP_FIELD' });
+  await tabSendMessageWithContentScriptFallback(
+    tabId,
+    { type: 'SKIP_FIELD' },
+    { injectFrameId: typeof state?.contentFrameId === 'number' ? state.contentFrameId : undefined },
+  );
 }
 
 /**
@@ -204,29 +233,162 @@ export async function pauseAutofill(tabId) {
     await setAutofillState(state);
   }
 
-  await chrome.tabs.sendMessage(tabId, { type: 'PAUSE_AUTOFILL' });
+  await tabSendMessageWithContentScriptFallback(
+    tabId,
+    { type: 'PAUSE_AUTOFILL' },
+    { injectFrameId: typeof state?.contentFrameId === 'number' ? state.contentFrameId : undefined },
+  );
 }
 
 // TODO: Multi-page support — after page complete, detect "Next" / "Continue"
 // buttons and call runAutofillPipeline again for the next page.
 
-// ─── Helpers ────────────────────────────────────────────────────
+// ─── Helpers (tabSendMessageWithContentScriptFallback used above; function hoisted) ───
 
 /**
- * Ask the content script in `tabId` to scan the live DOM for form fields.
- * @param {number} tabId
- * @returns {Promise<import('../scraper/firecrawlAdapter.js').FormField[]>}
+ * Wait for the next animation frame (side panel). Used after programmatic inject so the
+ * tab's bundled ES module can finish loading its split chunk before onMessage exists.
+ * @returns {Promise<void>}
  */
-function requestDomFieldScan(tabId) {
-  return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tabId, { type: 'EXTRACT_FIELDS_DOM' }, (resp) => {
-      if (chrome.runtime.lastError) {
-        resolve([]);
-        return;
+function nextFrame() {
+  return new Promise((r) => requestAnimationFrame(() => r()));
+}
+
+/**
+ * Send a message to the tab's content script. If no listener exists (e.g. user
+ * reloaded the extension but not the page), inject `content/content.js` and retry.
+ * Post-inject: executeScript can resolve before the injected script finishes registering
+ * listeners, so we poll sendMessage across animation frames (not setTimeout).
+ * @param {number} tabId
+ * @param {Object} message
+ * @param {{ injectFrameId?: number, skipInitialSend?: boolean }} [options]
+ * @returns {Promise<*>}
+ */
+function tabSendMessageWithContentScriptFallback(tabId, message, options = {}) {
+  const injectFrameId = options.injectFrameId;
+  const skipInitialSend = options.skipInitialSend === true;
+
+  // Main frame: omit frameId in sendMessage and use { tabId } only for inject.
+  // frameId 0 is not reliably the same as "main" in tabs.sendMessage options.
+  const injectTarget =
+    typeof injectFrameId === 'number' && injectFrameId !== 0
+      ? { tabId, frameIds: [injectFrameId] }
+      : { tabId };
+
+  const MAX_FRAMES_AFTER_INJECT = 120;
+
+  const sendOnce = () =>
+    new Promise((resolve, reject) => {
+      const done = (/** @type {unknown} */ resp) => {
+        const err = chrome.runtime.lastError?.message ?? null;
+        if (err) reject(new Error(err));
+        else resolve(resp);
+      };
+
+      if (typeof injectFrameId === 'number' && injectFrameId !== 0) {
+        chrome.tabs.sendMessage(tabId, message, { frameId: injectFrameId }, done);
+      } else {
+        chrome.tabs.sendMessage(tabId, message, done);
       }
-      resolve(resp?.fields ?? []);
     });
+
+  const runAfterInject = async () => {
+    await chrome.scripting.executeScript({
+      target: injectTarget,
+      files: ['content/content.js'],
+    });
+
+    for (let f = 0; f < MAX_FRAMES_AFTER_INJECT; f++) {
+      try {
+        const resp = await sendOnce();
+        return resp;
+      } catch (e2) {
+        const m2 = String(e2.message || e2);
+        if (!/Receiving end does not exist|Could not establish connection/i.test(m2)) {
+          throw e2;
+        }
+        await nextFrame();
+      }
+    }
+    return sendOnce();
+  };
+
+  if (skipInitialSend) {
+    return runAfterInject();
+  }
+
+  return sendOnce().catch(async (e1) => {
+    const msg = String(e1.message || e1);
+    if (!/Receiving end does not exist|Could not establish connection/i.test(msg)) {
+      throw e1;
+    }
+    return runAfterInject();
   });
+}
+
+/**
+ * Ask the content script to scan the live DOM for form fields. Probes every frame
+ * (career sites often host the apply form in a cross-origin iframe).
+ * @param {number} tabId
+ * @returns {Promise<{ fields: import('../scraper/firecrawlAdapter.js').FormField[], frameId: number|null }>}
+ */
+async function requestDomFieldScan(tabId) {
+  try {
+    const probeResults = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: () => {
+        const sel =
+          'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
+          'select:not([disabled]),textarea:not([disabled])';
+        return { n: document.querySelectorAll(sel).length, href: location.href };
+      },
+    });
+
+    /** @type {{ frameId: number; count: number }[]} */
+    const ranked = [];
+    for (const r of probeResults ?? []) {
+      if (r.error) continue;
+      if (typeof r.frameId !== 'number') continue;
+      const res = r.result;
+      const n =
+        res && typeof res === 'object' && 'n' in res
+          ? Number(res.n)
+          : typeof res === 'number'
+            ? res
+            : 0;
+      ranked.push({ frameId: r.frameId, count: Number.isFinite(n) ? n : 0 });
+    }
+    ranked.sort((a, b) => b.count - a.count);
+
+    for (const frame of ranked) {
+      if (frame.count === 0) continue;
+      try {
+        const resp = await tabSendMessageWithContentScriptFallback(
+          tabId,
+          { type: 'EXTRACT_FIELDS_DOM' },
+          { injectFrameId: frame.frameId, skipInitialSend: true },
+        );
+        if (resp?.fields?.length) {
+          return { fields: resp.fields, frameId: frame.frameId };
+        }
+      } catch {
+        // try next frame
+      }
+    }
+
+    try {
+      const resp = await tabSendMessageWithContentScriptFallback(tabId, { type: 'EXTRACT_FIELDS_DOM' });
+      if (resp?.fields?.length) {
+        return { fields: resp.fields, frameId: 0 };
+      }
+    } catch {
+      // fall through
+    }
+
+    return { fields: [], frameId: null };
+  } catch {
+    return { fields: [], frameId: null };
+  }
 }
 
 /**
