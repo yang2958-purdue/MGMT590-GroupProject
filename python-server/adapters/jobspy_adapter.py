@@ -11,28 +11,14 @@ To activate: set ACTIVE_ADAPTER = "jobspy" in config.py.
 """
 
 import hashlib
-import json
 import logging
 import math
-import os
-import time
 
 import pandas as pd
 from jobspy import scrape_jobs as jobspy_scrape
 
 import config
 from .base_adapter import BaseAdapter
-
-# region agent log
-_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "debug-16763f.log")
-def _dbg(location, message, data=None, hypothesis="H-A"):
-    try:
-        entry = json.dumps({"sessionId":"16763f","location":location,"message":message,"data":data or {},"timestamp":int(time.time()*1000),"hypothesisId":hypothesis})
-        with open(_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
-    except Exception:
-        pass
-# endregion
 
 log = logging.getLogger(__name__)
 
@@ -51,8 +37,7 @@ class JobSpyAdapter(BaseAdapter):
         Args:
             criteria: Dict with keys (all optional except titles):
                 - titles (list[str]): Job titles to search for.
-                - companies (list[str]): Target company names (unused by jobspy
-                  directly, but the first title is used as search_term).
+                - companies (list[str]): Target company names.
                 - location (str): City/state or "Remote".
                 - remote (bool): Remote-only filter.
                 - salary_range_min (int): Minimum salary (not sent to jobspy,
@@ -68,69 +53,101 @@ class JobSpyAdapter(BaseAdapter):
             List of JobPosting dicts. Empty list on total failure.
         """
         defaults = config.JOBSPY_CONFIG
-        search_term = _build_search_term(criteria)
+        titles = _normalize_string_list(criteria.get("titles"))
+        companies = _normalize_string_list(criteria.get("companies"))
+        search_terms = _build_search_terms(titles, companies)
 
-        # region agent log
-        _dbg("jobspy_adapter:scrape_jobs", "criteria-received", {
-            "titles": criteria.get("titles"),
-            "companies": criteria.get("companies"),
-            "location": criteria.get("location"),
-            "search_term_built": search_term,
-        }, "H-A")
-        # endregion
+        merged_results: list[dict] = []
+        seen_ids: set[str] = set()
 
-        params = {
-            "site_name": defaults.get("site_names", ["indeed"]),
-            "search_term": search_term,
-            "location": criteria.get("location") or None,
-            "distance": criteria.get("distance", 50),
-            "is_remote": criteria.get("remote", False),
-            "job_type": _map_job_type(criteria.get("job_type")),
-            "results_wanted": criteria.get("results_wanted", defaults.get("results_wanted", 20)),
-            "hours_old": criteria.get("hours_old", defaults.get("hours_old", 72)),
-            "description_format": defaults.get("description_format", "markdown"),
-            "linkedin_fetch_description": defaults.get("linkedin_fetch_description", True),
-        }
+        for search_term in search_terms:
+            params = {
+                "site_name": defaults.get("site_names", ["indeed"]),
+                "search_term": search_term,
+                "location": criteria.get("location") or None,
+                "distance": criteria.get("distance", 50),
+                "is_remote": criteria.get("remote", False),
+                "job_type": _map_job_type(criteria.get("job_type")),
+                "results_wanted": criteria.get("results_wanted", defaults.get("results_wanted", 20)),
+                "hours_old": criteria.get("hours_old", defaults.get("hours_old", 72)),
+                "description_format": defaults.get("description_format", "markdown"),
+                "linkedin_fetch_description": defaults.get("linkedin_fetch_description", True),
+            }
+            params = {k: v for k, v in params.items() if v is not None}
+            log.info("JobSpy params: %s", params)
 
-        # Drop None values so jobspy uses its own defaults for those params
-        params = {k: v for k, v in params.items() if v is not None}
+            try:
+                df = jobspy_scrape(**params)
+            except Exception as exc:
+                log.error("JobSpy scrape failed for '%s': %s", search_term, exc)
+                continue
 
-        log.info("JobSpy params: %s", params)
+            if df is None or df.empty:
+                log.warning("JobSpy returned no results for: %s", search_term)
+                continue
 
-        try:
-            df = jobspy_scrape(**params)
-        except Exception as exc:
-            # LinkedIn rate-limit errors typically surface as:
-            #   "429 Too Many Requests" or "LinkedIn: got an error"
-            # When this happens the call may still return partial results from
-            # other sites. If it raises instead, we catch here and return [].
-            log.error("JobSpy scrape failed: %s", exc)
+            for posting in _normalize_dataframe(df):
+                posting_id = posting.get("id")
+                if posting_id and posting_id in seen_ids:
+                    continue
+                if posting_id:
+                    seen_ids.add(posting_id)
+                merged_results.append(posting)
+
+        if not merged_results:
             return []
 
-        if df is None or df.empty:
-            log.warning("JobSpy returned no results for: %s", search_term)
-            return []
-
-        results = _normalize_dataframe(df)
-
-        # region agent log
-        companies_in_results = list(set(r.get("company","") for r in results[:20]))
-        _dbg("jobspy_adapter:scrape_jobs", "results-returned", {
-            "total": len(results),
-            "sample_companies": companies_in_results[:10],
-            "target_companies": criteria.get("companies"),
-        }, "H-C")
-        # endregion
-
-        return results
+        filtered_results = _apply_filters(merged_results, titles, companies)
+        return filtered_results
 
 
-def _build_search_term(criteria: dict) -> str:
-    """Combine titles into a single search term string."""
-    titles = criteria.get("titles", [])
+def _normalize_string_list(values) -> list[str]:
+    """Normalize a potentially mixed list into non-empty strings."""
+    if not values:
+        return []
+    normalized = []
+    for value in values:
+        s = _safe_str(value)
+        if s:
+            normalized.append(s)
+    return normalized
+
+
+def _build_search_terms(titles: list[str], companies: list[str]) -> list[str]:
+    """
+    Build query terms for JobSpy from title/company filters.
+
+    - titles + companies => one query per combination
+    - titles only => one query per title
+    - companies only => one query per company with "Software Engineer"
+    """
+    if titles and companies:
+        return [f"{title} at {company}" for title in titles for company in companies]
     if titles:
-        return titles[0]
-    return "Software Engineer"
+        return titles
+    if companies:
+        return [f"Software Engineer at {company}" for company in companies]
+    return ["Software Engineer"]
+
+
+def _apply_filters(results: list[dict], titles: list[str], companies: list[str]) -> list[dict]:
+    """Apply post-filtering so company/title filters are enforced."""
+    title_needles = [t.lower() for t in titles]
+    company_needles = [c.lower() for c in companies]
+
+    def matches_title(job: dict) -> bool:
+        if not title_needles:
+            return True
+        title_text = (job.get("title") or "").lower()
+        return any(needle in title_text for needle in title_needles)
+
+    def matches_company(job: dict) -> bool:
+        if not company_needles:
+            return True
+        company_text = (job.get("company") or "").lower()
+        return any(needle in company_text for needle in company_needles)
+
+    return [job for job in results if matches_title(job) and matches_company(job)]
 
 
 def _map_job_type(job_type: str | None) -> str | None:

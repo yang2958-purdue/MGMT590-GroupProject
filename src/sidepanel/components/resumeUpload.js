@@ -1,11 +1,53 @@
+import { getResume, setResume, remove, KEYS } from '../../modules/storage.js';
+
 /**
  * Drag-and-drop resume upload component.
- * Accepts PDF and DOCX files. On drop/select, calls the resumeParser module
- * and persists the result via the storage module.
+ * If a stored resume exists, shows a preview with options to remove or replace.
+ * Otherwise shows a dropzone for PDF/DOCX upload.
  *
- * @param {HTMLElement} container - The element to render the dropzone into.
+ * @param {HTMLElement} container - The element to render the component into.
  */
-export function createResumeUpload(container) {
+export async function createResumeUpload(container) {
+  const stored = await getResume();
+
+  if (stored) {
+    renderStoredPreview(container, stored);
+  } else {
+    renderDropzone(container);
+  }
+}
+
+function renderStoredPreview(container, data) {
+  container.innerHTML = `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <p style="font-weight:600;">Current resume: ${escapeHtml(data.fileName)}</p>
+        <div style="display:flex; gap:8px;">
+          <button id="btn-replace-resume" class="btn btn-sm" style="font-size:12px;">Upload New</button>
+          <button id="btn-remove-resume" class="btn btn-sm btn-danger" style="font-size:12px;">Remove</button>
+        </div>
+      </div>
+      <p class="text-muted text-sm mt-8">${data.skills.length} skills detected</p>
+      <div class="mt-8" style="display:flex; flex-wrap:wrap; gap:4px;">
+        ${data.skills
+          .map((s) => `<span class="badge badge-green">${escapeHtml(s)}</span>`)
+          .join('')}
+      </div>
+      <p class="text-muted text-sm mt-12">Contact: ${escapeHtml(data.contact?.name || '—')} · ${escapeHtml(data.contact?.email || '—')} · ${escapeHtml(data.contact?.phone || '—')}</p>
+    </div>
+  `;
+
+  container.querySelector('#btn-replace-resume').addEventListener('click', () => {
+    renderDropzone(container);
+  });
+
+  container.querySelector('#btn-remove-resume').addEventListener('click', async () => {
+    await remove(KEYS.RESUME);
+    renderDropzone(container);
+  });
+}
+
+function renderDropzone(container) {
   container.innerHTML = `
     <div id="dropzone" class="card" style="
       border: 2px dashed var(--color-border);
@@ -62,26 +104,16 @@ async function handleFile(file, container) {
 
   try {
     const { parseResume } = await import('../../modules/resumeParser.js');
-    const { setResume } = await import('../../modules/storage.js');
     const resumeData = await parseResume(file);
     await setResume(resumeData);
-    showResumePreview(status, resumeData);
+    renderStoredPreview(container, resumeData);
   } catch (err) {
     status.innerHTML = `<p style="color:var(--color-danger);">Error: ${err.message}</p>`;
   }
 }
 
-function showResumePreview(el, data) {
-  el.innerHTML = `
-    <div class="card">
-      <p style="font-weight:600;">Parsed: ${data.fileName}</p>
-      <p class="text-muted text-sm mt-8">${data.skills.length} skills detected</p>
-      <div class="mt-8" style="display:flex; flex-wrap:wrap; gap:4px;">
-        ${data.skills
-          .map((s) => `<span class="badge badge-green">${s}</span>`)
-          .join('')}
-      </div>
-      <p class="text-muted text-sm mt-12">Contact: ${data.contact?.name || '—'} · ${data.contact?.email || '—'} · ${data.contact?.phone || '—'}</p>
-    </div>
-  `;
+function escapeHtml(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
 }

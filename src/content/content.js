@@ -2,64 +2,72 @@
  * JobBot content script.
  *
  * Injected into job application pages to handle DOM-level autofill.
- * Communicates with the background service worker via chrome.runtime messages.
+ * Communicates with the side panel and service worker via chrome.runtime messages.
  *
- * This script:
- * - Receives resume data and userProfile from the service worker.
- * - Identifies form fields on the page and fills them with matching data.
- * - Detects unknown fields or account-creation forms and pauses.
- * - Sends AUTOFILL_PAUSED messages when manual intervention is needed.
- * - Listens for RESUME_AUTOFILL to continue after manual steps.
+ * Message types handled:
+ *   EXTRACT_FIELDS_DOM — return FormField[] from a live DOM scan
+ *   FILL_FIELDS       — start sequential filling with a FilledField[] array
+ *   RESUME_AUTOFILL   — continue after a pause_required field
+ *   SKIP_FIELD        — skip the paused field and move on
+ *   PAUSE_AUTOFILL    — user-initiated pause from the side panel
  */
 
+import { fillFieldsSequentially } from '../modules/autofill/fieldFiller.js';
+import { scanFormFieldsInDocument } from '../modules/autofill/domFieldScanner.js';
+
+let resumeResolver = null;
+let isPaused = false;
+
 /**
- * Listen for messages from the background service worker.
+ * Create a promise that resolves when the user sends RESUME_AUTOFILL or
+ * SKIP_FIELD. This is passed into fillFieldsSequentially as the
+ * hooks.waitForResume callback.
+ * @returns {Promise<"resume"|"skip">}
  */
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+function waitForResume() {
+  isPaused = true;
+  return new Promise((resolve) => {
+    resumeResolver = resolve;
+  });
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   switch (message.type) {
+    case 'EXTRACT_FIELDS_DOM': {
+      const fields = scanFormFieldsInDocument();
+      sendResponse({ ok: true, fields });
+      return true;
+    }
+
     case 'FILL_FIELDS':
-      fillFields(message.resume, message.userProfile);
+      fillFieldsSequentially(message.fields, message.delayMs, { waitForResume });
+      sendResponse({ ok: true });
       break;
 
     case 'RESUME_AUTOFILL':
-      resumeFilling();
+      if (resumeResolver) {
+        resumeResolver('resume');
+        resumeResolver = null;
+        isPaused = false;
+      }
+      sendResponse({ ok: true });
+      break;
+
+    case 'SKIP_FIELD':
+      if (resumeResolver) {
+        resumeResolver('skip');
+        resumeResolver = null;
+        isPaused = false;
+      }
+      sendResponse({ ok: true });
+      break;
+
+    case 'PAUSE_AUTOFILL':
+      isPaused = true;
+      sendResponse({ ok: true });
       break;
 
     default:
       break;
   }
 });
-
-/**
- * Fill form fields on the current page using resume and profile data.
- * Only uses data from the parsed resume and userProfile object.
- * Never generates or infers data.
- *
- * @param {Object} resume - Parsed resume data.
- * @param {Object} userProfile - User profile Q&A (citizenship, sponsorship, etc.).
- */
-function fillFields(resume, userProfile) {
-  // TODO: Implement field detection and value injection
-  // - Scan for input, select, textarea elements
-  // - Match field labels/names/ids to resume or userProfile keys
-  // - Fill matched fields
-  // - On unknown field or account-creation form, call pauseAndNotify()
-}
-
-/**
- * Pause autofill and notify the side panel via the service worker.
- * @param {string} reason - Why autofill was paused.
- */
-function pauseAndNotify(reason) {
-  chrome.runtime.sendMessage({
-    type: 'AUTOFILL_PAUSED',
-    reason,
-  });
-}
-
-/**
- * Resume autofill after the user completes a manual step.
- */
-function resumeFilling() {
-  // TODO: Continue filling from where we left off
-}

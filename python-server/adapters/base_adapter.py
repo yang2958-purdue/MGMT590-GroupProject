@@ -4,16 +4,30 @@ Base adapter interface for job scraping.
 All scraper adapters must inherit from BaseAdapter and implement scrape_jobs().
 The returned list of dicts must conform to the JobPosting schema below.
 
-JobPosting schema:
-    {
-        "title":       str,  # Job title
-        "company":     str,  # Company name
-        "location":    str,  # Job location
-        "description": str,  # Full job description text
-        "url":         str,  # Link to the posting
-        "date_posted": str,  # ISO date or human-readable string
-        "salary":      str,  # Salary info (optional, may be empty)
-    }
+# SCHEMA — every adapter must return this exact shape.
+# Fields the JS extension currently reads: title, company, location,
+# description, url, date_posted, salary. Extra fields are carried through
+# but will not break the frontend if absent.
+#
+# JobPosting schema:
+#     {
+#         "id":              str,          # unique hash of company + title + url
+#         "title":           str,          # job title
+#         "company":         str,          # company name
+#         "location":        str,          # job location
+#         "job_type":        str | None,   # fulltime, parttime, internship, contract
+#         "is_remote":       bool,         # whether the job is remote
+#         "date_posted":     str,          # ISO 8601 date string
+#         "salary_min":      float | None, # minimum salary
+#         "salary_max":      float | None, # maximum salary
+#         "salary_currency": str | None,   # e.g. "USD"
+#         "salary":          str,          # human-readable salary string (backward compat)
+#         "description":     str,          # full description, markdown preferred
+#         "url":             str,          # direct link to the posting
+#         "source":          str,          # origin site: "indeed", "linkedin", etc.
+#     }
+#
+# Any field the source does not provide should be None, never omitted.
 """
 
 from abc import ABC, abstractmethod

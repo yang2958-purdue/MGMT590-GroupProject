@@ -11,6 +11,7 @@ export const KEYS = {
   SELECTED_JOB: 'jobbot_selectedJob',
   USER_PROFILE: 'jobbot_userProfile',
   SETTINGS: 'jobbot_settings',
+  AUTOFILL_STATE: 'jobbot_autofillState',
 
   // BACKLOG: Application tracking table (company, title, date, link, resume used, status)
   // TRACKING: 'jobbot_tracking',
@@ -172,7 +173,16 @@ export async function setSelectedJob(data) {
  * @typedef {Object} UserProfile
  * @property {string} [citizenship]
  * @property {string} [sponsorship]
+ * @property {string} [authorizedToWork] - e.g. Yes / No for work-authorization dropdowns
  * @property {string} [desiredSalary]
+ * @property {string} [linkedin]
+ * @property {string} [coverLetter]
+ * @property {string} [relocation]
+ * @property {string} [sensitiveOptional]
+ * @property {string} [country]
+ * @property {string} [city]
+ * @property {string} [state]
+ * @property {string} [zip]
  * @property {Object.<string, string>} [customAnswers]
  */
 
@@ -208,4 +218,32 @@ export async function getSettings() {
  */
 export async function setSettings(data) {
   return set(KEYS.SETTINGS, data);
+}
+
+/**
+ * @typedef {Object} AutofillState
+ * @property {number|null} tabId
+ * @property {string} jobUrl
+ * @property {Array} fields
+ * @property {number} currentIndex
+ * @property {number} totalFields
+ * @property {"scanning"|"filling"|"paused"|"complete"|"error"} status
+ * @property {string} [errorMessage]
+ */
+
+/**
+ * Get the current autofill session state.
+ * @returns {Promise<AutofillState|null>}
+ */
+export async function getAutofillState() {
+  return get(KEYS.AUTOFILL_STATE);
+}
+
+/**
+ * Store autofill session state.
+ * @param {AutofillState} data
+ * @returns {Promise<void>}
+ */
+export async function setAutofillState(data) {
+  return set(KEYS.AUTOFILL_STATE, data);
 }

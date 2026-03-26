@@ -60,8 +60,8 @@ export function renderTargetPage(container) {
 
     try {
       const criteria = {
-        titles: titles.length ? titles : ['Software Engineer'],
-        companies: companies.length ? companies : ['Company'],
+        titles,
+        companies,
         location: filters.location || '',
         salary_range_min: filters.salaryMin,
         salary_range_max: filters.salaryMax,

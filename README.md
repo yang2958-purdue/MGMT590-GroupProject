@@ -39,6 +39,9 @@ cd python-server
 start_server.bat
 ```
 
+`start_server.bat` installs `python-jobspy` without pinned transitive deps and then
+installs compatible `numpy/pandas` versions for newer Python/Windows environments.
+
 **Mac/Linux:**
 ```bash
 cd python-server
@@ -63,17 +66,25 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 ```
 ├── src/
 │   ├── sidepanel/          # Side Panel UI (main app)
-│   │   ├── pages/          # Upload, Target, Results, Detail, Settings
-│   │   └── components/     # Nav, ResumeUpload, JobTable, etc.
+│   │   ├── pages/          # Upload, Target, Results, Detail, Settings, Autofill
+│   │   └── components/     # Nav, ResumeUpload, JobTable, AutofillPanel, etc.
 │   ├── background/         # Service worker
 │   ├── content/            # Content script for autofill
+│   ├── config/             # Feature config files
+│   │   ├── firecrawl.config.js  # Firecrawl API key + mock mode
+│   │   └── autofill.config.js   # Fill delay, pause-trigger keywords
 │   ├── modules/            # Core business logic (ES modules)
 │   │   ├── resumeParser.js # PDF/DOCX → structured resume object
 │   │   ├── storage.js      # chrome.storage.local wrapper
 │   │   ├── jobScraper.js   # Calls Flask server for job postings
 │   │   ├── scorer.js       # Fit score + ATS score (keyword overlap)
 │   │   ├── tailor.js       # Resume tailoring advice + auto-tailor
-│   │   └── autofill.js     # Autofill engine for application forms
+│   │   ├── scraper/
+│   │   │   └── firecrawlAdapter.js  # Firecrawl API adapter (scrape + extract)
+│   │   └── autofill/
+│   │       ├── autofillController.js  # Orchestrates the autofill pipeline
+│   │       ├── fieldMapper.js         # Maps form fields → resume/profile values
+│   │       └── fieldFiller.js         # Content-script DOM filling logic
 │   ├── data/               # Static data (company seed list)
 │   └── lib/                # Shared constants
 ├── python-server/          # Local Flask scraper server
@@ -87,11 +98,15 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 
 ## Swapping the Scraper Adapter
 
-The Python server uses an adapter pattern. To change scrapers, edit one line in `python-server/config.py`:
+The Python server uses an adapter pattern. The default adapter is **JobSpy**, which scrapes real job postings from Indeed, LinkedIn, Glassdoor, Google Jobs, and ZipRecruiter. To change scrapers, edit one line in `python-server/config.py`:
 
 ```python
-ACTIVE_ADAPTER = "beautifulsoup"   # change to "firecrawl" when ready
+ACTIVE_ADAPTER = "jobspy"          # real scraping via python-jobspy (default)
+ACTIVE_ADAPTER = "beautifulsoup"   # mock data for offline development
+ACTIVE_ADAPTER = "firecrawl"       # future adapter (not yet implemented)
 ```
+
+JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOBSPY_CONFIG` block in the same file.
 
 ## Architecture Notes
 
@@ -99,3 +114,4 @@ ACTIVE_ADAPTER = "beautifulsoup"   # change to "firecrawl" when ready
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
 - **AI/LLM calls** (scoring, tailoring) are isolated behind a single function in their modules, marked with `// SWAP:` comments for easy replacement.
 - **The JS side** calls `localhost:5001/scrape` and knows nothing about which adapter is active on the server.
+- **Autofill pipeline** — Open the **real** application site in a normal browser tab (e.g. Workday, Greenhouse). In the side panel, go to **Autofill** and press **Autofill this tab** to extract fields and fill using pause/resume/skip controls. The job **Detail** page only offers **Open job posting** (listing URL); it does not start autofill. Field discovery uses **Firecrawl** when the site is allowed and `VITE_FIRECRAWL_API_KEY` is set in `.env.local` (see `.env.example`); otherwise the extension scans the **live tab DOM**. **LinkedIn** is skipped for remote Firecrawl extract — rely on DOM scan on the application page. Mapping uses label + control type (e.g. **select** options matched by text/value; phone/email are not applied to yes/no controls). Stored `jobbot_userProfile` can include optional fields such as `authorizedToWork`, `linkedin`, `coverLetter`, `city` / `state` / `zip` / `country`, and `relocation` to reduce skipped dropdowns. Rebuild after changing env vars (`npm run build`).

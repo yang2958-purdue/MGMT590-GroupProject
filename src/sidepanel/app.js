@@ -4,6 +4,7 @@ import { renderTargetPage } from './pages/targetPage.js';
 import { renderResultsPage } from './pages/resultsPage.js';
 import { renderDetailPage } from './pages/detailPage.js';
 import { renderSettingsPage } from './pages/settingsPage.js';
+import { renderAutofillPage } from './pages/autofillPage.js';
 
 const routes = {
   '#/upload': renderUploadPage,
@@ -11,6 +12,7 @@ const routes = {
   '#/results': renderResultsPage,
   '#/detail': renderDetailPage,
   '#/settings': renderSettingsPage,
+  '#/autofill': renderAutofillPage,
 };
 
 function router() {

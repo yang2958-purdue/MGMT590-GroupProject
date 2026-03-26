@@ -10,8 +10,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 import config
-from adapters.beautifulsoup_adapter import BeautifulSoupAdapter
-from adapters.firecrawl_adapter import FirecrawlAdapter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,19 +20,22 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-ADAPTERS = {
-    "beautifulsoup": BeautifulSoupAdapter,
-    "firecrawl": FirecrawlAdapter,
-}
+# ─── Adapter loader ──────────────────────────────────────────────────────
+# TODO: add per-request adapter override via request header for A/B testing
 
-adapter_cls = ADAPTERS.get(config.ACTIVE_ADAPTER)
-if adapter_cls is None:
+if config.ACTIVE_ADAPTER == "jobspy":
+    from adapters.jobspy_adapter import JobSpyAdapter as AdapterClass
+elif config.ACTIVE_ADAPTER == "beautifulsoup":
+    from adapters.beautifulsoup_adapter import BeautifulSoupAdapter as AdapterClass
+elif config.ACTIVE_ADAPTER == "firecrawl":
+    from adapters.firecrawl_adapter import FirecrawlAdapter as AdapterClass
+else:
     raise ValueError(
         f"Unknown adapter '{config.ACTIVE_ADAPTER}'. "
-        f"Valid options: {', '.join(ADAPTERS.keys())}"
+        f"Valid options: jobspy, beautifulsoup, firecrawl"
     )
 
-adapter = adapter_cls()
+adapter = AdapterClass()
 log.info("Active scraper adapter: %s", config.ACTIVE_ADAPTER)
 
 
@@ -71,10 +72,10 @@ def scrape():
         return jsonify(results)
     except NotImplementedError as exc:
         log.warning("Adapter not implemented: %s", exc)
-        return jsonify({"error": str(exc)}), 501
+        return jsonify([]), 501
     except Exception as exc:
-        log.exception("Scraper error")
-        return jsonify({"error": str(exc)}), 500
+        log.exception("Scraper error: %s", exc)
+        return jsonify([])
 
 
 if __name__ == "__main__":

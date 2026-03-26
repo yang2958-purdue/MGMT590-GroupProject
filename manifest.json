@@ -7,7 +7,11 @@
     "storage",
     "activeTab",
     "sidePanel",
-    "scripting"
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://api.firecrawl.dev/*"
   ],
   "action": {
     "default_icon": {
