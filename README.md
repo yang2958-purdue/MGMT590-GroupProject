@@ -51,6 +51,31 @@ chmod +x start_server.sh
 
 The server starts on `http://localhost:5001`. The extension calls this server to fetch job postings.
 
+### 4.1 Optional: Enable ChatGPT resume parsing (recommended)
+
+The extension can enhance resume parsing via ChatGPT through the local Python server.
+
+1. Create an OpenAI API key from your OpenAI account.
+2. Set environment variables before starting the Python server:
+
+**Windows (PowerShell):**
+```powershell
+$env:OPENAI_API_KEY="your_openai_api_key"
+$env:OPENAI_MODEL="gpt-4o-mini"
+cd python-server
+start_server.bat
+```
+
+**Mac/Linux (bash):**
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+export OPENAI_MODEL="gpt-4o-mini"
+cd python-server
+./start_server.sh
+```
+
+If `OPENAI_API_KEY` is missing, the extension automatically falls back to heuristic parsing.
+
 ### 5. User profile (Settings)
 
 Open **Settings** in the side panel and click **Save profile**. Data is stored in `chrome.storage.local` under the key `jobbot_userProfile` and is used by **Autofill** together with the parsed resume.
@@ -72,6 +97,15 @@ npm run dev
 ```
 
 This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/` and click the reload button on the JobBot extension.
+
+## ChatGPT Resume Parser Setup Checklist
+
+1. `npm install`
+2. `npm run build`
+3. Set `OPENAI_API_KEY` (and optional `OPENAI_MODEL`)
+4. Start python server (`start_server.bat` or `./start_server.sh`)
+5. Load/reload unpacked extension from `dist/`
+6. Upload resume again (Debug tab should show `Parser Source = llm-hybrid`)
 
 ## Project Structure
 

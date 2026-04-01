@@ -143,7 +143,18 @@ async function handleFile(file, container) {
 
   try {
     const { parseResume } = await import('../../modules/resumeParser.js');
-    const resumeData = await parseResume(file);
+    const { parseResumeWithLLM, mergeResumeData } = await import('../../modules/llmResumeParser.js');
+
+    const baseData = await parseResume(file);
+    let resumeData = { ...baseData, parserSource: 'heuristic' };
+
+    try {
+      const llmData = await parseResumeWithLLM(baseData.rawText, baseData.fileName);
+      resumeData = mergeResumeData(baseData, llmData);
+    } catch (llmErr) {
+      console.warn('LLM parser unavailable, using heuristic parse:', llmErr);
+    }
+
     await setResume(resumeData);
     renderStoredPreview(container, resumeData);
   } catch (err) {
@@ -169,6 +180,7 @@ function buildResumeDebugRows(data) {
   const topSkills = Array.isArray(data?.skills) ? data.skills.slice(0, 8).join(', ') : '';
 
   return [
+    { field: 'Parser Source', autofillKey: 'parserSource', value: data?.parserSource || 'heuristic' },
     { field: 'Full Name', autofillKey: 'name', value: fullName },
     { field: 'First Name (derived)', autofillKey: 'firstName', value: firstName },
     { field: 'Middle Name (derived)', autofillKey: 'middleName', value: middleName },

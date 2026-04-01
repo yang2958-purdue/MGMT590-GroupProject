@@ -37,6 +37,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
  * @property {string[]} skills
  * @property {ExperienceEntry[]} experience
  * @property {EducationEntry[]} education
+ * @property {string} [parserSource] - heuristic | llm-hybrid
  */
 
 /**

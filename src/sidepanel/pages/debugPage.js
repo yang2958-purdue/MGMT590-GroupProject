@@ -92,6 +92,7 @@ function buildResumeDebugRows(data) {
   const topSkills = Array.isArray(data?.skills) ? data.skills.slice(0, 8).join(', ') : '';
 
   return [
+    { field: 'Parser Source', autofillKey: 'parserSource', value: data?.parserSource || 'heuristic' },
     { field: 'Full Name', autofillKey: 'name', value: fullName },
     { field: 'First Name (derived)', autofillKey: 'firstName', value: firstName },
     { field: 'Middle Name (derived)', autofillKey: 'middleName', value: middleName },

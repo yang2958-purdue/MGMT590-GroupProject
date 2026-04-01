@@ -1,11 +1,16 @@
 """
 JobBot scraper server.
 
-A local Flask server that exposes a /scrape endpoint for the browser extension.
-The active scraper adapter is selected by config.ACTIVE_ADAPTER.
+A local Flask server that exposes:
+- /scrape for job scraping
+- /parse-resume-llm for optional ChatGPT resume parsing enhancement
 """
 
+import json
 import logging
+import os
+import re
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -76,6 +81,177 @@ def scrape():
     except Exception as exc:
         log.exception("Scraper error: %s", exc)
         return jsonify([])
+
+
+@app.route("/parse-resume-llm", methods=["POST"])
+def parse_resume_llm():
+    """
+    Parse resume text with OpenAI chat model.
+
+    Body:
+      {
+        "rawText": "<resume plain text>",
+        "fileName": "resume.pdf"
+      }
+    """
+    payload = request.get_json(silent=True) or {}
+    raw_text = (payload.get("rawText") or "").strip()
+    file_name = (payload.get("fileName") or "").strip()
+    if not raw_text:
+        return jsonify({"error": "Missing rawText"}), 400
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"error": "OPENAI_API_KEY is not set on python server"}), 400
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    raw_text = raw_text[:24000]
+
+    schema_instructions = {
+        "fileName": file_name or "",
+        "contact": {
+            "name": "",
+            "email": "",
+            "phone": "",
+        },
+        "location": {
+            "city": "",
+            "state": "",
+            "zip": "",
+        },
+        "skills": [""],
+        "experience": [
+            {
+                "title": "",
+                "company": "",
+                "dates": "",
+                "bullets": [""],
+            }
+        ],
+        "education": [
+            {
+                "degree": "",
+                "school": "",
+                "dates": "",
+            }
+        ],
+    }
+
+    prompt = (
+        "Extract structured resume information from the provided text. "
+        "Return JSON only (no markdown, no prose), using this exact shape keys:\n"
+        f"{json.dumps(schema_instructions)}\n\n"
+        "Rules:\n"
+        "- Name fields must preserve initials (e.g., 'Alec X. Neville').\n"
+        "- Experience entries should capture both title and company where possible.\n"
+        "- If unsure, use empty string.\n"
+        "- Keep skills concise, deduplicated, and avoid contact/location tokens.\n"
+        "- Do not invent details.\n"
+    )
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=45,
+            json={
+                "model": model,
+                "temperature": 0,
+                "messages": [
+                    {"role": "system", "content": "You are a resume parsing engine. Output valid JSON only."},
+                    {"role": "user", "content": f"{prompt}\n\nResume text:\n{raw_text}"},
+                ],
+            },
+        )
+        if not response.ok:
+            return jsonify({"error": f"OpenAI error ({response.status_code}): {response.text[:300]}"}), 502
+
+        completion = response.json()
+        content = (
+            completion.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        parsed = _parse_json_from_llm_content(content)
+        normalized = _normalize_resume_payload(parsed, file_name)
+        normalized["parserSource"] = "llm"
+        return jsonify(normalized)
+    except Exception as exc:
+        log.exception("LLM parse error: %s", exc)
+        return jsonify({"error": f"LLM parse failed: {exc}"}), 500
+
+
+def _parse_json_from_llm_content(content: str):
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        return json.loads(text)
+    except Exception:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            return json.loads(text[start : end + 1])
+        raise
+
+
+def _normalize_resume_payload(data, file_name):
+    data = data or {}
+    contact = data.get("contact") or {}
+    location = data.get("location") or {}
+    exp = data.get("experience") if isinstance(data.get("experience"), list) else []
+    edu = data.get("education") if isinstance(data.get("education"), list) else []
+    skills = data.get("skills") if isinstance(data.get("skills"), list) else []
+
+    def _s(v):
+        return str(v).strip() if v is not None else ""
+
+    norm_exp = []
+    for e in exp:
+        if not isinstance(e, dict):
+            continue
+        bullets = e.get("bullets") if isinstance(e.get("bullets"), list) else []
+        norm_exp.append(
+            {
+                "title": _s(e.get("title")),
+                "company": _s(e.get("company")),
+                "dates": _s(e.get("dates")),
+                "bullets": [_s(b) for b in bullets if _s(b)],
+            }
+        )
+
+    norm_edu = []
+    for e in edu:
+        if not isinstance(e, dict):
+            continue
+        norm_edu.append(
+            {
+                "degree": _s(e.get("degree")),
+                "school": _s(e.get("school")),
+                "dates": _s(e.get("dates")),
+            }
+        )
+
+    return {
+        "fileName": _s(data.get("fileName")) or _s(file_name),
+        "contact": {
+            "name": _s(contact.get("name")),
+            "email": _s(contact.get("email")),
+            "phone": _s(contact.get("phone")),
+        },
+        "location": {
+            "city": _s(location.get("city")),
+            "state": _s(location.get("state")),
+            "zip": _s(location.get("zip")),
+        },
+        "skills": list(dict.fromkeys([_s(s) for s in skills if _s(s)])),
+        "experience": norm_exp,
+        "education": norm_edu,
+    }
 
 
 if __name__ == "__main__":

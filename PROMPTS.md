@@ -233,3 +233,45 @@
 **Prompt:** lets also make sure under the "Professional Experience" section of the resume (or any similar from differnet resumes) correctly identify the company,
 
 **Outcome:** Upgraded experience parsing heuristics to better capture company names in multi-line Professional Experience formats (title/company/date on separate lines). Added context-aware header parsing around date lines, company-line detection/cleanup (including `Company | City, ST` patterns), and buffering of short header-like lines for subsequent date-bound entries.
+
+## 2026-03-23 - Add ChatGPT Resume Parsing Wrapper
+
+**Prompt:** lets try and use chatgpt to parse the data, make any code changes nesseary and give me a step by step on things I need to do to set it up
+
+**Outcome:** Added hybrid resume parsing: sidepanel now runs heuristic parse, then calls local Python endpoint `/parse-resume-llm` for ChatGPT enhancement and merges results with fallback. Implemented OpenAI-backed parser endpoint in `python-server/server.py` with normalization/validation, added `src/modules/llmResumeParser.js`, exposed parser source in Debug matrix, and documented setup steps/env vars in README.
+
+## 2026-03-23 - Expand Step 2 Setup Detail
+
+**Prompt:** can you go into deeper detail for step 2
+
+**Outcome:** Provided detailed Windows setup for Step 2 (environment variables + server startup), including verification commands, session-scope behavior, persistence options, and troubleshooting guidance.
+
+## 2026-03-23 - Fix PowerShell start_server.bat Command
+
+**Prompt:** got an this error on step 2.5 start_server.bat : The term 'start_server.bat' is not recognized...
+
+**Outcome:** Clarified PowerShell execution behavior and provided corrected command invocation using `.\start_server.bat` (or full path / `cmd /c`) from the `python-server` directory.
+
+## 2026-03-23 - Fix Windows pip self-upgrade in startup script
+
+**Prompt:** is this acceptable? [pip notices + ERROR: To modify pip, run python -m pip ...]
+
+**Outcome:** Updated `python-server/start_server.bat` to use `python.exe -m pip` for pip upgrades and package installs, preventing pip self-modification failure in newer pip versions.
+
+## 2026-04-01 - Verify Python server startup output
+
+**Prompt:** Starting scraper server on port 5001... [Flask startup logs]
+
+**Outcome:** Confirmed server startup output is healthy (adapter loaded, Flask running at `http://127.0.0.1:5001`, debug reloader active). Provided next-step checks to validate LLM parsing in extension.
+
+## 2026-04-01 - Diagnose heuristic fallback after setup attempts
+
+**Prompt:** parser source still shows heuristic
+
+**Outcome:** Diagnosed PowerShell command issues from terminal history: missing `.\` prefix for batch execution, unquoted API key assignment causing command parsing errors, and duplicate `cd python-server` while already in that directory. Provided corrected copy/paste command sequence and verification checks.
+
+## 2026-04-01 - Diagnose OpenAI quota error on verify step
+
+**Prompt:** got this on the 2nd terminal verify [OpenAI error 429 insufficient_quota]
+
+**Outcome:** Confirmed local wrapper is functioning end-to-end and reaching OpenAI; failure is external quota/billing (`insufficient_quota`). Provided remediation steps (billing/quota check, new key, or fallback parser usage).
