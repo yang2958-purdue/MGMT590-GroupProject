@@ -38,6 +38,9 @@ export function inferDataKeyFromLabel(labelText, fieldType) {
   if (fieldType !== 'select' && fieldType !== 'radio') {
     if (t.includes('linkedin')) return 'linkedin';
     if (/\bemail\b|e-mail/.test(t)) return 'email';
+    if (/\bmiddle\s*name\b|\bmiddle\s*initial\b/.test(t)) return 'middleName';
+    if (/\bcountry\b.*\bphone\b.*\bcode\b|\bphone\b.*\bcode\b|\bdial(?:ing)?\s*code\b/.test(t)) return 'unmapped';
+    if (/\bphone\s*extension\b|\bextension\b|\bext\.?\b/.test(t)) return 'unmapped';
     if (/\bphone\b|mobile|\btel\b|cell/.test(t)) return 'phone';
     if (/\bfirst\s*name\b|given\s*name/.test(t)) return 'firstName';
     if (/\blast\s*name\b|surname|family\s*name/.test(t)) return 'lastName';

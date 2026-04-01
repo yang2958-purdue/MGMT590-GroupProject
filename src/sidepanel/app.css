@@ -241,6 +241,58 @@ h3 { font-size: 14px; font-weight: 600; }
   animation: spin 0.6s linear infinite;
 }
 
+.debug-matrix {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: var(--color-bg);
+}
+
+.debug-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.debug-matrix-table th,
+.debug-matrix-table td {
+  border-top: 1px solid var(--color-border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.debug-matrix-table thead th {
+  border-top: none;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 11px;
+}
+
+.debug-matrix-key {
+  color: var(--color-text-muted);
+  width: 22%;
+}
+
+.debug-matrix-map {
+  width: 23%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--color-info);
+  word-break: break-word;
+}
+
+.debug-matrix-value {
+  width: 40%;
+  word-break: break-word;
+}
+
+.debug-matrix-status {
+  width: 15%;
+  font-weight: 600;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

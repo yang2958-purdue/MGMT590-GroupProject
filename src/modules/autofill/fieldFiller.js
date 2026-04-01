@@ -68,7 +68,7 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
     }
 
     // status === "ready"
-    setFieldValue(field.selector, value, field.iframePath);
+    await setFieldValue(field.selector, value, field.iframePath, field.fieldType);
     filledCount++;
 
     if (i < fields.length - 1) {
@@ -234,6 +234,14 @@ function setSelectValue(select, value) {
 }
 
 /**
+ * Normalize text for fuzzy option matching.
+ * @param {string} s
+ */
+function normText(s) {
+  return (s || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+}
+
+/**
  * Walk nested same-origin iframes from the top document (content script context).
  * @param {number[]|undefined} iframePath
  * @returns {Document | null}
@@ -258,11 +266,16 @@ function resolveRootDocument(iframePath) {
  * @param {string} value    - The value to set.
  * @param {number[]|undefined} [iframePath] - Nested iframe indices when the control is not in the top document.
  */
-export function setFieldValue(selector, value, iframePath) {
+export async function setFieldValue(selector, value, iframePath, fieldType) {
   const root = resolveRootDocument(iframePath);
   if (!root) return;
   const el = root.querySelector(selector);
   if (!el) return;
+
+  if (fieldType === 'select') {
+    await setAnyDropdownValue(el, value);
+    return;
+  }
 
   if (el instanceof HTMLInputElement && el.type === 'checkbox') {
     el.checked = value === 'true' || value === '1' || /^yes$/i.test(String(value));
@@ -281,6 +294,11 @@ export function setFieldValue(selector, value, iframePath) {
     return;
   }
 
+  if (isComboboxLike(el)) {
+    await setComboboxValue(el, value);
+    return;
+  }
+
   const nativeInputValueSetter =
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set ||
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
@@ -294,6 +312,128 @@ export function setFieldValue(selector, value, iframePath) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
   el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Handle both native and custom dropdown widgets.
+ * @param {Element} el
+ * @param {string} value
+ */
+async function setAnyDropdownValue(el, value) {
+  if (el instanceof HTMLSelectElement) {
+    setSelectValue(el, value);
+    return;
+  }
+
+  const target = resolveDropdownTarget(el);
+  if (!target) return;
+
+  if (target instanceof HTMLSelectElement) {
+    setSelectValue(target, value);
+    return;
+  }
+
+  await setComboboxValue(target, value);
+}
+
+/**
+ * Try to find the real interactive dropdown control from a container selector.
+ * @param {Element} el
+ * @returns {Element|null}
+ */
+function resolveDropdownTarget(el) {
+  if (isComboboxLike(el) || el instanceof HTMLSelectElement) return el;
+
+  const local = el.querySelector?.(
+    'select,[role="combobox"],button[aria-haspopup="listbox"],input[aria-haspopup="listbox"],[data-automation-id*="dropdown"],[data-automation-id*="promptButton"]'
+  );
+  if (local) return local;
+
+  let p = el.parentElement;
+  for (let i = 0; i < 4 && p; i++, p = p.parentElement) {
+    const cand = p.querySelector(
+      'select,[role="combobox"],button[aria-haspopup="listbox"],input[aria-haspopup="listbox"],[data-automation-id*="dropdown"],[data-automation-id*="promptButton"]'
+    );
+    if (cand) return cand;
+  }
+
+  return null;
+}
+
+/**
+ * @param {Element} el
+ */
+function isComboboxLike(el) {
+  const role = (el.getAttribute('role') || '').toLowerCase();
+  const popup = (el.getAttribute('aria-haspopup') || '').toLowerCase();
+  if (role === 'combobox') return true;
+  if (popup === 'listbox') return true;
+  if (el.tagName === 'BUTTON' && popup) return true;
+  if (el instanceof HTMLInputElement && el.getAttribute('aria-controls') && el.getAttribute('aria-autocomplete')) return true;
+  return false;
+}
+
+/**
+ * Attempt to set value on custom combobox widgets (e.g. Workday listboxes).
+ * @param {Element} el
+ * @param {string} value
+ */
+async function setComboboxValue(el, value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return;
+
+  const openDropdown = () => {
+    if (!(el instanceof HTMLElement)) return;
+    el.focus();
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+    el.click();
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  };
+
+  openDropdown();
+
+  if (el instanceof HTMLInputElement && !el.readOnly) {
+    el.value = raw;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const option = findCustomDropdownOption(el.ownerDocument, raw);
+    if (option) {
+      option.click();
+      if (el instanceof HTMLElement) {
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event('blur', { bubbles: true }));
+      }
+      return;
+    }
+    if (i === 3 || i === 6) openDropdown();
+    await sleep(120);
+  }
+}
+
+/**
+ * @param {Document} doc
+ * @param {string} raw
+ * @returns {HTMLElement|null}
+ */
+function findCustomDropdownOption(doc, raw) {
+  const low = normText(raw);
+  const candidates = Array.from(
+    doc.querySelectorAll(
+      '[role="option"],li[role="option"],[data-automation-id*="option"],[data-automation-id*="promptOption"],[data-automation-id*="dropdownOption"],[id*="option"]'
+    )
+  );
+
+  const pick = candidates.find((node) => {
+    const text = normText(node.textContent || '');
+    if (!text) return false;
+    return text === low || text.includes(low) || low.includes(text);
+  });
+
+  return pick instanceof HTMLElement ? pick : null;
 }
 
 /**

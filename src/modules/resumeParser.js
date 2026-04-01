@@ -33,6 +33,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
  * @property {string} fileName
  * @property {string} rawText
  * @property {ContactInfo} contact
+ * @property {{ city: string, state: string, zip: string }} location
  * @property {string[]} skills
  * @property {ExperienceEntry[]} experience
  * @property {EducationEntry[]} education
@@ -65,6 +66,7 @@ export async function parseResume(file) {
     fileName: file.name,
     rawText,
     contact: extractContact(rawText),
+    location: extractLocation(rawText),
     skills: extractSkills(rawText),
     experience: extractExperience(rawText),
     education: extractEducation(rawText),
@@ -201,6 +203,50 @@ function extractContact(text) {
   };
 }
 
+/**
+ * Extract city/state/zip from top resume lines.
+ * Handles patterns like "Austin, TX 78701" and "Austin TX 78701".
+ * @param {string} text
+ * @returns {{ city: string, state: string, zip: string }}
+ */
+function extractLocation(text) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 30);
+  const location = { city: '', state: '', zip: '' };
+
+  const cityStateZip = /([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/;
+  const cityState = /([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\b/;
+  const cityStateZipNoComma = /([A-Za-z][A-Za-z\s.'-]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/;
+
+  for (const line of lines) {
+    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || /^https?:\/\//i.test(line)) continue;
+
+    let m = line.match(cityStateZip);
+    if (m) {
+      location.city = m[1].trim();
+      location.state = m[2].trim();
+      location.zip = m[3].trim();
+      return location;
+    }
+
+    m = line.match(cityStateZipNoComma);
+    if (m) {
+      location.city = m[1].trim();
+      location.state = m[2].trim();
+      location.zip = m[3].trim();
+      return location;
+    }
+
+    m = line.match(cityState);
+    if (m) {
+      location.city = m[1].trim();
+      location.state = m[2].trim();
+      return location;
+    }
+  }
+
+  return location;
+}
+
 const SKILLS_PREFIXES = ['skills', 'technical skills', 'core competencies', 'technologies', 'proficiencies', 'tools', 'expertise'];
 const SPLIT_RE = /[,|•·▪■►●;]/;
 
@@ -244,7 +290,7 @@ function parseSkillsList(text) {
         .replace(/^[\s\-–—*]+/, '')
         .replace(/[\s\-–—*]+$/, '')
         .trim();
-      if (cleaned && cleaned.length >= 2 && cleaned.length <= 60) {
+      if (isLikelySkill(cleaned)) {
         skills.push(cleaned);
       }
     }
@@ -265,12 +311,27 @@ function fallbackSkillsScan(text) {
 
   for (const line of lines) {
     const parts = line.split(SPLIT_RE).map((p) => p.trim()).filter(Boolean);
-    if (parts.length >= 3 && parts.every((p) => p.length < 40)) {
-      skills.push(...parts);
+    if (parts.length >= 3 && parts.every((p) => p.length < 40 && isLikelySkill(p))) {
+      skills.push(...parts.filter(isLikelySkill));
     }
   }
 
   return [...new Set(skills)];
+}
+
+/**
+ * Filter out obvious non-skill tokens (emails, phones, links, addresses).
+ * @param {string} token
+ * @returns {boolean}
+ */
+function isLikelySkill(token) {
+  const t = (token || '').trim();
+  if (!t || t.length < 2 || t.length > 60) return false;
+  if (/@/.test(t)) return false;
+  if (/https?:\/\//i.test(t)) return false;
+  if (/\b(linkedin|phone|email|address|austin|texas|tx)\b/i.test(t)) return false;
+  if (/^\d[\d\s\-().]+$/.test(t)) return false;
+  return true;
 }
 
 const EXP_PREFIXES = ['experience', 'work experience', 'professional experience', 'employment'];
@@ -290,6 +351,7 @@ function extractExperience(text) {
   const lines = expText.split('\n');
   const entries = [];
   let current = null;
+  const recentHeaderLines = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -300,25 +362,139 @@ function extractExperience(text) {
     }
 
     const dateMatch = trimmed.match(DATE_RE);
+    const isBullet = /^[\-–—*•►●▪■]/.test(trimmed);
 
     if (dateMatch) {
       if (current) entries.push(current);
 
-      const { title, company } = parseTitleCompany(trimmed, dateMatch[0]);
+      const dateStr = dateMatch[0].trim();
+      const headerOnDateLine = trimmed.replace(dateMatch[0], '').trim().replace(/^[|,\-–—\s]+|[|,\-–—\s]+$/g, '');
+      let title = '';
+      let company = '';
+
+      if (headerOnDateLine) {
+        const parsed = parseTitleCompany(headerOnDateLine, '');
+        title = parsed.title;
+        company = parsed.company;
+      } else {
+        const prevLine = recentHeaderLines[recentHeaderLines.length - 1] || '';
+        const prevPrevLine = recentHeaderLines[recentHeaderLines.length - 2] || '';
+        const parsed = parseExperienceHeaderFromContext(prevPrevLine, prevLine);
+        title = parsed.title;
+        company = parsed.company;
+      }
+
       current = {
         title,
         company,
-        dates: dateMatch[0].trim(),
+        dates: dateStr,
         bullets: [],
       };
-    } else if (current) {
+      recentHeaderLines.length = 0;
+      continue;
+    }
+
+    if (isBullet && current) {
       const bullet = trimmed.replace(/^[\-–—*•►●▪■]+\s*/, '');
       if (bullet) current.bullets.push(bullet);
+      continue;
+    }
+
+    if (current) {
+      // Many resumes place company/title on lines adjacent to dates.
+      if (!current.company && looksLikeCompanyLine(trimmed)) {
+        current.company = extractCompanyFromLine(trimmed);
+        continue;
+      }
+      if (!current.title && !looksLikeCompanyLine(trimmed)) {
+        current.title = trimmed;
+        continue;
+      }
+      if (looksLikePotentialExperienceHeader(trimmed)) {
+        recentHeaderLines.push(trimmed);
+        if (recentHeaderLines.length > 4) recentHeaderLines.shift();
+        continue;
+      }
+      const bullet = trimmed.replace(/^[\-–—*•►●▪■]+\s*/, '');
+      if (bullet) current.bullets.push(bullet);
+    } else {
+      if (!isBullet) {
+        recentHeaderLines.push(trimmed);
+        if (recentHeaderLines.length > 4) recentHeaderLines.shift();
+      }
     }
   }
 
   if (current) entries.push(current);
   return entries;
+}
+
+/**
+ * Parse title/company from lines around a date line.
+ * @param {string} titleLike
+ * @param {string} companyLike
+ * @returns {{ title: string, company: string }}
+ */
+function parseExperienceHeaderFromContext(titleLike, companyLike) {
+  const title = (titleLike || '').trim();
+  const company = extractCompanyFromLine(companyLike || '');
+
+  if (title && company) return { title, company };
+
+  const fallback = parseTitleCompany(companyLike || titleLike || '', '');
+  return {
+    title: title || fallback.title || '',
+    company: company || fallback.company || '',
+  };
+}
+
+/**
+ * Heuristic to identify company lines under experience sections.
+ * @param {string} line
+ */
+function looksLikeCompanyLine(line) {
+  const t = (line || '').trim();
+  if (!t) return false;
+  if (/\b(inc|llc|corp|company|co\.|technologies|technology|solutions|group|labs|systems|university|bank|hospital)\b/i.test(t)) {
+    return true;
+  }
+  if (/\s\|\s/.test(t)) return true; // "Company | City, ST"
+  if (/^at\s+/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * Heuristic for short, header-like lines likely to precede the next date entry.
+ * @param {string} line
+ */
+function looksLikePotentialExperienceHeader(line) {
+  const t = (line || '').trim();
+  if (!t) return false;
+  if (DATE_RE.test(t)) return false;
+  if (t.length > 90) return false;
+  if (/[.!?]$/.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length > 10) return false;
+  return true;
+}
+
+/**
+ * Remove likely location/date fragments and keep company text.
+ * @param {string} line
+ */
+function extractCompanyFromLine(line) {
+  let s = (line || '').replace(DATE_RE, '').trim();
+  s = s.replace(/^at\s+/i, '').trim();
+  if (!s) return '';
+
+  if (s.includes(' | ')) {
+    s = s.split(' | ')[0].trim();
+  }
+
+  s = s.replace(/,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?$/, '').trim();
+  s = s.replace(/\s[-–—]\s[A-Z][a-z]+,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?$/, '').trim();
+
+  return s;
 }
 
 /**

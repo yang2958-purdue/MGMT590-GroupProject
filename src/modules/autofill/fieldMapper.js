@@ -102,17 +102,20 @@ function applyResumeOverrides(map, ro) {
   if (!ro) return;
 
   const first = trimStr(ro.firstName);
+  const middle = trimStr(ro.middleName);
   const last = trimStr(ro.lastName);
   const full = trimStr(ro.fullName);
 
   if (first) map['firstName'] = first;
+  if (middle) map['middleName'] = middle;
   if (last) map['lastName'] = last;
 
   if (full) {
+    const parsed = splitNameParts(full);
     map['name'] = full;
-    const parts = full.split(/\s+/);
-    if (!first) map['firstName'] = parts[0] || map['firstName'] || '';
-    if (!last) map['lastName'] = parts.slice(1).join(' ') || map['lastName'] || '';
+    if (!first) map['firstName'] = parsed.firstName || map['firstName'] || '';
+    if (!middle) map['middleName'] = parsed.middleName || map['middleName'] || '';
+    if (!last) map['lastName'] = parsed.lastName || map['lastName'] || '';
   } else if (first || last) {
     map['name'] = [first, last].filter(Boolean).join(' ');
   }
@@ -144,12 +147,16 @@ function buildLookup(resume, profile) {
   const map = {};
 
   if (resume) {
-    const nameParts = (resume.contact?.name || '').split(/\s+/);
-    map['firstName'] = nameParts[0] || '';
-    map['lastName'] = nameParts.slice(1).join(' ') || '';
+    const parsedName = splitNameParts(resume.contact?.name || '');
+    map['firstName'] = parsedName.firstName;
+    map['middleName'] = parsedName.middleName;
+    map['lastName'] = parsedName.lastName;
     map['name'] = resume.contact?.name || '';
     map['email'] = resume.contact?.email || '';
     map['phone'] = resume.contact?.phone || '';
+    map['commonAnswers.city'] = resume.location?.city || '';
+    map['commonAnswers.state'] = resume.location?.state || '';
+    map['commonAnswers.zip'] = resume.location?.zip || '';
 
     if (resume.experience?.length) {
       const exp = resume.experience[0];
@@ -189,9 +196,9 @@ function buildLookup(resume, profile) {
     map['commonAnswers.relocation'] = trimStr(profile.relocation);
     map['commonAnswers.sensitiveOptional'] = trimStr(profile.sensitiveOptional);
     map['commonAnswers.country'] = trimStr(profile.country);
-    map['commonAnswers.city'] = trimStr(profile.city);
-    map['commonAnswers.state'] = trimStr(profile.state);
-    map['commonAnswers.zip'] = trimStr(profile.zip);
+    if (trimStr(profile.city)) map['commonAnswers.city'] = trimStr(profile.city);
+    if (trimStr(profile.state)) map['commonAnswers.state'] = trimStr(profile.state);
+    if (trimStr(profile.zip)) map['commonAnswers.zip'] = trimStr(profile.zip);
 
     if (profile.customAnswers) {
       for (const [k, v] of Object.entries(profile.customAnswers)) {
@@ -212,6 +219,8 @@ function buildLookup(resume, profile) {
  */
 function resolveValueForField(field, lookup) {
   const label = field.label || '';
+  const hardcodedValue = getHardcodedValueForField(field);
+  if (hardcodedValue) return hardcodedValue;
   const keysToTry = [];
 
   const addKey = (k) => {
@@ -236,19 +245,61 @@ function resolveValueForField(field, lookup) {
 }
 
 /**
+ * Hardcoded values for specific known form labels.
+ * @param {FormField} field
+ * @returns {string|null}
+ */
+function getHardcodedValueForField(field) {
+  const haystack = [
+    field.label || '',
+    field.selector || '',
+    field.suggestedDataKey || '',
+  ]
+    .join(' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    /phone device type/.test(haystack) ||
+    (/phone/.test(haystack) && /device/.test(haystack) && /type/.test(haystack))
+  ) {
+    return 'Mobile';
+  }
+
+  if (
+    /country\s*\/\s*territory\s*phone\s*code/.test(haystack) ||
+    (/country/.test(haystack) && /phone/.test(haystack) && /code/.test(haystack))
+  ) {
+    return 'United States of America (+1)';
+  }
+
+  return null;
+}
+
+/**
  * Block obvious type mismatches (e.g. phone string applied to a yes/no select).
  * @param {FormField} field
  * @param {string} val
  * @returns {boolean} true if this value should not be used for this field
  */
 function shouldRejectValueForField(field, val) {
+  const label = (field.label || '').toLowerCase();
   const ft = field.fieldType;
+  const trimmed = String(val || '').trim();
+
+  if (ft === 'input' || ft === 'textarea') {
+    if (/\bmiddle\s*name\b|\bmiddle\s*initial\b/.test(label) && /\s/.test(trimmed)) return true;
+    if (/\b(zip|postal|post code)\b/.test(label) && looksLikePhone(trimmed)) return true;
+    if (/\b(phone\s*extension|extension|ext\.?)\b/.test(label) && looksLikePhone(trimmed)) return true;
+    if (/\b(phone\s*code|country\s*code|dial(?:ing)?\s*code)\b/.test(label) && looksLikePhone(trimmed)) return true;
+  }
+
   if (ft !== 'select' && ft !== 'radio') return false;
 
   if (looksLikeEmail(val)) return true;
   if (looksLikePhone(val)) return true;
 
-  const label = (field.label || '').toLowerCase();
   const sponsorish = /sponsor|visa|h-1|h1b|immigration/.test(label);
 
   if (labelLooksLikeYesNo(field.label || '') && !sponsorish) {
@@ -272,4 +323,20 @@ function looksLikeShortChoiceAnswer(s) {
   const t = s.trim().toLowerCase();
   if (t.length <= 24) return true;
   return /^(yes|no|y|n|true|false|prefer not|decline|n\/a)\b/i.test(t);
+}
+
+/**
+ * Split full name into first/middle/last with middle initial support.
+ * @param {string} fullName
+ */
+function splitNameParts(fullName) {
+  const parts = trimStr(fullName).split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: '', middleName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], middleName: '', lastName: '' };
+  if (parts.length === 2) return { firstName: parts[0], middleName: '', lastName: parts[1] };
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(' '),
+    lastName: parts[parts.length - 1],
+  };
 }

@@ -10,7 +10,9 @@ let _jobbotAfCounter = 0;
 
 const CONTROL_SELECTOR =
   'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
-  'select:not([disabled]),textarea:not([disabled])';
+  'select:not([disabled]),textarea:not([disabled]),' +
+  'button[aria-haspopup="listbox"]:not([disabled]),' +
+  '[role="combobox"]:not([aria-disabled="true"])';
 
 /**
  * @returns {import('../scraper/firecrawlAdapter.js').FormField[]}
@@ -152,9 +154,24 @@ function inferLabel(el) {
  * @returns {'input'|'select'|'textarea'|'checkbox'|'radio'}
  */
 function mapFieldType(el, inputType) {
+  if (isComboboxLike(el)) return 'select';
   if (el instanceof HTMLSelectElement) return 'select';
   if (el instanceof HTMLTextAreaElement) return 'textarea';
   if (inputType === 'checkbox') return 'checkbox';
   if (inputType === 'radio') return 'radio';
   return 'input';
+}
+
+/**
+ * Detect custom dropdown/combobox widgets (common on Workday/ATS forms).
+ * @param {HTMLElement} el
+ */
+function isComboboxLike(el) {
+  const role = (el.getAttribute('role') || '').toLowerCase();
+  const hasPopup = (el.getAttribute('aria-haspopup') || '').toLowerCase();
+  if (role === 'combobox') return true;
+  if (hasPopup === 'listbox') return true;
+  if (el.tagName === 'BUTTON' && hasPopup) return true;
+  if (el instanceof HTMLInputElement && el.getAttribute('aria-controls') && el.getAttribute('aria-autocomplete')) return true;
+  return false;
 }

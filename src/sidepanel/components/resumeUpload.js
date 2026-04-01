@@ -18,6 +18,16 @@ export async function createResumeUpload(container) {
 }
 
 function renderStoredPreview(container, data) {
+  const debugRows = buildResumeDebugRows(data);
+  const debugTableRows = debugRows.map((row) => `
+    <tr>
+      <td class="debug-matrix-key">${escapeHtml(row.field)}</td>
+      <td class="debug-matrix-map">${escapeHtml(row.autofillKey)}</td>
+      <td class="debug-matrix-value">${escapeHtml(row.value || '—')}</td>
+      <td class="debug-matrix-status">${row.value ? 'Detected' : 'Missing'}</td>
+    </tr>
+  `).join('');
+
   container.innerHTML = `
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -34,6 +44,27 @@ function renderStoredPreview(container, data) {
           .join('')}
       </div>
       <p class="text-muted text-sm mt-12">Contact: ${escapeHtml(data.contact?.name || '—')} · ${escapeHtml(data.contact?.email || '—')} · ${escapeHtml(data.contact?.phone || '—')}</p>
+
+      <div class="mt-12">
+        <button id="btn-toggle-debug" class="btn btn-sm" style="font-size:12px;">Show Debug Matrix</button>
+      </div>
+
+      <div id="resume-debug-matrix" class="debug-matrix mt-12" style="display:none;">
+        <p class="text-sm text-muted mb-8">What the parser believes each field is:</p>
+        <table class="debug-matrix-table">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Autofill Key</th>
+              <th>Parsed Value</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${debugTableRows}
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
 
@@ -44,6 +75,14 @@ function renderStoredPreview(container, data) {
   container.querySelector('#btn-remove-resume').addEventListener('click', async () => {
     await remove(KEYS.RESUME);
     renderDropzone(container);
+  });
+
+  const toggleBtn = container.querySelector('#btn-toggle-debug');
+  const matrix = container.querySelector('#resume-debug-matrix');
+  toggleBtn.addEventListener('click', () => {
+    const isHidden = matrix.style.display === 'none';
+    matrix.style.display = isHidden ? 'block' : 'none';
+    toggleBtn.textContent = isHidden ? 'Hide Debug Matrix' : 'Show Debug Matrix';
   });
 }
 
@@ -114,6 +153,32 @@ async function handleFile(file, container) {
 
 function escapeHtml(str) {
   const el = document.createElement('span');
-  el.textContent = str;
+  el.textContent = str == null ? '' : String(str);
   return el.innerHTML;
+}
+
+function buildResumeDebugRows(data) {
+  const fullName = data?.contact?.name || '';
+  const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = nameParts.length > 0 ? nameParts[0] : '';
+  const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
+  const latestExp = Array.isArray(data?.experience) && data.experience.length > 0 ? data.experience[0] : {};
+  const latestEdu = Array.isArray(data?.education) && data.education.length > 0 ? data.education[0] : {};
+  const topSkills = Array.isArray(data?.skills) ? data.skills.slice(0, 8).join(', ') : '';
+
+  return [
+    { field: 'Full Name', autofillKey: 'name', value: fullName },
+    { field: 'First Name (derived)', autofillKey: 'firstName', value: firstName },
+    { field: 'Middle Name (derived)', autofillKey: 'middleName', value: middleName },
+    { field: 'Last Name (derived)', autofillKey: 'lastName', value: lastName },
+    { field: 'Email', autofillKey: 'email', value: data?.contact?.email || '' },
+    { field: 'Phone', autofillKey: 'phone', value: data?.contact?.phone || '' },
+    { field: 'Latest Job Title', autofillKey: 'workExperience[0].title', value: latestExp?.title || '' },
+    { field: 'Latest Company', autofillKey: 'workExperience[0].company', value: latestExp?.company || '' },
+    { field: 'Latest Degree', autofillKey: 'education[0].degree', value: latestEdu?.degree || '' },
+    { field: 'Latest School', autofillKey: 'education[0].school', value: latestEdu?.school || '' },
+    { field: 'Top Skills', autofillKey: 'skills', value: topSkills },
+  ];
 }

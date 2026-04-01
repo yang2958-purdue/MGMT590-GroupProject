@@ -78,7 +78,7 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 ```
 ├── src/
 │   ├── sidepanel/          # Side Panel UI (main app)
-│   │   ├── pages/          # Upload, Target, Results, Detail, Settings, Autofill
+│   │   ├── pages/          # Upload, Target, Results, Detail, Autofill, Settings, Debug (parser matrix + parsed experience)
 │   │   └── components/     # Nav, ResumeUpload, JobTable, AutofillPanel, etc.
 │   ├── background/         # Service worker
 │   ├── content/            # Content script for autofill

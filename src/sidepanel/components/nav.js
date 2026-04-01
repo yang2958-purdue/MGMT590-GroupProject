@@ -1,7 +1,7 @@
 /**
  * Step navigation bar component.
  * Renders a horizontal step indicator for the pipeline:
- * Upload → Targets → Results → Detail → Autofill → Settings
+ * Upload → Targets → Results → Detail → Autofill → Settings → Debug
  *
  * @param {HTMLElement} container - The nav element to render into.
  * @param {string} activeHash - The current route hash (e.g. '#/upload').
@@ -14,6 +14,7 @@ export function renderNav(container, activeHash) {
     { hash: '#/detail', label: 'Detail' },
     { hash: '#/autofill', label: 'Autofill' },
     { hash: '#/settings', label: 'Settings' },
+    { hash: '#/debug', label: 'Debug' },
   ];
 
   container.innerHTML = `

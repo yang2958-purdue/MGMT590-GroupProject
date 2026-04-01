@@ -5,6 +5,7 @@ import { renderResultsPage } from './pages/resultsPage.js';
 import { renderDetailPage } from './pages/detailPage.js';
 import { renderSettingsPage } from './pages/settingsPage.js';
 import { renderAutofillPage } from './pages/autofillPage.js';
+import { renderDebugPage } from './pages/debugPage.js';
 
 const routes = {
   '#/upload': renderUploadPage,
@@ -13,6 +14,7 @@ const routes = {
   '#/detail': renderDetailPage,
   '#/settings': renderSettingsPage,
   '#/autofill': renderAutofillPage,
+  '#/debug': renderDebugPage,
 };
 
 async function router() {

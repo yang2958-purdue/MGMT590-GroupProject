@@ -149,3 +149,87 @@
 **Prompt:** Issue fixed; clean up instrumentation.
 
 **Outcome:** Removed all `fetch`/`127.0.0.1:7526` debug logs and `#region agent log` blocks from `autofillController.js`, `content.js`, and `domFieldScanner.js`. Simplified `tabSendMessageWithContentScriptFallback` `sendOnce` (no logging-only parameters). Rebuilt with `npm run build`.
+
+## 2026-03-23 - Match GitHub ryanbranch
+
+**Prompt:** update my code to match this branch https://github.com/yang2958-purdue/MGMT590-GroupProject/tree/ryanbranch
+
+**Outcome:** Fetched remotes, switched local workspace to `ryanbranch`, and hard-synced to `origin/ryanbranch` so files match branch commit `b7561dd`.
+
+## 2026-03-23 - Verify Local Files Updated
+
+**Prompt:** can we make sure that these files are correctly updated on my pc
+
+**Outcome:** Verified local branch/commit against `origin/ryanbranch` and checked expected branch file structure (`manifest.json`, `src/`, `python-server/`, `package.json`). Found local deltas only in `PROMPTS.md` and untracked `PDF_RESUME_GUIDE.md`.
+
+## 2026-03-23 - Add Resume Parser Debug Matrix
+
+**Prompt:** lets create a debug window that displays all the info that is parsed form the resumes, lets create a "matrix" of info we would want to be filled like name, last name, phone, etc and fill those with what the code believes is each
+
+**Outcome:** Added a toggleable debug matrix in the resume upload preview that shows parser outputs and derived values (full name, first/last name, email, phone, latest role/company, latest degree/school, top skills) with detected/missing status. Added matching styles to side panel CSS.
+
+## 2026-03-23 - Add Autofill Key Mapping Column
+
+**Prompt:** lets do that
+
+**Outcome:** Extended the resume debug matrix to include an "Autofill Key" column using the same lookup keys used by autofill mapping (`name`, `firstName`, `lastName`, `email`, `phone`, `workExperience[0].title`, `workExperience[0].company`, `education[0].degree`, `education[0].school`, `skills`). Updated matrix styling for the additional column.
+
+## 2026-03-23 - Add Debug Tab in Ribbon
+
+**Prompt:** make sure its another tab, after settings on the ribbion, call its "Debug"
+
+**Outcome:** Added a new `Debug` tab to the top navigation immediately after `Settings`, wired route `#/debug`, and created `src/sidepanel/pages/debugPage.js` to render a dedicated parsed resume matrix (field, autofill key, parsed value, detected/missing). Updated README page list to include Debug.
+
+## 2026-03-23 - Fix Workday Name/Phone Misfill
+
+**Prompt:** This is the info that is getting pulled up ... middle name uses full name, last name includes middle initial, and phone repeats into postal/other fields.
+
+**Outcome:** Tightened autofill mapping/inference for Workday-style forms: added `middleName` inference and lookup support, corrected name splitting to first/middle/last, and added mismatch guards to prevent phone values from filling postal code, phone extension, and phone-country-code inputs. Improved skill parsing filters to drop contact/location noise from skills output. Added middle-name row to debug matrix and verified build success.
+
+## 2026-03-23 - Enforce Token-Based Name Splitting
+
+**Prompt:** lets make sure that for the name, that 2nd token=middle name, because some people might not have a middle name, so put some logic in where the code will look at the whole name, and identify the first and last tokens as first and last name, and any in between as middle names
+
+**Outcome:** Updated full-name override handling in `fieldMapper` to always use token-based split logic (`first token -> firstName`, `last token -> lastName`, intermediate tokens -> `middleName`) instead of assigning all trailing tokens to last name.
+
+## 2026-03-23 - Confirm Dropdown Support
+
+**Prompt:** can the code handle drop down menus?
+
+**Outcome:** Confirmed dropdown/select support exists in scanner, mapper, and filler paths (`domFieldScanner` identifies `select`, `fieldInference` maps select/radio labels to keys, and `fieldFiller` matches/selects `<option>` values with yes/no-aware fallback).
+
+## 2026-03-23 - Hardcode Workday Phone Dropdown Defaults
+
+**Prompt:** lets hard code for the "Phone Device Type" drop down always put "Mobile" and the "Country / Territory Phone Code" drop down always put "United States of America (+1)"
+
+**Outcome:** Added label-based hardcoded select overrides in `fieldMapper` so autofill forces `Mobile` for "Phone Device Type" and `United States of America (+1)` for "Country / Territory Phone Code" before normal key lookup.
+
+## 2026-03-23 - Improve Dropdown Interaction Reliability
+
+**Prompt:** the extension seems to be failing to interact with drop down menus, how would we fix that?
+
+**Outcome:** Added robust dropdown handling for both native `<select>` and custom ARIA/listbox combobox widgets: scanner now detects combobox/button-listbox controls as `select`, filler now awaits field set operations, and custom combobox fill logic opens dropdowns, types when editable, and selects matching options from role/data-automation option lists with retry.
+
+## 2026-03-23 - Fix Phone Device Type + Show Previous Jobs
+
+**Prompt:** the "Phone Device Type" is still not being changed, also lets make sure that previous jobs are correctly being parced, and are added to the debug page
+
+**Outcome:** Strengthened hardcoded phone dropdown matching to use combined field context (label/selector/suggested key) for better detection of Workday variants, and expanded Debug page to include a full parsed work-experience table listing all detected jobs (title/company/dates/bullet count), not only the latest job.
+
+## 2026-03-23 - Workday Dropdown Container Fix
+
+**Prompt:** , still not effecting, here is a screen shot (let me know if this is what you need)
+
+**Outcome:** Implemented a stronger dropdown filler path for Workday-style widgets where selectors target container `div`s: if field type is `select`, filler now resolves real dropdown controls from nearby DOM (combobox/button/listbox/select) and selects options from expanded listbox items with broader selector patterns and normalized text matching.
+
+## 2026-03-23 - Fix City/State Parse + Dropdown Open
+
+**Prompt:** its still not properly opening the drop down, but there also appears to be an issue where the data is not properly parsing my home state and city, but that info is clearly stated at the top of the resume, can we fix these 2 things
+
+**Outcome:** Added header location parsing in resume parser (`city/state/zip`) and surfaced those on Debug + lookup fallback for autofill (`commonAnswers.city/state/zip`). Strengthened combobox open flow with mouse + keyboard events and repeated reopen attempts while waiting for option rendering.
+
+## 2026-03-23 - Improve Company Extraction in Experience
+
+**Prompt:** lets also make sure under the "Professional Experience" section of the resume (or any similar from differnet resumes) correctly identify the company,
+
+**Outcome:** Upgraded experience parsing heuristics to better capture company names in multi-line Professional Experience formats (title/company/date on separate lines). Added context-aware header parsing around date lines, company-line detection/cleanup (including `Company | City, ST` patterns), and buffering of short header-like lines for subsequent date-bound entries.
