@@ -275,3 +275,33 @@
 **Prompt:** got this on the 2nd terminal verify [OpenAI error 429 insufficient_quota]
 
 **Outcome:** Confirmed local wrapper is functioning end-to-end and reaching OpenAI; failure is external quota/billing (`insufficient_quota`). Provided remediation steps (billing/quota check, new key, or fallback parser usage).
+
+## 2026-03-23 - Improve Workday My Experience field interaction
+
+**Prompt:** let me know if you can read this site page ... code the bot to properly interact with fields (mainly dates and skills dropdown)
+
+**Outcome:** Enhanced autofill behavior for Workday "My Experience" controls by adding targeted handlers in `src/modules/autofill/fieldFiller.js` for split month/year date widgets and skills multi-select input flow (type, option select/Enter, change/blur events) so date and skills entries are more reliably applied.
+
+## 2026-03-23 - Ensure skills are committed one-by-one
+
+**Prompt:** on the skills, it appears that the bot is imputing the skills without actually adding them, make sure the bots each skill before moving onto the next one
+
+**Outcome:** Updated Workday skills autofill logic to verify each skill is actually committed before proceeding by checking selected-item count/selection text, waiting for confirmation, and retrying with a fallback commit sequence when needed.
+
+## 2026-03-23 - Force-click first Workday skill option
+
+**Prompt:** this is the element for the skills field ... make sure the code can actually click the first option once a skill token is plugged in
+
+**Outcome:** Added a Workday-specific first-option click routine targeting `activeListContainer` and the first `menuItem`/`promptOption` entry after each typed skill token, with retry/fallback sequencing to improve selection reliability.
+
+## 2026-03-23 - Match Workday menuItem cell to skill token
+
+**Prompt:** this is the html of the block with the wanted skill ... have the bot select the first cell matching this code(or similar) to it
+
+**Outcome:** Refined Workday skills selection to prefer `menuItem` rows whose `id`, `aria-label`, or child `promptOption[data-automation-label]` matches the typed skill token (case-insensitive), then click that row; falls back to first visible option only when no match is found.
+
+## 2026-03-23 - Harden Workday skill commit behavior
+
+**Prompt:** the code is still not selecting the skills once the token is inputed, any ideas on how to fix this
+
+**Outcome:** Fixed likely false-positive commit detection and strengthened selection actions: limited commit checks to selected-value regions/count changes, and updated Workday option clicks to include row + inner leaf/checkbox clicks plus Enter-key confirmation to better force actual skill selection.

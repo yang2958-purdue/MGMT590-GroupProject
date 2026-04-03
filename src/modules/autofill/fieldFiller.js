@@ -242,6 +242,61 @@ function normText(s) {
 }
 
 /**
+ * Parse date text/range into {start, end} with month/year pairs.
+ * Supports:
+ * - "May 2024 - Aug 2025"
+ * - "05/2024 - 08/2025"
+ * - "2022 - 2024"
+ * - "Jan 2023 - Present"
+ * @param {string} text
+ * @returns {{ start: { month: string, year: string } | null, end: { month: string, year: string } | null }}
+ */
+function parseDateRange(text) {
+  const monthMap = {
+    jan: '01', january: '01',
+    feb: '02', february: '02',
+    mar: '03', march: '03',
+    apr: '04', april: '04',
+    may: '05',
+    jun: '06', june: '06',
+    jul: '07', july: '07',
+    aug: '08', august: '08',
+    sep: '09', sept: '09', september: '09',
+    oct: '10', october: '10',
+    nov: '11', november: '11',
+    dec: '12', december: '12',
+  };
+
+  /**
+   * @param {string} chunk
+   * @returns {{ month: string, year: string } | null}
+   */
+  const parseSingle = (chunk) => {
+    const c = (chunk || '').trim().toLowerCase();
+    if (!c || c === 'present' || c === 'current') return null;
+    let m = c.match(
+      /\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b[\s,/-]*(\d{4})/i
+    );
+    if (m) return { month: monthMap[m[1].toLowerCase()] || '', year: m[2] };
+
+    m = c.match(/\b(\d{1,2})\s*\/\s*(\d{4})\b/);
+    if (m) return { month: String(Math.max(1, Math.min(12, Number(m[1])))).padStart(2, '0'), year: m[2] };
+
+    m = c.match(/\b(19|20)\d{2}\b/);
+    if (m) return { month: '01', year: m[0] };
+
+    return null;
+  };
+
+  const normalized = String(text || '').replace(/[–—]/g, '-');
+  const parts = normalized.split(/\s+-\s+/);
+  if (parts.length >= 2) {
+    return { start: parseSingle(parts[0]), end: parseSingle(parts[1]) };
+  }
+  return { start: parseSingle(normalized), end: null };
+}
+
+/**
  * Walk nested same-origin iframes from the top document (content script context).
  * @param {number[]|undefined} iframePath
  * @returns {Document | null}
@@ -271,6 +326,16 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
   if (!root) return;
   const el = root.querySelector(selector);
   if (!el) return;
+
+  if (isWorkdayDateSectionInput(el)) {
+    setWorkdayDateSectionValue(el, value);
+    return;
+  }
+
+  if (isWorkdaySkillsInput(el)) {
+    await setWorkdaySkillsInputValue(el, value);
+    return;
+  }
 
   if (fieldType === 'select') {
     await setAnyDropdownValue(el, value);
@@ -312,6 +377,236 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
   el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Workday date fields are split into month/year input pairs.
+ * @param {Element} el
+ */
+function isWorkdayDateSectionInput(el) {
+  if (!(el instanceof HTMLInputElement)) return false;
+  const id = (el.id || '').toLowerCase();
+  return id.includes('datesectionmonth-input') || id.includes('datesectionyear-input');
+}
+
+/**
+ * Workday skills control is a searchable multi-select input.
+ * @param {Element} el
+ */
+function isWorkdaySkillsInput(el) {
+  if (!(el instanceof HTMLInputElement)) return false;
+  const id = (el.id || '').toLowerCase();
+  const name = (el.getAttribute('name') || '').toLowerCase();
+  return id.includes('skills--skills') || name === 'skills';
+}
+
+/**
+ * Fill Workday split date inputs from a combined date/range string.
+ * @param {HTMLInputElement} el
+ * @param {string} value
+ */
+function setWorkdayDateSectionValue(el, value) {
+  const parsed = parseDateRange(String(value || ''));
+  const id = (el.id || '').toLowerCase();
+  const wantsEnd = id.includes('enddate');
+  const wantsMonth = id.includes('datesectionmonth-input');
+  const target = wantsEnd ? (parsed.end || parsed.start) : (parsed.start || parsed.end);
+  if (!target) return;
+
+  const nextValue = wantsMonth ? target.month : target.year;
+  if (!nextValue) return;
+
+  el.focus();
+  el.value = nextValue;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', bubbles: true }));
+  el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Fill Workday skills multiselect by typing one skill at a time.
+ * @param {HTMLInputElement} el
+ * @param {string} value
+ */
+async function setWorkdaySkillsInputValue(el, value) {
+  const skills = String(value || '')
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((s, i, arr) => arr.indexOf(s) === i)
+    .slice(0, 12);
+  if (!skills.length) return;
+
+  for (const skill of skills) {
+    const beforeCount = getWorkdayMultiSelectCount(el);
+
+    el.focus();
+    el.click();
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.value = skill;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    await sleep(120);
+
+    // Workday multiselect: click the first row matching the typed skill token.
+    if (!(await clickFirstWorkdaySkillOption(el.ownerDocument, skill))) {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      await sleep(80);
+      await clickFirstWorkdaySkillOption(el.ownerDocument, skill);
+    }
+
+    // Confirm selection on the input itself for tenants that require Enter.
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+
+    const option = findCustomDropdownOption(el.ownerDocument, skill);
+    if (option) {
+      option.click();
+    } else {
+      // Some Workday multiselects allow free entry with Enter.
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+    }
+
+    // Ensure the skill is actually committed before moving on.
+    if (!(await waitForSkillCommitted(el, skill, beforeCount, 1000))) {
+      // Fallback pass: re-issue a stronger commit sequence.
+      el.focus();
+      el.click();
+      el.value = skill;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      await sleep(120);
+      await clickFirstWorkdaySkillOption(el.ownerDocument, skill);
+      const fallbackOption = findCustomDropdownOption(el.ownerDocument, skill);
+      if (fallbackOption) fallbackOption.click();
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+      await waitForSkillCommitted(el, skill, beforeCount, 1200);
+    }
+  }
+
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Get selected count from Workday multiselect aria helper text.
+ * @param {HTMLInputElement} el
+ * @returns {number}
+ */
+function getWorkdayMultiSelectCount(el) {
+  const wrapper = el.closest('[data-automation-id="multiSelectContainer"]');
+  if (!wrapper) return -1;
+  const helper = wrapper.querySelector('[data-automation-id="promptAriaInstruction"]');
+  const txt = (helper?.textContent || '').trim().toLowerCase();
+  const m = txt.match(/(\d+)\s+items?\s+selected/);
+  return m ? Number(m[1]) : -1;
+}
+
+/**
+ * Detect whether the current multiselect already contains the skill text.
+ * @param {HTMLInputElement} el
+ * @param {string} skill
+ * @returns {boolean}
+ */
+function hasSkillInSelectedArea(el, skill) {
+  const wrapper = el.closest('[data-automation-id="multiSelectContainer"]');
+  if (!wrapper) return false;
+  const needle = normText(skill);
+  if (!needle) return false;
+
+  // Only inspect selected-value/label regions; do not use full wrapper text
+  // because it can include open dropdown options and in-progress typed input.
+  const selectedNodes = Array.from(
+    wrapper.querySelectorAll(
+      '[data-automation-id="promptSelectionLabel"],[data-automation-id*="selected"],[data-uxi-multiselectlistitem-isselected="true"] [data-automation-id="promptOption"]'
+    )
+  );
+  if (!selectedNodes.length) return false;
+
+  return selectedNodes.some((n) => normText(n.textContent || '').includes(needle));
+}
+
+/**
+ * Wait until Workday confirms the skill was added.
+ * @param {HTMLInputElement} el
+ * @param {string} skill
+ * @param {number} beforeCount
+ * @param {number} timeoutMs
+ * @returns {Promise<boolean>}
+ */
+async function waitForSkillCommitted(el, skill, beforeCount, timeoutMs) {
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const afterCount = getWorkdayMultiSelectCount(el);
+    if (beforeCount >= 0 && afterCount > beforeCount) return true;
+    if (beforeCount < 0 && hasSkillInSelectedArea(el, skill)) return true;
+    await sleep(80);
+  }
+  return false;
+}
+
+/**
+ * Click the first matching Workday skill option in the open prompt list.
+ * @param {Document} doc
+ * @param {string} skill
+ * @returns {Promise<boolean>}
+ */
+async function clickFirstWorkdaySkillOption(doc, skill) {
+  const list = doc.querySelector('[data-automation-id="activeListContainer"][role="listbox"]');
+  if (!(list instanceof HTMLElement)) return false;
+
+  const wanted = normText(String(skill || ''));
+  const menuItems = Array.from(list.querySelectorAll('[data-automation-id="menuItem"][role="option"]'));
+
+  /**
+   * @param {Element} node
+   */
+  const clickNode = async (node) => {
+    if (!(node instanceof HTMLElement)) return false;
+    node.scrollIntoView({ block: 'nearest' });
+    node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    node.click();
+    node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+
+    // Workday sometimes only commits when clicking the inner checkbox/leaf node.
+    const innerLeaf = node.querySelector('[data-automation-id="promptLeafNode"]');
+    const innerCheckbox = node.querySelector('[data-automation-id="checkboxPanel"]');
+    if (innerLeaf instanceof HTMLElement) innerLeaf.click();
+    if (innerCheckbox instanceof HTMLElement) innerCheckbox.click();
+
+    // Also confirm the highlighted option via keyboard as a fallback.
+    list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    list.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+    await sleep(60);
+    return true;
+  };
+
+  const exactMenuItem = menuItems.find((item) => {
+    const idText = normText((item.getAttribute('id') || '').replace(/^menuitem-?/i, ''));
+    const ariaLabel = normText((item.getAttribute('aria-label') || '').replace(/\s+not\s+checked.*$/i, '').trim());
+    const labelNode = item.querySelector('[data-automation-id="promptOption"]');
+    const optionLabel = normText(
+      (labelNode?.getAttribute('data-automation-label') || labelNode?.textContent || '').trim()
+    );
+
+    return (
+      (wanted && (idText === wanted || ariaLabel === wanted || optionLabel === wanted)) ||
+      (wanted && (idText.startsWith(`${wanted} `) || ariaLabel.startsWith(`${wanted} `) || optionLabel.startsWith(`${wanted} `)))
+    );
+  });
+  if (exactMenuItem) return clickNode(exactMenuItem);
+
+  const firstItem = menuItems[0];
+  if (firstItem) return clickNode(firstItem);
+
+  const firstPromptOption = list.querySelector('[data-automation-id="promptOption"]');
+  if (firstPromptOption instanceof HTMLElement) return clickNode(firstPromptOption);
+
+  return false;
 }
 
 /**
