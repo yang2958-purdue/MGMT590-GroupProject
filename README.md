@@ -56,7 +56,11 @@ The server starts on `http://localhost:5001`. The extension calls this server to
 The extension can enhance resume parsing via ChatGPT through the local Python server.
 
 1. Create an OpenAI API key from your OpenAI account.
-2. Set environment variables before starting the Python server:
+2. Configure the key for the Python server (pick one approach):
+
+**Option A — `.env` file (recommended):** Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) in either the **project root** `.env` or [`python-server/.env`](python-server/.env.example) (copy from [`python-server/.env.example`](python-server/.env.example) if you use that path). The server loads **both** files on startup and applies **non-empty** values only (project root first, then `python-server/`), so a blank `OPENAI_API_KEY=` line in one file does not block a real key in the other. When you run `start_server.bat` or `./start_server.sh`, these files are picked up automatically.
+
+**Option B — shell environment:** Set variables before starting the Python server:
 
 **Windows (PowerShell):**
 ```powershell
@@ -102,7 +106,7 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 
 1. `npm install`
 2. `npm run build`
-3. Set `OPENAI_API_KEY` (and optional `OPENAI_MODEL`)
+3. Set `OPENAI_API_KEY` (and optional `OPENAI_MODEL`) via `python-server/.env` (copy from `python-server/.env.example`) or shell `export` / `$env:...`
 4. Start python server (`start_server.bat` or `./start_server.sh`)
 5. Load/reload unpacked extension from `dist/`
 6. Upload resume again (Debug tab should show `Parser Source = llm-hybrid`)
