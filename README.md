@@ -54,6 +54,8 @@ The server starts on `http://localhost:5001`. The extension calls this server to
 ### 4.1 Optional: Enable ChatGPT resume parsing (recommended)
 
 The extension can enhance resume parsing via ChatGPT through the local Python server.
+The LLM parser now scans the full resume text for likely university/college names to improve `education.school` extraction quality.
+When LLM parsing is enabled, education entries from heuristic + LLM parsing are merged so prior schools are retained instead of being dropped.
 
 1. Create an OpenAI API key from your OpenAI account.
 2. Set environment variables before starting the Python server:
@@ -158,6 +160,7 @@ JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOB
 
 - **Host permissions** — `manifest.json` includes `<all_urls>` so `chrome.scripting.executeScript` can inject the content script after an extension reload (when `tabs.sendMessage` would otherwise fail). Chrome may prompt for broader site access on install/update.
 - **Content script bundle** — The content script is built as an ES module with a shared chunk (`chunks/fieldInference-*.js`). After programmatic inject, the side panel waits on animation frames and retries `sendMessage` until the module finishes loading (so `onMessage` is registered). The DOM scanner recurses into **same-origin iframes** (common on Phenom/ATS pages) and passes `iframePath` so fills target the correct document.
+- **Education parsing** — The resume parser uses education-specific heuristics plus a curated university-name list/keyword matcher to better distinguish `school` values from degree or field-of-study text.
 - **No external database** — all persistence via `chrome.storage.local`.
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
 - **AI/LLM calls** (scoring, tailoring) are isolated behind a single function in their modules, marked with `// SWAP:` comments for easy replacement.

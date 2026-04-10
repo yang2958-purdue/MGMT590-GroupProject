@@ -35,6 +35,8 @@ export async function parseResumeWithLLM(rawText, fileName) {
 export function mergeResumeData(baseData, llmData) {
   if (!llmData) return { ...baseData, parserSource: 'heuristic' };
 
+  const mergedEducation = mergeEducationEntries(baseData?.education, llmData?.education);
+
   const merged = {
     ...baseData,
     fileName: llmData.fileName || baseData.fileName,
@@ -53,9 +55,40 @@ export function mergeResumeData(baseData, llmData) {
     skills: Array.isArray(llmData?.skills) && llmData.skills.length ? llmData.skills : baseData.skills,
     experience:
       Array.isArray(llmData?.experience) && llmData.experience.length ? llmData.experience : baseData.experience,
-    education: Array.isArray(llmData?.education) && llmData.education.length ? llmData.education : baseData.education,
+    education: mergedEducation,
     parserSource: 'llm-hybrid',
   };
 
   return merged;
+}
+
+/**
+ * Merge education entries from heuristic + LLM so we keep prior schools.
+ * LLM entries are preferred first, but unique heuristic entries are preserved.
+ * @param {Array<Object>|undefined} baseEdu
+ * @param {Array<Object>|undefined} llmEdu
+ * @returns {Array<Object>}
+ */
+function mergeEducationEntries(baseEdu, llmEdu) {
+  const base = Array.isArray(baseEdu) ? baseEdu : [];
+  const llm = Array.isArray(llmEdu) ? llmEdu : [];
+  const ordered = [...llm, ...base];
+  const out = [];
+  const seen = new Set();
+
+  for (const e of ordered) {
+    if (!e || typeof e !== 'object') continue;
+    const degree = String(e.degree || '').trim();
+    const school = String(e.school || '').trim();
+    const dates = String(e.dates || '').trim();
+    if (!degree && !school && !dates) continue;
+
+    // School-first dedupe key keeps distinct universities visible in debug.
+    const key = `${school.toLowerCase()}|${degree.toLowerCase()}|${dates.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ degree, school, dates });
+  }
+
+  return out;
 }
