@@ -341,3 +341,20 @@
 **Prompt:** ok it is picking up the latest school, but the debug does not have any previous schools
 
 **Outcome:** Updated `src/modules/llmResumeParser.js` to merge education arrays from heuristic and LLM parses (LLM-first with dedupe) instead of replacing education with LLM-only output, so previously parsed schools remain visible in Debug. Updated README to document merged education behavior.
+## 2026-04-09 - OpenAI API key parity with Firecrawl
+
+**Prompt:** Implement the plan "OpenAI API key: current state and parity with Firecrawl" (python-server `.env.example`, `python-dotenv` + `load_dotenv` in `server.py`, root `.env.example` cross-link, README §4.1 and checklist).
+
+**Outcome:** Added `python-server/.env.example` with `OPENAI_API_KEY` / optional `OPENAI_MODEL`; added `python-dotenv` to `requirements.txt` and `load_dotenv` for `python-server/.env`; extended root `.env.example` with an OpenAI section pointing at the Python server; updated README with Option A (`.env` file) vs Option B (shell env) and checklist step 3.
+
+## 2026-04-10 - OPENAI_API_KEY not recognized (400 on `/parse-resume-llm`)
+
+**Prompt:** I am still getting the 400 error, what needs to happen to get the API key recognized?
+
+**Outcome:** Updated `python-server/server.py` to merge non-empty values from both the project root `.env` and `python-server/.env` (via `dotenv_values`), so keys stored only at the repo root are loaded; added startup log when the key is missing vs set; documented both paths in README and `.env.example` files.
+
+## 2026-04-10 - API key still not set (empty OPENAI line)
+
+**Prompt:** Is the api key set incorrectly? I have the openai api key in the .env but it still says the key is not set
+
+**Outcome:** Verified on-disk `python-server/.env` had `OPENAI_API_KEY=` with no value after `=`; root `.env` had no assignment line for OpenAI (only comments). Added `_warn_if_openai_line_empty_in_env_files()` in `server.py` to log when the key name exists but the value is blank.

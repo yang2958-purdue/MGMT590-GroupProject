@@ -10,17 +10,74 @@ import json
 import logging
 import os
 import re
+from pathlib import Path
+
 import requests
+from dotenv import dotenv_values
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 import config
+
+_server_dir = Path(__file__).resolve().parent
+_project_root = _server_dir.parent
+
+
+def _apply_dotenv_files(*paths: Path) -> None:
+    """Merge non-empty values from multiple `.env` files (later files win on duplicate keys).
+
+    Does not overwrite non-empty variables already present in the process environment
+    (e.g. exported in the shell before startup).
+    """
+    merged: dict[str, str] = {}
+    for p in paths:
+        if not p.exists():
+            continue
+        for k, v in dotenv_values(p).items():
+            if v is not None and str(v).strip():
+                merged[k] = str(v).strip()
+    for k, v in merged.items():
+        if k not in os.environ or not os.environ[k].strip():
+            os.environ[k] = v
+
+
+_apply_dotenv_files(_project_root / ".env", _server_dir / ".env")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 log = logging.getLogger(__name__)
+
+
+def _warn_if_openai_line_empty_in_env_files() -> None:
+    """If `.env` contains `OPENAI_API_KEY=` with nothing after `=`, explain why the key is missing."""
+    for p in (_project_root / ".env", _server_dir / ".env"):
+        if not p.exists():
+            continue
+        data = dotenv_values(p)
+        if "OPENAI_API_KEY" not in data:
+            continue
+        val = data.get("OPENAI_API_KEY")
+        if val is None:
+            continue
+        if str(val).strip():
+            continue
+        log.warning(
+            "OPENAI_API_KEY appears in %s but has no value after '='. "
+            "Add your secret on the same line (OPENAI_API_KEY=sk-...) and save the file.",
+            p,
+        )
+
+
+if os.getenv("OPENAI_API_KEY", "").strip():
+    log.info("OPENAI_API_KEY is set (ChatGPT resume parsing enabled)")
+else:
+    log.warning(
+        "OPENAI_API_KEY is not set; set it in project `.env` or `python-server/.env`, "
+        "or export it before starting the server (see README section 4.1)"
+    )
+    _warn_if_openai_line_empty_in_env_files()
 
 app = Flask(__name__)
 CORS(app)
