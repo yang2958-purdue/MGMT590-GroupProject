@@ -306,6 +306,41 @@
 
 **Outcome:** Fixed likely false-positive commit detection and strengthened selection actions: limited commit checks to selected-value regions/count changes, and updated Workday option clicks to include row + inner leaf/checkbox clicks plus Enter-key confirmation to better force actual skill selection.
 
+## 2026-03-23 - Fresh PowerShell command sequence request
+
+**Prompt:** what are the exact commands i need to run in a fresh powershell terminal
+
+**Outcome:** Provided copy-paste PowerShell command sequences for a fresh environment to install dependencies, build the extension, start the Python server correctly with `.\start_server.bat`, and optional OpenAI environment variables for LLM parsing.
+
+## 2026-03-23 - Workday Education control hardening
+
+**Prompt:** this is the html for the education button found on the workday site ... lets make sure the code properly interacts with it similar to skills
+
+**Outcome:** Added Workday-specific Education handlers in `src/modules/autofill/fieldFiller.js` for `Degree` (button/listbox selection with search + option click + commit verification) and `Field of Study` (multiselect token entry with prompt-option match/click and commit checks), reusing the hardened Workday prompt selection flow.
+
+## 2026-03-23 - Add schools attended to debug matrix
+
+**Prompt:** lets add to the debug the school that the user attented, I want to double check and make sure the parser is correctly picking it up
+
+**Outcome:** Updated debug matrix row builders in `src/sidepanel/pages/debugPage.js` and `src/sidepanel/components/resumeUpload.js` to include `Schools Attended (all parsed)` (`education[].school`) as a deduplicated list from parsed education entries, in addition to `Latest School`.
+
+## 2026-03-23 - Improve school extraction with university matching
+
+**Prompt:** ok the parsing is not correctly identidying the school, is there a way to have to parsering check with a list of existing universitys, to properly identify the schools?
+
+**Outcome:** Enhanced education parsing in `src/modules/resumeParser.js` with school-detection heuristics and a curated university matcher (known-university list + school keywords), then used those checks in `parseDegreeSchool` and `extractEducation` so school fields are less likely to be confused with degree/field-of-study text. Also updated `README.md` architecture notes to reflect this parsing behavior.
+
+## 2026-03-23 - Strengthen LLM school detection across full resume
+
+**Prompt:** this is what the debug is showing ... can we ask chatgpt to look throught the entire document for any know universitys or collages found on the resume?
+
+**Outcome:** Updated `python-server/server.py` prompt instructions for `/parse-resume-llm` so ChatGPT explicitly scans the entire resume for university/college names and avoids treating fields of study as schools. Added school-candidate extraction + known-university hints passed into the prompt, and post-normalization that maps fuzzy school strings to known university names when applicable. Updated README ChatGPT section with this behavior.
+
+## 2026-03-23 - Preserve prior schools in LLM merge
+
+**Prompt:** ok it is picking up the latest school, but the debug does not have any previous schools
+
+**Outcome:** Updated `src/modules/llmResumeParser.js` to merge education arrays from heuristic and LLM parses (LLM-first with dedupe) instead of replacing education with LLM-only output, so previously parsed schools remain visible in Debug. Updated README to document merged education behavior.
 ## 2026-04-09 - OpenAI API key parity with Firecrawl
 
 **Prompt:** Implement the plan "OpenAI API key: current state and parity with Firecrawl" (python-server `.env.example`, `python-dotenv` + `load_dotenv` in `server.py`, root `.env.example` cross-link, README §4.1 and checklist).

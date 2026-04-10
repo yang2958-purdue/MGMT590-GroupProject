@@ -177,6 +177,13 @@ function buildResumeDebugRows(data) {
 
   const latestExp = Array.isArray(data?.experience) && data.experience.length > 0 ? data.experience[0] : {};
   const latestEdu = Array.isArray(data?.education) && data.education.length > 0 ? data.education[0] : {};
+  const schoolsAttended = Array.isArray(data?.education)
+    ? data.education
+      .map((e) => (e?.school || '').trim())
+      .filter(Boolean)
+      .filter((s, i, arr) => arr.indexOf(s) === i)
+      .join(', ')
+    : '';
   const topSkills = Array.isArray(data?.skills) ? data.skills.slice(0, 8).join(', ') : '';
 
   return [
@@ -191,6 +198,7 @@ function buildResumeDebugRows(data) {
     { field: 'Latest Company', autofillKey: 'workExperience[0].company', value: latestExp?.company || '' },
     { field: 'Latest Degree', autofillKey: 'education[0].degree', value: latestEdu?.degree || '' },
     { field: 'Latest School', autofillKey: 'education[0].school', value: latestEdu?.school || '' },
+    { field: 'Schools Attended (all parsed)', autofillKey: 'education[].school', value: schoolsAttended },
     { field: 'Top Skills', autofillKey: 'skills', value: topSkills },
   ];
 }

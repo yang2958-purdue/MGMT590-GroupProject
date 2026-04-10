@@ -82,6 +82,29 @@ else:
 app = Flask(__name__)
 CORS(app)
 
+KNOWN_UNIVERSITIES = [
+    "Purdue University",
+    "Massachusetts Institute of Technology",
+    "Stanford University",
+    "Harvard University",
+    "University of California",
+    "University of Michigan",
+    "University of Texas",
+    "Texas A&M University",
+    "Carnegie Mellon University",
+    "Georgia Institute of Technology",
+    "University of Illinois",
+    "Cornell University",
+    "Columbia University",
+    "Princeton University",
+    "Yale University",
+    "University of Washington",
+    "University of Wisconsin",
+    "University of Florida",
+    "New York University",
+    "University of Southern California",
+]
+
 # ─── Adapter loader ──────────────────────────────────────────────────────
 # TODO: add per-request adapter override via request header for A/B testing
 
@@ -194,6 +217,8 @@ def parse_resume_llm():
         ],
     }
 
+    school_candidates = _extract_school_candidates(raw_text)
+
     prompt = (
         "Extract structured resume information from the provided text. "
         "Return JSON only (no markdown, no prose), using this exact shape keys:\n"
@@ -201,6 +226,11 @@ def parse_resume_llm():
         "Rules:\n"
         "- Name fields must preserve initials (e.g., 'Alec X. Neville').\n"
         "- Experience entries should capture both title and company where possible.\n"
+        "- For education.school, scan the ENTIRE resume text (not just the Education header).\n"
+        "- Prefer institution names that clearly look like universities/colleges/institutes/schools.\n"
+        "- Do not use field of study as school (e.g., 'Robotics and Automation' is not a school).\n"
+        f"- Candidate school strings found in text (use when present): {json.dumps(school_candidates)}\n"
+        f"- Known university dictionary for fuzzy matching (use if present in resume): {json.dumps(KNOWN_UNIVERSITIES)}\n"
         "- If unsure, use empty string.\n"
         "- Keep skills concise, deduplicated, and avoid contact/location tokens.\n"
         "- Do not invent details.\n"
@@ -285,10 +315,13 @@ def _normalize_resume_payload(data, file_name):
     for e in edu:
         if not isinstance(e, dict):
             continue
+        school = _s(e.get("school"))
+        if school:
+            school = _pick_best_school_name(school)
         norm_edu.append(
             {
                 "degree": _s(e.get("degree")),
-                "school": _s(e.get("school")),
+                "school": school,
                 "dates": _s(e.get("dates")),
             }
         )
@@ -309,6 +342,60 @@ def _normalize_resume_payload(data, file_name):
         "experience": norm_exp,
         "education": norm_edu,
     }
+
+
+def _normalize_school_text(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", (text or "").lower())).strip()
+
+
+def _extract_school_candidates(raw_text: str):
+    lines = [ln.strip() for ln in (raw_text or "").splitlines() if ln.strip()]
+    candidates = []
+    school_kw = re.compile(
+        r"\b(university|college|institute|school|polytechnic|academy|conservatory)\b",
+        re.I,
+    )
+
+    for line in lines:
+        if len(line) > 120:
+            continue
+        if school_kw.search(line):
+            line_no_dates = re.sub(
+                r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}.*$",
+                "",
+                line,
+                flags=re.I,
+            ).strip(" ,|-")
+            if line_no_dates:
+                candidates.append(line_no_dates)
+
+    # Add known university matches found anywhere in text.
+    raw_norm = _normalize_school_text(raw_text)
+    for uni in KNOWN_UNIVERSITIES:
+        if _normalize_school_text(uni) in raw_norm:
+            candidates.append(uni)
+
+    # Deduplicate while preserving order.
+    out = []
+    seen = set()
+    for c in candidates:
+        key = _normalize_school_text(c)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(c)
+    return out[:20]
+
+
+def _pick_best_school_name(school_text: str) -> str:
+    school = (school_text or "").strip()
+    if not school:
+        return ""
+    norm = _normalize_school_text(school)
+    for uni in KNOWN_UNIVERSITIES:
+        if _normalize_school_text(uni) in norm or norm in _normalize_school_text(uni):
+            return uni
+    return school
 
 
 if __name__ == "__main__":

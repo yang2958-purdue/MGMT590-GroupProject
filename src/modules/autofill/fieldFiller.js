@@ -337,6 +337,16 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
     return;
   }
 
+  if (isWorkdayEducationDegreeControl(el)) {
+    await setWorkdayEducationDegreeValue(el, value);
+    return;
+  }
+
+  if (isWorkdayEducationFieldOfStudyControl(el)) {
+    await setWorkdayEducationFieldOfStudyValue(el, value);
+    return;
+  }
+
   if (fieldType === 'select') {
     await setAnyDropdownValue(el, value);
     return;
@@ -401,6 +411,30 @@ function isWorkdaySkillsInput(el) {
 }
 
 /**
+ * Workday education degree is usually a button-triggered listbox.
+ * @param {Element} el
+ */
+function isWorkdayEducationDegreeControl(el) {
+  if (!(el instanceof HTMLElement)) return false;
+  const id = (el.getAttribute('id') || '').toLowerCase();
+  if (/^education-\d+--degree$/.test(id)) return true;
+  const degreeBtn = el.querySelector?.('button[id^="education-"][id$="--degree"][aria-haspopup="listbox"]');
+  return !!degreeBtn;
+}
+
+/**
+ * Workday field of study is a searchable multiselect input.
+ * @param {Element} el
+ */
+function isWorkdayEducationFieldOfStudyControl(el) {
+  if (!(el instanceof HTMLElement)) return false;
+  const id = (el.getAttribute('id') || '').toLowerCase();
+  if (/^education-\d+--fieldofstudy$/.test(id)) return true;
+  const fosInput = el.querySelector?.('input[id^="education-"][id$="--fieldOfStudy"]');
+  return !!fosInput;
+}
+
+/**
  * Fill Workday split date inputs from a combined date/range string.
  * @param {HTMLInputElement} el
  * @param {string} value
@@ -451,10 +485,10 @@ async function setWorkdaySkillsInputValue(el, value) {
     await sleep(120);
 
     // Workday multiselect: click the first row matching the typed skill token.
-    if (!(await clickFirstWorkdaySkillOption(el.ownerDocument, skill))) {
+    if (!(await clickWorkdayPromptOptionByToken(el.ownerDocument, skill))) {
       el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
       await sleep(80);
-      await clickFirstWorkdaySkillOption(el.ownerDocument, skill);
+      await clickWorkdayPromptOptionByToken(el.ownerDocument, skill);
     }
 
     // Confirm selection on the input itself for tenants that require Enter.
@@ -479,7 +513,7 @@ async function setWorkdaySkillsInputValue(el, value) {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
       await sleep(120);
-      await clickFirstWorkdaySkillOption(el.ownerDocument, skill);
+      await clickWorkdayPromptOptionByToken(el.ownerDocument, skill);
       const fallbackOption = findCustomDropdownOption(el.ownerDocument, skill);
       if (fallbackOption) fallbackOption.click();
       el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -550,16 +584,111 @@ async function waitForSkillCommitted(el, skill, beforeCount, timeoutMs) {
 }
 
 /**
- * Click the first matching Workday skill option in the open prompt list.
+ * Fill Workday Education Degree (button/listbox style control).
+ * @param {Element} el
+ * @param {string} value
+ */
+async function setWorkdayEducationDegreeValue(el, value) {
+  const raw = String(value || '').trim();
+  if (!raw) return;
+  const doc = el.ownerDocument;
+  const btn =
+    (el instanceof HTMLButtonElement && /^education-\d+--degree$/i.test(el.id || '') && el) ||
+    el.querySelector?.('button[id^="education-"][id$="--degree"][aria-haspopup="listbox"]') ||
+    el.closest?.('[data-automation-id="formField-degree"]')?.querySelector?.('button[id^="education-"][id$="--degree"]');
+  if (!(btn instanceof HTMLElement)) return;
+
+  const beforeText = normText(btn.textContent || '');
+  btn.focus();
+  btn.click();
+  await sleep(120);
+
+  // Workday degree control often has an adjacent search input.
+  const searchInput = btn.parentElement?.querySelector('input[type="text"]');
+  if (searchInput instanceof HTMLInputElement) {
+    searchInput.focus();
+    searchInput.value = raw;
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  await clickWorkdayPromptOptionByToken(doc, raw);
+
+  // Enter confirm fallback.
+  btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  btn.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+
+  await waitForWorkdayDegreeCommitted(btn, beforeText, raw, 1300);
+  btn.dispatchEvent(new Event('change', { bubbles: true }));
+  btn.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Fill Workday Education Field of Study using multiselect semantics.
+ * @param {Element} el
+ * @param {string} value
+ */
+async function setWorkdayEducationFieldOfStudyValue(el, value) {
+  const input =
+    (el instanceof HTMLInputElement && /^education-\d+--fieldofstudy$/i.test(el.id || '') && el) ||
+    el.querySelector?.('input[id^="education-"][id$="--fieldOfStudy"]');
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const tokens = String(value || '')
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+  if (!tokens.length) return;
+
+  for (const token of tokens) {
+    const beforeCount = getWorkdayMultiSelectCount(input);
+    input.focus();
+    input.click();
+    input.value = token;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    await sleep(120);
+
+    await clickWorkdayPromptOptionByToken(input.ownerDocument, token);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+
+    await waitForSkillCommitted(input, token, beforeCount, 1200);
+  }
+
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  input.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Wait for degree button text to reflect a committed choice.
+ * @param {HTMLElement} btn
+ * @param {string} beforeText
+ * @param {string} expected
+ * @param {number} timeoutMs
+ */
+async function waitForWorkdayDegreeCommitted(btn, beforeText, expected, timeoutMs) {
+  const end = Date.now() + timeoutMs;
+  const want = normText(expected);
+  while (Date.now() < end) {
+    const now = normText(btn.textContent || '');
+    if (now && now !== beforeText && now !== 'select one') return true;
+    if (want && now.includes(want)) return true;
+    await sleep(80);
+  }
+  return false;
+}
+
+/**
+ * Click the best matching Workday prompt option in the open list.
  * @param {Document} doc
- * @param {string} skill
+ * @param {string} token
  * @returns {Promise<boolean>}
  */
-async function clickFirstWorkdaySkillOption(doc, skill) {
+async function clickWorkdayPromptOptionByToken(doc, token) {
   const list = doc.querySelector('[data-automation-id="activeListContainer"][role="listbox"]');
   if (!(list instanceof HTMLElement)) return false;
 
-  const wanted = normText(String(skill || ''));
+  const wanted = normText(String(token || ''));
   const menuItems = Array.from(list.querySelectorAll('[data-automation-id="menuItem"][role="option"]'));
 
   /**

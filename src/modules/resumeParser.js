@@ -528,6 +528,84 @@ function parseTitleCompany(line, dateStr) {
 
 const EDU_PREFIXES = ['education', 'academic'];
 const DEGREE_RE = /\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|M\.?B\.?A\.?|Ph\.?D\.?|Bachelor|Master|Doctor|Associate|Diploma)\b/i;
+const SCHOOL_KEYWORDS_RE = /\b(university|college|institute|school|polytechnic|academy|conservatory)\b/i;
+const KNOWN_UNIVERSITIES = [
+  'Purdue University',
+  'Massachusetts Institute of Technology',
+  'Stanford University',
+  'Harvard University',
+  'University of California',
+  'University of Michigan',
+  'University of Texas',
+  'Texas A&M University',
+  'Carnegie Mellon University',
+  'Georgia Institute of Technology',
+  'University of Illinois',
+  'Cornell University',
+  'Columbia University',
+  'Princeton University',
+  'Yale University',
+  'University of Washington',
+  'University of Wisconsin',
+  'University of Florida',
+  'New York University',
+  'University of Southern California',
+  'Ohio State University',
+  'Pennsylvania State University',
+  'University of Pennsylvania',
+  'Johns Hopkins University',
+  'University of Maryland',
+  'Arizona State University',
+  'Michigan State University',
+  'Northwestern University',
+  'Duke University',
+  'Brown University',
+  'University of Chicago',
+];
+
+/**
+ * @param {string} s
+ * @returns {string}
+ */
+function normalizeSchoolText(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Try to detect a known university string in arbitrary text.
+ * @param {string} text
+ * @returns {string}
+ */
+function findKnownUniversityInText(text) {
+  const norm = normalizeSchoolText(text);
+  if (!norm) return '';
+  for (const school of KNOWN_UNIVERSITIES) {
+    const s = normalizeSchoolText(school);
+    if (s && norm.includes(s)) return school;
+  }
+  return '';
+}
+
+/**
+ * Heuristic: determine if text likely names a school.
+ * @param {string} text
+ * @returns {boolean}
+ */
+function looksLikeSchoolName(text) {
+  const t = (text || '').trim();
+  if (!t || t.length < 3 || t.length > 100) return false;
+  if (DEGREE_RE.test(t)) return false;
+  if (DATE_RE.test(t)) return false;
+  if (SCHOOL_KEYWORDS_RE.test(t)) return true;
+  if (findKnownUniversityInText(t)) return true;
+  // Common short-form names without "University".
+  if (/^(mit|caltech|harvard|stanford|oxford|cambridge)$/i.test(t)) return true;
+  return false;
+}
 
 /**
  * Extract education entries from the resume text.
@@ -575,7 +653,12 @@ function extractEducation(text) {
           continue;
         }
       }
-      if (!current.school && trimmed.length < 80) {
+      if (!current.school && trimmed.length < 80 && looksLikeSchoolName(trimmed)) {
+        current.school = trimmed;
+        continue;
+      }
+      // If we captured a weak/non-school string, upgrade when a real school line appears.
+      if (trimmed.length < 80 && looksLikeSchoolName(trimmed) && !looksLikeSchoolName(current.school)) {
         current.school = trimmed;
       }
     }
@@ -592,10 +675,29 @@ function extractEducation(text) {
  */
 function parseDegreeSchool(line) {
   const cleaned = line.replace(/[,|]+$/, '').trim();
+  const knownSchoolInLine = findKnownUniversityInText(cleaned);
+  if (knownSchoolInLine) {
+    const degreeCandidate = cleaned
+      .replace(new RegExp(knownSchoolInLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '')
+      .replace(/^[,\s\-–—|]+|[,\s\-–—|]+$/g, '')
+      .trim();
+    return { degree: degreeCandidate, school: knownSchoolInLine };
+  }
 
   const commaSplit = cleaned.split(',').map((s) => s.trim()).filter(Boolean);
   if (commaSplit.length >= 2) {
+    const schoolIdx = commaSplit.findIndex((s) => looksLikeSchoolName(s));
     const degreeIdx = commaSplit.findIndex((s) => DEGREE_RE.test(s));
+    if (schoolIdx >= 0 && degreeIdx >= 0 && schoolIdx !== degreeIdx) {
+      return {
+        degree: commaSplit[degreeIdx],
+        school: commaSplit[schoolIdx],
+      };
+    }
+    if (schoolIdx >= 0) {
+      const degree = commaSplit.filter((_, i) => i !== schoolIdx).join(', ');
+      return { degree, school: commaSplit[schoolIdx] };
+    }
     if (degreeIdx >= 0) {
       const degree = commaSplit[degreeIdx];
       const school = commaSplit.filter((_, i) => i !== degreeIdx).join(', ');
@@ -606,8 +708,19 @@ function parseDegreeSchool(line) {
 
   const dashSplit = cleaned.split(/\s[-–—|]\s/);
   if (dashSplit.length >= 2) {
-    return { degree: dashSplit[0].trim(), school: dashSplit.slice(1).join(' ').trim() };
+    const left = dashSplit[0].trim();
+    const right = dashSplit.slice(1).join(' ').trim();
+    if (looksLikeSchoolName(left) && !looksLikeSchoolName(right)) {
+      return { degree: right, school: left };
+    }
+    if (looksLikeSchoolName(right)) {
+      return { degree: left, school: right };
+    }
+    return { degree: left, school: right };
   }
 
+  if (looksLikeSchoolName(cleaned)) {
+    return { degree: '', school: cleaned };
+  }
   return { degree: cleaned, school: '' };
 }
