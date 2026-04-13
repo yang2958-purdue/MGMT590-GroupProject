@@ -31,6 +31,8 @@ The built extension is output to the `dist/` folder. The build runs two steps: t
 3. Click **Load unpacked** and select the `dist/` folder
 4. The JobBot icon appears in the toolbar. Click it to open the side panel.
 
+**Navigation:** The top bar uses compact **icon buttons** (hover for section names) for Upload, Targets, Results, Detail, and Autofill. **Settings** and **Debug** are under **More** (⋮).
+
 ### 4. Start the Python scraper server
 
 **Windows:**

@@ -364,3 +364,15 @@
 **Prompt:** Implement the plan "Session-scoped extension storage": move resume, targets, results, selected job, and autofill state to `chrome.storage.session` (clear between browser sessions); keep user profile and settings in `chrome.storage.local`; optional cleanup of stale local keys; README and fallback documentation.
 
 **Outcome:** Refactored `src/modules/storage.js` to route ephemeral keys through `chrome.storage.session` with fallback to `local` when session is unavailable; added one-time migration flag `jobbot_clearedLocalEphemeral_v1` to remove legacy copies of ephemeral keys from `local`; updated `clear()` / `getAll()` to cover both areas; adjusted `targetPage.js` comment; expanded `README.md` on session vs persistent storage.
+
+## 2026-04-13 - Compact side panel navigation (icons + More menu)
+
+**Prompt:** Change the navigation bar so only Upload, Targets, Results, Detail, and Autofill appear on the top bar; put Settings and Debug in a "More options" menu; use icons with hover tooltips for section names to save space in the Chrome sidebar.
+
+**Outcome:** Refactored `src/sidepanel/components/nav.js` to render inline SVG icon links with `title`/`aria-label` tooltips, a `<details>`/`<summary>` "More" control with Settings and Debug links, and active styling when on settings/debug. Added nav styles in `src/sidepanel/app.css` (layout, focus, dropdown panel). Documented in `README.md`.
+
+## 2026-04-13 - Replace nav icons with Remix-style SVG assets
+
+**Prompt:** Change the icons to `upload-line.svg`, `seo-line.svg`, `folder-line.svg`, `draft-line.svg`, and `pencil-ai-line.svg` for Upload, Targets, Results, Detail, and Autofill respectively.
+
+**Outcome:** Added `src/sidepanel/icons/` with those five SVGs; `nav.js` imports them via `?raw`, normalizes size (`width`/`height` 20) and `aria-hidden`, and maps them to the five primary routes. The More menu ellipsis remains the existing stroke icon.
