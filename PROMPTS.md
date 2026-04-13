@@ -358,3 +358,9 @@
 **Prompt:** Is the api key set incorrectly? I have the openai api key in the .env but it still says the key is not set
 
 **Outcome:** Verified on-disk `python-server/.env` had `OPENAI_API_KEY=` with no value after `=`; root `.env` had no assignment line for OpenAI (only comments). Added `_warn_if_openai_line_empty_in_env_files()` in `server.py` to log when the key name exists but the value is blank.
+
+## 2026-04-12 - Session-scoped resume and job search storage
+
+**Prompt:** Implement the plan "Session-scoped extension storage": move resume, targets, results, selected job, and autofill state to `chrome.storage.session` (clear between browser sessions); keep user profile and settings in `chrome.storage.local`; optional cleanup of stale local keys; README and fallback documentation.
+
+**Outcome:** Refactored `src/modules/storage.js` to route ephemeral keys through `chrome.storage.session` with fallback to `local` when session is unavailable; added one-time migration flag `jobbot_clearedLocalEphemeral_v1` to remove legacy copies of ephemeral keys from `local`; updated `clear()` / `getAll()` to cover both areas; adjusted `targetPage.js` comment; expanded `README.md` on session vs persistent storage.

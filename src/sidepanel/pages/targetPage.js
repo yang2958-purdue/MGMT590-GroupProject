@@ -8,7 +8,7 @@ import { getResume, setResults, setTargets } from '../../modules/storage.js';
 /**
  * Render the target input page.
  * Company name autocomplete, multi-select job titles, and filter controls.
- * All state is persisted to chrome.storage.local.
+ * Search targets and results use session storage (cleared when the browser session ends).
  * @param {HTMLElement} container - The main content element to render into.
  */
 export function renderTargetPage(container) {

@@ -2,7 +2,8 @@ const api = globalThis.browser || globalThis.chrome;
 
 /**
  * Storage key constants.
- * All chrome.storage.local keys used by the extension are defined here.
+ * Ephemeral keys use chrome.storage.session (cleared when the browser session ends).
+ * Profile and settings use chrome.storage.local (persistent).
  */
 export const KEYS = {
   RESUME: 'jobbot_resume',
@@ -23,49 +24,121 @@ export const KEYS = {
   // STATUS_PIPELINE: 'jobbot_statusPipeline',
 };
 
+/** Keys stored in memory for the browser session only (see chrome.storage.session). */
+const SESSION_KEYS = new Set([
+  KEYS.RESUME,
+  KEYS.TARGETS,
+  KEYS.RESULTS,
+  KEYS.SELECTED_JOB,
+  KEYS.AUTOFILL_STATE,
+]);
+
+/** One-time removal of pre-migration copies of session keys from chrome.storage.local. */
+const MIGRATION_LOCAL_EPHEMERAL_CLEANUP = 'jobbot_clearedLocalEphemeral_v1';
+
 /**
- * Get a value from chrome.storage.local.
+ * @returns {import('chrome').storage.StorageArea}
+ */
+function ephemeralArea() {
+  return api.storage.session || api.storage.local;
+}
+
+/**
+ * @returns {import('chrome').storage.StorageArea}
+ */
+function localArea() {
+  return api.storage.local;
+}
+
+/**
+ * @param {string} key
+ * @returns {import('chrome').storage.StorageArea}
+ */
+function getAreaForKey(key) {
+  if (SESSION_KEYS.has(key)) {
+    return ephemeralArea();
+  }
+  return localArea();
+}
+
+let migrationPromise = null;
+
+function migrateStaleEphemeralFromLocalOnce() {
+  if (migrationPromise) return migrationPromise;
+  migrationPromise = (async () => {
+    try {
+      const flag = await api.storage.local.get(MIGRATION_LOCAL_EPHEMERAL_CLEANUP);
+      if (flag[MIGRATION_LOCAL_EPHEMERAL_CLEANUP]) return;
+      await api.storage.local.remove([
+        KEYS.RESUME,
+        KEYS.TARGETS,
+        KEYS.RESULTS,
+        KEYS.SELECTED_JOB,
+        KEYS.AUTOFILL_STATE,
+      ]);
+      await api.storage.local.set({ [MIGRATION_LOCAL_EPHEMERAL_CLEANUP]: true });
+    } catch (e) {
+      console.warn('[JobBot storage] migration cleanup failed', e);
+    }
+  })();
+  return migrationPromise;
+}
+
+migrateStaleEphemeralFromLocalOnce();
+
+/**
+ * Get a value from extension storage (session for ephemeral keys, local otherwise).
  * @param {string} key - The storage key.
  * @returns {Promise<*>} The stored value, or null if not found.
  */
 export async function get(key) {
-  const result = await api.storage.local.get(key);
+  const area = getAreaForKey(key);
+  const result = await area.get(key);
   return result[key] ?? null;
 }
 
 /**
- * Set a value in chrome.storage.local.
+ * Set a value in extension storage (session for ephemeral keys, local otherwise).
  * @param {string} key - The storage key.
  * @param {*} value - The value to store (must be JSON-serializable).
  * @returns {Promise<void>}
  */
 export async function set(key, value) {
-  return api.storage.local.set({ [key]: value });
+  const area = getAreaForKey(key);
+  return area.set({ [key]: value });
 }
 
 /**
- * Remove a key from chrome.storage.local.
+ * Remove a key from the storage area that owns it.
  * @param {string} key - The storage key to remove.
  * @returns {Promise<void>}
  */
 export async function remove(key) {
-  return api.storage.local.remove(key);
+  return getAreaForKey(key).remove(key);
 }
 
 /**
- * Clear all extension data from chrome.storage.local.
+ * Clear all extension data from chrome.storage.local and chrome.storage.session (when available).
  * @returns {Promise<void>}
  */
 export async function clear() {
-  return api.storage.local.clear();
+  const tasks = [api.storage.local.clear()];
+  if (api.storage.session) {
+    tasks.push(api.storage.session.clear());
+  }
+  await Promise.all(tasks);
 }
 
 /**
- * Get all stored key-value pairs.
+ * Get all stored key-value pairs from both local and session areas.
  * @returns {Promise<Object>}
  */
 export async function getAll() {
-  return api.storage.local.get(null);
+  const [local, session] = await Promise.all([
+    api.storage.local.get(null),
+    api.storage.session ? api.storage.session.get(null) : {},
+  ]);
+  return { ...local, ...session };
 }
 
 // ─── Typed accessors ────────────────────────────────────────────

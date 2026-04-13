@@ -84,7 +84,9 @@ If `OPENAI_API_KEY` is missing, the extension automatically falls back to heuris
 
 ### 5. User profile (Settings)
 
-Open **Settings** in the side panel and click **Save profile**. Data is stored in `chrome.storage.local` under the key `jobbot_userProfile` and is used by **Autofill** together with the parsed resume.
+Open **Settings** in the side panel and click **Save profile**. The saved profile is stored in `chrome.storage.local` under the key `jobbot_userProfile` and is used by **Autofill** together with the parsed resume.
+
+**Session vs persistent data:** Parsed resume, search targets, job results, selected job, and in-progress autofill state are stored in **`chrome.storage.session`** and are cleared when the browser session ends (typically after you quit the browser). Settings and the saved user profile remain in **`chrome.storage.local`** across restarts. If `chrome.storage.session` is unavailable, the extension falls back to `local` for those keys (data may persist until you clear extension storage).
 
 - **Application answers** — Citizenship, authorized to work (Yes/No), sponsorship (Yes/No), salary, relocation, and optional defaults for sensitive/EEO-style questions.
 - **Contact & documents** — LinkedIn URL and default cover letter text.
@@ -127,7 +129,7 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   │   └── autofill.config.js   # Fill delay, pause-trigger keywords
 │   ├── modules/            # Core business logic (ES modules)
 │   │   ├── resumeParser.js # PDF/DOCX → structured resume object
-│   │   ├── storage.js      # chrome.storage.local wrapper
+│   │   ├── storage.js      # chrome.storage.session (ephemeral) + local (profile/settings)
 │   │   ├── jobScraper.js   # Calls Flask server for job postings
 │   │   ├── scorer.js       # Fit score + ATS score (keyword overlap)
 │   │   ├── tailor.js       # Resume tailoring advice + auto-tailor
@@ -165,7 +167,7 @@ JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOB
 - **Host permissions** — `manifest.json` includes `<all_urls>` so `chrome.scripting.executeScript` can inject the content script after an extension reload (when `tabs.sendMessage` would otherwise fail). Chrome may prompt for broader site access on install/update.
 - **Content script bundle** — The content script is built as an ES module with a shared chunk (`chunks/fieldInference-*.js`). After programmatic inject, the side panel waits on animation frames and retries `sendMessage` until the module finishes loading (so `onMessage` is registered). The DOM scanner recurses into **same-origin iframes** (common on Phenom/ATS pages) and passes `iframePath` so fills target the correct document.
 - **Education parsing** — The resume parser uses education-specific heuristics plus a curated university-name list/keyword matcher to better distinguish `school` values from degree or field-of-study text.
-- **No external database** — all persistence via `chrome.storage.local`.
+- **No external database** — persistence via `chrome.storage.session` (resume, search, results, autofill session) and `chrome.storage.local` (settings and saved profile).
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
 - **AI/LLM calls** (scoring, tailoring) are isolated behind a single function in their modules, marked with `// SWAP:` comments for easy replacement.
 - **The JS side** calls `localhost:5001/scrape` and knows nothing about which adapter is active on the server.
