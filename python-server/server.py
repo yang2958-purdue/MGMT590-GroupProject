@@ -4,6 +4,7 @@ JobBot scraper server.
 A local Flask server that exposes:
 - /scrape for job scraping
 - /parse-resume-llm for optional ChatGPT resume parsing enhancement
+- /extract-skills for LLM-based skill phrase extraction (ATS scoring / tailoring)
 """
 
 import json
@@ -18,6 +19,11 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 import config
+from prompts.skills_extraction import (
+    SKILLS_JSON_SYSTEM,
+    SKILLS_JSON_USER_JOB,
+    SKILLS_JSON_USER_RESUME,
+)
 
 _server_dir = Path(__file__).resolve().parent
 _project_root = _server_dir.parent
@@ -269,6 +275,93 @@ def parse_resume_llm():
     except Exception as exc:
         log.exception("LLM parse error: %s", exc)
         return jsonify({"error": f"LLM parse failed: {exc}"}), 500
+
+
+@app.route("/extract-skills", methods=["POST"])
+def extract_skills():
+    """
+    Extract skill phrases from resume or job text via OpenAI.
+
+    Body:
+      { "text": "<plain text>", "kind": "resume" | "job" }
+    """
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get("text") or "").strip()
+    kind = (payload.get("kind") or "").strip().lower()
+    if not text:
+        return jsonify({"error": "Missing text"}), 400
+    if kind not in ("resume", "job"):
+        return jsonify({"error": 'kind must be "resume" or "job"'}), 400
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"error": "OPENAI_API_KEY is not set on python server"}), 400
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    text = text[:24000]
+
+    user_prefix = SKILLS_JSON_USER_RESUME if kind == "resume" else SKILLS_JSON_USER_JOB
+    user_content = f"{user_prefix}{text}"
+
+    log.info("POST /extract-skills — kind=%s, len=%d", kind, len(text))
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=45,
+            json={
+                "model": model,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": SKILLS_JSON_SYSTEM},
+                    {"role": "user", "content": user_content},
+                ],
+            },
+        )
+        if not response.ok:
+            return jsonify({"error": f"OpenAI error ({response.status_code}): {response.text[:300]}"}), 502
+
+        completion = response.json()
+        content = (
+            completion.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        parsed = _parse_json_from_llm_content(content)
+        skills = _normalize_skills_payload(parsed)
+        return jsonify({"skills": skills})
+    except Exception as exc:
+        log.exception("extract-skills error: %s", exc)
+        return jsonify({"error": f"extract-skills failed: {exc}"}), 500
+
+
+def _normalize_skills_payload(parsed) -> list[str]:
+    if not isinstance(parsed, dict):
+        return []
+    raw = parsed.get("skills")
+    if not isinstance(raw, list):
+        return []
+    out = []
+    seen = set()
+    for item in raw:
+        if item is None:
+            continue
+        s = str(item).strip()
+        if not s:
+            continue
+        key = s.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+        if len(out) >= 80:
+            break
+    return out
 
 
 def _parse_json_from_llm_content(content: str):

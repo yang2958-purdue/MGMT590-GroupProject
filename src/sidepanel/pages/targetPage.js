@@ -2,6 +2,7 @@ import { createCompanyAutocomplete } from '../components/companyAutocomplete.js'
 import { createTagInput } from '../components/tagInput.js';
 import { createFilterControls } from '../components/filterControls.js';
 import { scrapeJobs } from '../../modules/jobScraper.js';
+import { extractSkillsLLM } from '../../modules/llmSkillExtractor.js';
 import { scoreJob } from '../../modules/scorer.js';
 import { getResume, setResults, setTargets } from '../../modules/storage.js';
 
@@ -73,13 +74,29 @@ export function renderTargetPage(container) {
       const postings = await scrapeJobs(criteria);
 
       const resume = await getResume();
-      const scored = postings.map((posting) => {
-        if (resume) {
-          const scores = scoreJob(resume, posting);
-          return { ...posting, ...scores };
+
+      let resumeSkills = undefined;
+      let resumeExtractFailed = false;
+      if (resume) {
+        try {
+          resumeSkills = await extractSkillsLLM(resume.rawText, 'resume');
+        } catch {
+          resumeExtractFailed = true;
         }
-        return { ...posting, fitScore: 0, atsScore: 0, matchedKeywords: [], missingKeywords: [] };
-      });
+      }
+
+      const scored = await Promise.all(
+        postings.map(async (posting) => {
+          if (resume) {
+            const scores = await scoreJob(resume, posting, {
+              resumeSkills,
+              resumeExtractFailed,
+            });
+            return { ...posting, ...scores };
+          }
+          return { ...posting, fitScore: 0, atsScore: 0, matchedKeywords: [], missingKeywords: [] };
+        }),
+      );
 
       scored.sort((a, b) => b.fitScore - a.fitScore);
       await setResults(scored);

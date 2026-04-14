@@ -84,6 +84,19 @@ cd python-server
 
 If `OPENAI_API_KEY` is missing, the extension automatically falls back to heuristic parsing.
 
+### 4.2 ATS / keyword scoring and tailoring (OpenAI via local server)
+
+When `OPENAI_API_KEY` is set on the Python server, the extension calls **`POST /extract-skills`** (`http://localhost:5001/extract-skills`) to extract **skill phrases** from your resume and from each job description. Fit score and ATS score are computed from the overlap of those lists (same env vars as resume parsing: `OPENAI_API_KEY`, optional `OPENAI_MODEL`).
+
+- **Request body:** `{ "text": "<plain text>", "kind": "resume" | "job" }`
+- **Response:** `{ "skills": ["...", ...] }` (deduplicated, capped server-side)
+
+Prompt text lives in [`python-server/prompts/skills_extraction.py`](python-server/prompts/skills_extraction.py) so you can tune extraction without editing Flask routes.
+
+**Fallback:** If the key is missing, the server returns an error, or the request fails (server not running, network error), the extension uses the previous **heuristic** keyword overlap in [`src/modules/scorer.js`](src/modules/scorer.js) and [`src/modules/tailor.js`](src/modules/tailor.js) (tokenize + stopwords).
+
+**Cost / latency:** Each job search performs **one** resume extraction plus **one extraction per job posting** returned by the scraper.
+
 ### 5. User profile (Settings)
 
 Open **Settings** in the side panel and click **Save profile**. The saved profile is stored in `chrome.storage.local` under the key `jobbot_userProfile` and is used by **Autofill** together with the parsed resume.
@@ -133,8 +146,10 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   │   ├── resumeParser.js # PDF/DOCX → structured resume object
 │   │   ├── storage.js      # chrome.storage.session (ephemeral) + local (profile/settings)
 │   │   ├── jobScraper.js   # Calls Flask server for job postings
-│   │   ├── scorer.js       # Fit score + ATS score (keyword overlap)
-│   │   ├── tailor.js       # Resume tailoring advice + auto-tailor
+│   │   ├── scorer.js       # Fit + ATS scores (LLM skill overlap or heuristic fallback)
+│   │   ├── tailor.js       # Tailoring advice + auto-tailor (same)
+│   │   ├── llmSkillExtractor.js  # POST /extract-skills client
+│   │   ├── skillMatch.js   # Skill list overlap for scores
 │   │   ├── scraper/
 │   │   │   └── firecrawlAdapter.js  # Firecrawl API adapter (scrape + extract)
 │   │   └── autofill/
@@ -144,7 +159,8 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   ├── data/               # Static data (company seed list)
 │   └── lib/                # Shared constants
 ├── python-server/          # Local Flask scraper server
-│   ├── server.py           # Flask app (/health, /scrape)
+│   ├── server.py           # Flask app (/health, /scrape, /parse-resume-llm, /extract-skills)
+│   ├── prompts/            # OpenAI prompt strings (e.g. skills_extraction.py)
 │   ├── config.py           # ACTIVE_ADAPTER selector
 │   └── adapters/           # Swappable scraper implementations
 ├── manifest.json           # MV3 manifest (source)
@@ -171,6 +187,6 @@ JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOB
 - **Education parsing** — The resume parser uses education-specific heuristics plus a curated university-name list/keyword matcher to better distinguish `school` values from degree or field-of-study text.
 - **No external database** — persistence via `chrome.storage.session` (resume, search, results, autofill session) and `chrome.storage.local` (settings and saved profile).
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
-- **AI/LLM calls** (scoring, tailoring) are isolated behind a single function in their modules, marked with `// SWAP:` comments for easy replacement.
+- **AI/LLM calls** — Resume parsing and skill extraction go through the Python server (`/parse-resume-llm`, `/extract-skills`). Prompts for skill extraction are in `python-server/prompts/`. The extension falls back to heuristics if OpenAI is unavailable.
 - **The JS side** calls `localhost:5001/scrape` and knows nothing about which adapter is active on the server.
 - **Autofill pipeline** — Open the **real** application site in a normal browser tab (e.g. Workday, Greenhouse). In the side panel, go to **Autofill** and press **Autofill this tab** to extract fields and fill using pause/resume/skip controls. The job **Detail** page only offers **Open job posting** (listing URL); it does not start autofill. Field discovery uses **Firecrawl** when the site is allowed and `VITE_FIRECRAWL_API_KEY` is set in `.env.local` (see `.env.example`); otherwise the extension scans the **live tab DOM**. **LinkedIn** is skipped for remote Firecrawl extract — rely on DOM scan on the application page. Mapping uses label + control type (e.g. **select** options matched by text/value; phone/email are not applied to yes/no controls). Edit **Settings** to maintain `jobbot_userProfile` (answers, resume overrides, custom keys). Rebuild after changing env vars (`npm run build`).
