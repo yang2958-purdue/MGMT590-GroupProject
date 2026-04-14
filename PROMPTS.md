@@ -376,3 +376,9 @@
 **Prompt:** Change the icons to `upload-line.svg`, `seo-line.svg`, `folder-line.svg`, `draft-line.svg`, and `pencil-ai-line.svg` for Upload, Targets, Results, Detail, and Autofill respectively.
 
 **Outcome:** Added `src/sidepanel/icons/` with those five SVGs; `nav.js` imports them via `?raw`, normalizes size (`width`/`height` 20) and `aria-hidden`, and maps them to the five primary routes. The More menu ellipsis remains the existing stroke icon.
+
+## 2026-04-14 - LLM skill extraction for ATS scoring and tailoring
+
+**Prompt:** Implement the plan "LLM-based skill extraction for ATS scoring and tailoring": OpenAI via Flask `/extract-skills`, prompts in `python-server/prompts/skills_extraction.py`, shared overlap in `skillMatch.js`, async `scoreJob` + `targetPage` wiring, async tailor with heuristic fallback, README updates.
+
+**Outcome:** Added `python-server/prompts/` with tunable skill prompts; implemented `POST /extract-skills` in `server.py`; added `llmSkillExtractor.js` and `skillMatch.js`; updated `scorer.js`, `tailor.js`, `targetPage.js`; documented §4.2 and project structure in `README.md`.

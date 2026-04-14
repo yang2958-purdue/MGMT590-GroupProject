@@ -2,8 +2,12 @@
  * Scoring module.
  *
  * Scores a job posting against a parsed resume.
- * Currently uses a keyword-overlap algorithm as a stub.
+ * Uses OpenAI-backed skill extraction when the local server is available;
+ * falls back to keyword-overlap heuristics otherwise.
  */
+
+import { extractSkillsLLM } from './llmSkillExtractor.js';
+import { skillsOverlapFromPosting } from './skillMatch.js';
 
 /**
  * @typedef {import('./resumeParser.js').ResumeData} ResumeData
@@ -19,18 +23,34 @@
  */
 
 /**
+ * @typedef {Object} ScoreJobOptions
+ * @property {string[]} [resumeSkills] - Pre-extracted resume skills (one call per search).
+ * @property {boolean} [resumeExtractFailed] - If true, skip LLM and use heuristic overlap.
+ */
+
+/**
  * Score a job posting against a resume.
  *
  * @param {ResumeData} resume - The parsed resume data.
  * @param {JobPosting} jobPosting - The job posting to score.
- * @returns {ScoreResult} Fit score (0-10), ATS score (0-100), and keyword lists.
+ * @param {ScoreJobOptions} [options] - Optional pre-extracted resume skills from the caller.
+ * @returns {Promise<ScoreResult>} Fit score (0-10), ATS score (0-100), and keyword lists.
  */
-export function scoreJob(resume, jobPosting) {
-  // SWAP: replace this function body with an LLM API call for more
-  // intelligent scoring. The interface (inputs/outputs) stays the same.
-  // Example: const result = await llmClient.score(resume, jobPosting);
+export async function scoreJob(resume, jobPosting, options = {}) {
+  if (options.resumeExtractFailed) {
+    return keywordOverlapScore(resume, jobPosting);
+  }
 
-  return keywordOverlapScore(resume, jobPosting);
+  try {
+    let resumeSkills = options.resumeSkills;
+    if (!Array.isArray(resumeSkills)) {
+      resumeSkills = await extractSkillsLLM(resume.rawText, 'resume');
+    }
+    const postingSkills = await extractSkillsLLM(jobPosting.description || '', 'job');
+    return skillsOverlapFromPosting(resumeSkills, postingSkills);
+  } catch {
+    return keywordOverlapScore(resume, jobPosting);
+  }
 }
 
 const STOPWORDS = new Set([

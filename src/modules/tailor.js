@@ -3,8 +3,12 @@
  *
  * Provides advice on how to improve a resume for a specific job posting,
  * and can auto-generate a tailored version.
- * Currently uses keyword diffing as a stub.
+ * Uses OpenAI-backed skill extraction when the local server is available;
+ * falls back to keyword diffing otherwise.
  */
+
+import { extractSkillsLLM } from './llmSkillExtractor.js';
+import { skillsOverlapFromPosting } from './skillMatch.js';
 
 /**
  * @typedef {import('./resumeParser.js').ResumeData} ResumeData
@@ -24,18 +28,41 @@
  */
 
 /**
+ * @typedef {Object} TailorOptions
+ * @property {string[]} [resumeSkills] - Pre-extracted resume skills.
+ * @property {boolean} [resumeExtractFailed] - If true, use heuristic diff only.
+ */
+
+/**
  * Get tailoring advice for a resume against a job posting.
  *
  * @param {ResumeData} resume - The parsed resume data.
  * @param {JobPosting} jobPosting - The target job posting.
- * @returns {TailoringAdvice} Missing keywords and suggestions.
+ * @param {TailorOptions} [options] - Optional pre-extracted resume skills.
+ * @returns {Promise<TailoringAdvice>} Missing keywords and suggestions.
  */
-export function getTailoringAdvice(resume, jobPosting) {
-  // SWAP: replace this function body with an LLM API call for intelligent
-  // tailoring advice. The interface (inputs/outputs) stays the same.
-  // Example: const advice = await llmClient.getTailoringAdvice(resume, jobPosting);
+export async function getTailoringAdvice(resume, jobPosting, options = {}) {
+  if (options.resumeExtractFailed) {
+    return keywordDiffAdvice(resume, jobPosting);
+  }
 
-  return keywordDiffAdvice(resume, jobPosting);
+  try {
+    let resumeSkills = options.resumeSkills;
+    if (!Array.isArray(resumeSkills)) {
+      resumeSkills = await extractSkillsLLM(resume.rawText, 'resume');
+    }
+    const postingSkills = await extractSkillsLLM(jobPosting.description || '', 'job');
+    const { missingKeywords } = skillsOverlapFromPosting(resumeSkills, postingSkills);
+    const top = missingKeywords.slice(0, 15);
+    const suggestions = top.length
+      ? `Consider adding these keywords to your resume: ${top.join(', ')}. ` +
+        'Try incorporating them naturally into your experience bullet points ' +
+        'or skills section.'
+      : 'Your resume already covers the key terms in this posting.';
+    return { missingKeywords: top, suggestions };
+  } catch {
+    return keywordDiffAdvice(resume, jobPosting);
+  }
 }
 
 /**
@@ -43,14 +70,32 @@ export function getTailoringAdvice(resume, jobPosting) {
  *
  * @param {ResumeData} resume - The parsed resume data.
  * @param {JobPosting} jobPosting - The target job posting.
- * @returns {TailoredResume} The tailored resume text and keywords added.
+ * @param {TailorOptions} [options] - Optional pre-extracted resume skills.
+ * @returns {Promise<TailoredResume>} The tailored resume text and keywords added.
  */
-export function autoTailorResume(resume, jobPosting) {
-  // SWAP: replace this function body with an LLM API call for AI-powered
-  // resume rewriting. The interface (inputs/outputs) stays the same.
-  // Example: const tailored = await llmClient.tailorResume(resume, jobPosting);
+export async function autoTailorResume(resume, jobPosting, options = {}) {
+  if (options.resumeExtractFailed) {
+    return keywordInsertTailor(resume, jobPosting);
+  }
 
-  return keywordInsertTailor(resume, jobPosting);
+  try {
+    let resumeSkills = options.resumeSkills;
+    if (!Array.isArray(resumeSkills)) {
+      resumeSkills = await extractSkillsLLM(resume.rawText, 'resume');
+    }
+    const postingSkills = await extractSkillsLLM(jobPosting.description || '', 'job');
+    const { missingKeywords } = skillsOverlapFromPosting(resumeSkills, postingSkills);
+    const top = missingKeywords.slice(0, 15);
+
+    let tailored = resume.rawText;
+    if (top.length) {
+      tailored += `\n\nAdditional Key Skills: ${top.join(', ')}`;
+    }
+
+    return { rawText: tailored, addedKeywords: top };
+  } catch {
+    return keywordInsertTailor(resume, jobPosting);
+  }
 }
 
 const STOPWORDS = new Set([
