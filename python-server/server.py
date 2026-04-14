@@ -231,6 +231,7 @@ def parse_resume_llm():
         f"{json.dumps(schema_instructions)}\n\n"
         "Rules:\n"
         "- Name fields must preserve initials (e.g., 'Alec X. Neville').\n"
+        "- Extract location (city, state, ZIP) from the contact/header block, address lines, or lines labeled Address, Location, Mailing address, or similar. If the resume shows a US address, use a 2-letter state abbreviation when clearly implied (e.g. IL for Illinois). If city and state appear in a pipe-separated line (e.g. \"Name | City, ST | email\"), capture them.\n"
         "- Experience entries should capture both title and company where possible.\n"
         "- For education.school, scan the ENTIRE resume text (not just the Education header).\n"
         "- Prefer institution names that clearly look like universities/colleges/institutes/schools.\n"

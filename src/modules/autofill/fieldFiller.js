@@ -5,6 +5,8 @@
  * and value injection that triggers framework-friendly change events.
  */
 
+import { abbrToFullStateName } from './usStateAbbrev.js';
+
 const HIGHLIGHT_STYLE = 'outline: 3px solid #6366f1; outline-offset: 2px; transition: outline 0.2s;';
 
 /**
@@ -70,6 +72,11 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
     // status === "ready"
     await setFieldValue(field.selector, value, field.iframePath, field.fieldType);
     filledCount++;
+
+    // Custom dropdowns (Workday listboxes) need time to commit before the next field steals focus.
+    if (field.fieldType === 'select' && i < fields.length - 1) {
+      await sleep(320);
+    }
 
     if (i < fields.length - 1) {
       await sleep(delayMs);
@@ -162,6 +169,46 @@ function setRadioGroupValue(el, value) {
 }
 
 /**
+ * @param {string} raw
+ */
+function isMobilePhoneDeviceIntent(raw) {
+  const t = normText(String(raw || ''));
+  if (!t) return false;
+  if (t === 'mobile' || t === 'cell' || t === 'cellular') return true;
+  return /^mobile(\s+phone)?$/.test(t) || /^cell(\s+phone)?$/.test(t);
+}
+
+/**
+ * Prefer mobile / cell / cellular options; avoid landline / home / office when possible.
+ * @param {HTMLOptionElement[]} opts
+ * @returns {HTMLOptionElement|null}
+ */
+function pickMobileLikeDeviceOption(opts) {
+  const cleaned = opts.filter((o) => {
+    const t = (o.textContent || '').trim();
+    if (!t) return false;
+    if (/^select\s+one|^choose|^--$/i.test(t)) return false;
+    return true;
+  });
+
+  const mobileish = cleaned.filter((o) => /\b(mobile|cell|cellular|wireless)\b/i.test(o.textContent || ''));
+  const pool = mobileish.length ? mobileish : cleaned;
+
+  const rank = (text) => {
+    const x = (text || '').toLowerCase();
+    if (/\blandline\b|\bhome\b|\boffice\b|\bwork\b|\bfax\b|\bpager\b/.test(x)) return 50;
+    if (/\bmobile\b/.test(x)) return 0;
+    if (/\bcellular\b/.test(x)) return 1;
+    if (/\bcell\b/.test(x)) return 2;
+    if (/\bwireless\b/.test(x)) return 3;
+    return 10;
+  };
+
+  pool.sort((a, b) => rank(a.textContent || '') - rank(b.textContent || ''));
+  return pool[0] ?? null;
+}
+
+/**
  * @param {HTMLOptionElement[]} opts
  * @param {string} raw
  */
@@ -212,7 +259,26 @@ function findMatchingOption(opts, raw) {
     if (!t) return false;
     return t.includes(low) || low.includes(t);
   });
-  return m ?? null;
+  if (m) return m;
+
+  // US state: resume stores "IL" but <option> text is often "Illinois" or "Illinois (United States)"
+  const fullState = abbrToFullStateName(raw);
+  if (fullState) {
+    const fl = fullState.toLowerCase();
+    const ab = String(raw).trim().toLowerCase();
+    m = opts.find((o) => {
+      const t = o.textContent.trim().toLowerCase();
+      const v = (o.value || '').toLowerCase();
+      return t.includes(fl) || t.includes(`(${ab})`) || v === ab;
+    });
+    if (m) return m;
+  }
+
+  if (isMobilePhoneDeviceIntent(raw)) {
+    return pickMobileLikeDeviceOption(opts);
+  }
+
+  return null;
 }
 
 /**
@@ -682,9 +748,11 @@ async function waitForWorkdayDegreeCommitted(btn, beforeText, expected, timeoutM
  * Click the best matching Workday prompt option in the open list.
  * @param {Document} doc
  * @param {string} token
+ * @param {{ allowFallback?: boolean }} [options] - If allowFallback is false, do not click the first row when no exact match (avoids wrong state/device selection).
  * @returns {Promise<boolean>}
  */
-async function clickWorkdayPromptOptionByToken(doc, token) {
+async function clickWorkdayPromptOptionByToken(doc, token, options = {}) {
+  const { allowFallback = true } = options;
   const list = doc.querySelector('[data-automation-id="activeListContainer"][role="listbox"]');
   if (!(list instanceof HTMLElement)) return false;
 
@@ -710,7 +778,7 @@ async function clickWorkdayPromptOptionByToken(doc, token) {
     // Also confirm the highlighted option via keyboard as a fallback.
     list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     list.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
-    await sleep(60);
+    await sleep(120);
     return true;
   };
 
@@ -728,6 +796,8 @@ async function clickWorkdayPromptOptionByToken(doc, token) {
     );
   });
   if (exactMenuItem) return clickNode(exactMenuItem);
+
+  if (!allowFallback) return false;
 
   const firstItem = menuItems[0];
   if (firstItem) return clickNode(firstItem);
@@ -802,9 +872,74 @@ function isComboboxLike(el) {
  * @param {Element} el
  * @param {string} value
  */
+const MOBILE_DEVICE_SEARCH_VARIANTS = [
+  'Mobile',
+  'Cell',
+  'Cellular',
+  'Mobile Phone',
+  'Cell Phone',
+  'Wireless',
+  'Wireless Phone',
+];
+
+/**
+ * @param {string} raw
+ * @returns {string[]}
+ */
+function expandStateSearchTokens(raw) {
+  const full = abbrToFullStateName(raw);
+  if (!full) return [];
+  return [full, String(raw).trim()];
+}
+
+/**
+ * Tokens to try for custom dropdowns (Workday listboxes): mobile synonyms or state full names.
+ * @param {string} raw
+ * @returns {string[]}
+ */
+function buildComboboxSearchTokens(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return [];
+  if (isMobilePhoneDeviceIntent(s)) {
+    return [...new Set([s, ...MOBILE_DEVICE_SEARCH_VARIANTS])];
+  }
+  const st = expandStateSearchTokens(s);
+  if (st.length) return [...new Set(st)];
+  return [s];
+}
+
+/**
+ * Wait until Workday's open listbox is gone or not visible (commit finished).
+ * @param {Document} doc
+ */
+async function waitForWorkdayListboxToSettle(doc) {
+  for (let i = 0; i < 60; i++) {
+    const list = doc.querySelector('[data-automation-id="activeListContainer"][role="listbox"]');
+    if (!list || !list.isConnected) return;
+    const hidden =
+      list.getAttribute('aria-hidden') === 'true' || list.getAttribute('hidden') !== null;
+    const r = list.getBoundingClientRect();
+    if (hidden || r.width < 2 || r.height < 2) return;
+    await sleep(40);
+  }
+}
+
 async function setComboboxValue(el, value) {
   const raw = String(value ?? '').trim();
   if (!raw) return;
+
+  /**
+   * Do not dispatch synthetic input/change on the trigger after picking an option — Workday/React
+   * may treat that as a new edit and revert the committed value. Refocus, wait for the listbox to
+   * close, then pause so framework state can settle before the next field runs.
+   */
+  const settleSelection = async () => {
+    if (el instanceof HTMLElement) {
+      el.focus();
+    }
+    await waitForWorkdayListboxToSettle(el.ownerDocument);
+    await sleep(350);
+  };
 
   const openDropdown = () => {
     if (!(el instanceof HTMLElement)) return;
@@ -815,26 +950,33 @@ async function setComboboxValue(el, value) {
     el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   };
 
-  openDropdown();
+  const searchTokens = buildComboboxSearchTokens(raw);
 
-  if (el instanceof HTMLInputElement && !el.readOnly) {
-    el.value = raw;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }
+  for (const token of searchTokens) {
+    openDropdown();
 
-  for (let i = 0; i < 10; i++) {
-    const option = findCustomDropdownOption(el.ownerDocument, raw);
-    if (option) {
-      option.click();
-      if (el instanceof HTMLElement) {
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        el.dispatchEvent(new Event('blur', { bubbles: true }));
-      }
-      return;
+    if (el instanceof HTMLInputElement && !el.readOnly) {
+      el.value = token;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    if (i === 3 || i === 6) openDropdown();
-    await sleep(120);
+
+    for (let i = 0; i < 10; i++) {
+      const option = findCustomDropdownOption(el.ownerDocument, token);
+      if (option) {
+        option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        option.click();
+        option.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        await settleSelection();
+        return;
+      }
+      if (await clickWorkdayPromptOptionByToken(el.ownerDocument, token, { allowFallback: false })) {
+        await settleSelection();
+        return;
+      }
+      if (i === 3 || i === 6) openDropdown();
+      await sleep(120);
+    }
   }
 }
 
@@ -845,9 +987,14 @@ async function setComboboxValue(el, value) {
  */
 function findCustomDropdownOption(doc, raw) {
   const low = normText(raw);
+  // Prefer the open listbox so we do not match a stale option node elsewhere in the DOM.
+  const scope =
+    doc.querySelector('[data-automation-id="activeListContainer"]') ||
+    doc.querySelector('[role="listbox"][aria-expanded="true"]') ||
+    doc.body;
   const candidates = Array.from(
-    doc.querySelectorAll(
-      '[role="option"],li[role="option"],[data-automation-id*="option"],[data-automation-id*="promptOption"],[data-automation-id*="dropdownOption"],[id*="option"]'
+    scope.querySelectorAll(
+      '[role="option"],[data-automation-id="menuItem"][role="option"],li[role="option"]'
     )
   );
 

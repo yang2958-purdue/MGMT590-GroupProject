@@ -62,8 +62,13 @@ function scanInto(doc, iframePath, out, seenRadioKeys) {
 
     const labelText = inferLabel(el);
     const fieldType = mapFieldType(el, type);
-    const contextLabel = `${labelText} ${el.getAttribute('placeholder') || ''} ${el.getAttribute('name') || ''}`.trim();
-    const suggestedDataKey = inferDataKeyFromLabel(contextLabel, fieldType);
+    // Prefer visible label (and placeholder) only — concatenating `name` often pollutes inference
+    // (e.g. Workday state controls whose name contains "country" would map to commonAnswers.country).
+    const inferKeySource =
+      (labelText || '').trim() ||
+      (el.getAttribute('placeholder') || '').trim() ||
+      (el.getAttribute('name') || '').replace(/[_-]+/g, ' ').trim();
+    const suggestedDataKey = inferDataKeyFromLabel(inferKeySource, fieldType);
 
     const isRequired =
       (el instanceof HTMLInputElement ||

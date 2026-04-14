@@ -20,6 +20,21 @@ export function inferDataKeyFromLabel(labelText, fieldType) {
   const t = norm(labelText);
 
   if (fieldType === 'select' || fieldType === 'radio') {
+    if (
+      /\bphone\b/.test(t) &&
+      /\bdevice\b/.test(t) &&
+      /\btype\b/.test(t) &&
+      !/\bphone\s+number\b/.test(t)
+    ) {
+      return 'unmapped';
+    }
+    // State/province before country — avoids mis-mapping when combined context includes "country" in name attrs
+    if (
+      /^state\*?$|^\s*state\s*\*?\s*$/i.test(t) ||
+      /^state$|\bstate\/province|\bprovince\b/.test(t)
+    ) {
+      return 'commonAnswers.state';
+    }
     if (/\byes\b|\bno\b|agree|acknowledge|accept|confirm|will you|do you|are you|have you|did you/.test(t)) {
       if (/authorized|authoris|legally.*work|permit.*work|eligible.*work|right.*work/.test(t)) {
         return 'commonAnswers.workAuthorization';
@@ -30,7 +45,6 @@ export function inferDataKeyFromLabel(labelText, fieldType) {
       if (/relocate|relocation|remote|hybrid|travel/.test(t)) return 'commonAnswers.relocation';
     }
     if (/country(?!.*phone)/.test(t) && !/united states|u\.s\.|usa/.test(t)) return 'commonAnswers.country';
-    if (/^state$|\bstate\/province|\bprovince\b/.test(t)) return 'commonAnswers.state';
     if (/\bcity\b/.test(t) && !/capacity|velocity/.test(t)) return 'commonAnswers.city';
     if (/\bzip\b|postal|post code/.test(t)) return 'commonAnswers.zip';
   }
@@ -39,6 +53,9 @@ export function inferDataKeyFromLabel(labelText, fieldType) {
     if (t.includes('linkedin')) return 'linkedin';
     if (/\bemail\b|e-mail/.test(t)) return 'email';
     if (/\bmiddle\s*name\b|\bmiddle\s*initial\b/.test(t)) return 'middleName';
+    if (/\bcity\b/.test(t) && !/capacity|velocity/.test(t)) return 'commonAnswers.city';
+    if (/\b(zip|postal|post code)\b/.test(t)) return 'commonAnswers.zip';
+    if (/^state\*?$|^\s*state\s*\*?\s*$/i.test(t) || /^state$/.test(t)) return 'commonAnswers.state';
     if (/\bcountry\b.*\bphone\b.*\bcode\b|\bphone\b.*\bcode\b|\bdial(?:ing)?\s*code\b/.test(t)) return 'unmapped';
     if (/\bphone\s*extension\b|\bextension\b|\bext\.?\b/.test(t)) return 'unmapped';
     if (/\bphone\b|mobile|\btel\b|cell/.test(t)) return 'phone';

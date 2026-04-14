@@ -204,44 +204,153 @@ function extractContact(text) {
   };
 }
 
+/** US full state / territory name (lowercase) → USPS abbreviation */
+const US_STATE_FULL_TO_ABBR = {
+  alabama: 'AL',
+  alaska: 'AK',
+  arizona: 'AZ',
+  arkansas: 'AR',
+  california: 'CA',
+  colorado: 'CO',
+  connecticut: 'CT',
+  delaware: 'DE',
+  'district of columbia': 'DC',
+  florida: 'FL',
+  georgia: 'GA',
+  hawaii: 'HI',
+  idaho: 'ID',
+  illinois: 'IL',
+  indiana: 'IN',
+  iowa: 'IA',
+  kansas: 'KS',
+  kentucky: 'KY',
+  louisiana: 'LA',
+  maine: 'ME',
+  maryland: 'MD',
+  massachusetts: 'MA',
+  michigan: 'MI',
+  minnesota: 'MN',
+  mississippi: 'MS',
+  missouri: 'MO',
+  montana: 'MT',
+  nebraska: 'NE',
+  nevada: 'NV',
+  'new hampshire': 'NH',
+  'new jersey': 'NJ',
+  'new mexico': 'NM',
+  'new york': 'NY',
+  'north carolina': 'NC',
+  'north dakota': 'ND',
+  ohio: 'OH',
+  oklahoma: 'OK',
+  oregon: 'OR',
+  pennsylvania: 'PA',
+  'rhode island': 'RI',
+  'south carolina': 'SC',
+  'south dakota': 'SD',
+  tennessee: 'TN',
+  texas: 'TX',
+  utah: 'UT',
+  vermont: 'VT',
+  virginia: 'VA',
+  washington: 'WA',
+  'west virginia': 'WV',
+  wisconsin: 'WI',
+  wyoming: 'WY',
+  'puerto rico': 'PR',
+  guam: 'GU',
+  'american samoa': 'AS',
+  'virgin islands': 'VI',
+  'northern mariana islands': 'MP',
+};
+
 /**
- * Extract city/state/zip from top resume lines.
- * Handles patterns like "Austin, TX 78701" and "Austin TX 78701".
+ * @param {string} name
+ * @returns {string}
+ */
+function fullStateNameToAbbr(name) {
+  const k = (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return US_STATE_FULL_TO_ABBR[k] || '';
+}
+
+/**
+ * Try to parse one line (or segment) as City, ST / City, State / + ZIP.
+ * @param {string} line
+ * @returns {{ city: string, state: string, zip: string } | null}
+ */
+function parseLocationLine(line) {
+  const s = (line || '').trim();
+  if (!s || EMAIL_RE.test(s) || /^https?:\/\//i.test(s)) return null;
+
+  const cityStateZip = /^([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/;
+  const cityStateZipNoComma = /^([A-Za-z][A-Za-z\s.'-]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/;
+  const cityState = /^([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\b\s*$/;
+  const cityFullStateZip =
+    /^([A-Za-z][A-Za-z\s.'-]+),\s*([A-Za-z][A-Za-z\s]{2,})\s+(\d{5}(?:-\d{4})?)\s*$/;
+  const cityFullState = /^([A-Za-z][A-Za-z\s.'-]+),\s*([A-Za-z][A-Za-z\s]{2,})\s*$/;
+
+  let m = s.match(cityStateZip);
+  if (m) {
+    return { city: m[1].trim(), state: m[2].trim(), zip: m[3].trim() };
+  }
+
+  m = s.match(cityStateZipNoComma);
+  if (m) {
+    return { city: m[1].trim(), state: m[2].trim(), zip: m[3].trim() };
+  }
+
+  m = s.match(cityFullStateZip);
+  if (m) {
+    const abbr = fullStateNameToAbbr(m[2]);
+    if (abbr) return { city: m[1].trim(), state: abbr, zip: m[3].trim() };
+  }
+
+  m = s.match(cityFullState);
+  if (m) {
+    const abbr = fullStateNameToAbbr(m[2]);
+    if (abbr) return { city: m[1].trim(), state: abbr, zip: '' };
+  }
+
+  m = s.match(cityState);
+  if (m) {
+    return { city: m[1].trim(), state: m[2].trim(), zip: '' };
+  }
+
+  return null;
+}
+
+/**
+ * Extract city/state/zip from the header and contact area of the resume.
+ * Handles "Austin, TX 78701", "Austin TX 78701", "Chicago, Illinois 60601", pipe-separated contact lines, and Address:/Location: prefixes.
  * @param {string} text
  * @returns {{ city: string, state: string, zip: string }}
  */
 function extractLocation(text) {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 30);
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 100);
   const location = { city: '', state: '', zip: '' };
 
-  const cityStateZip = /([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/;
-  const cityState = /([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\b/;
-  const cityStateZipNoComma = /([A-Za-z][A-Za-z\s.'-]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/;
+  for (let line of lines) {
+    if (SECTION_HEADERS.test(line) && line.length < 60) break;
 
-  for (const line of lines) {
-    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || /^https?:\/\//i.test(line)) continue;
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(line)) continue;
+    if (PHONE_RE.test(line) && !/[|,]/.test(line)) continue;
 
-    let m = line.match(cityStateZip);
-    if (m) {
-      location.city = m[1].trim();
-      location.state = m[2].trim();
-      location.zip = m[3].trim();
-      return location;
-    }
+    line = line.replace(/^(address|location|residing in|based in|current\s+address)\s*[:\-–—]\s*/i, '').trim();
+    if (!line) continue;
 
-    m = line.match(cityStateZipNoComma);
-    if (m) {
-      location.city = m[1].trim();
-      location.state = m[2].trim();
-      location.zip = m[3].trim();
-      return location;
-    }
+    const segments = line.includes('|') ? line.split('|').map((x) => x.trim()).filter(Boolean) : [line];
 
-    m = line.match(cityState);
-    if (m) {
-      location.city = m[1].trim();
-      location.state = m[2].trim();
-      return location;
+    for (const seg of segments) {
+      if (EMAIL_RE.test(seg) || /^https?:\/\//i.test(seg)) continue;
+      if (PHONE_RE.test(seg) && !/[|,]/.test(seg)) continue;
+
+      const parsed = parseLocationLine(seg);
+      if (parsed && parsed.city && parsed.state) {
+        location.city = parsed.city;
+        location.state = parsed.state;
+        location.zip = parsed.zip || '';
+        return location;
+      }
     }
   }
 

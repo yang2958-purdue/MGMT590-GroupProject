@@ -23,6 +23,40 @@ import { inferDataKeysToTry, labelLooksLikeYesNo } from './fieldInference.js';
  */
 
 /**
+ * True when the label is only the US state / province field (not "country and state" combined rows).
+ * @param {string|undefined} label
+ */
+function labelIsStateOnlyField(label) {
+  const t = String(label || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!/\bstate\b/.test(t)) return false;
+  return (
+    /^state\*?$/.test(t) ||
+    /^state\s*\*?$/.test(t) ||
+    /^state\s*\/\s*province$/i.test(t) ||
+    /^state\s+or\s+province$/i.test(t)
+  );
+}
+
+/**
+ * @param {string|undefined} label
+ */
+function labelIsPhoneDeviceTypeField(label) {
+  const t = String(label || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (
+    /\bphone\b/.test(t) &&
+    /\bdevice\b/.test(t) &&
+    /\btype\b/.test(t) &&
+    !/\bphone\s+number\b/.test(t)
+  );
+}
+
+/**
  * Map extracted form fields to resume / profile values.
  *
  * @param {FormField[]} formFields  - Fields returned by firecrawlAdapter.extractFormFields.
@@ -33,9 +67,27 @@ import { inferDataKeysToTry, labelLooksLikeYesNo } from './fieldInference.js';
 export function mapFields(formFields, resume, userProfile) {
   const lookup = buildLookup(resume, userProfile);
 
+  const hasStateDropdown = formFields.some(
+    (f) => f.fieldType === 'select' && labelIsStateOnlyField(f.label),
+  );
+  const hasPhoneDeviceTypeDropdown = formFields.some(
+    (f) => f.fieldType === 'select' && labelIsPhoneDeviceTypeField(f.label),
+  );
+
   return formFields.map((field) => {
     if (shouldPause(field)) {
       return { field, value: null, status: 'pause_required' };
+    }
+
+    // Workday often exposes a listbox (select) plus a second mirrored control (input).
+    // Filling the text input with "IL" after the dropdown commits can clear the selection (runtime logs
+    // showed State* select then State* input both ready with the same 2-letter value).
+    if (hasStateDropdown && field.fieldType === 'input' && labelIsStateOnlyField(field.label)) {
+      return { field, value: null, status: 'skipped' };
+    }
+
+    if (hasPhoneDeviceTypeDropdown && field.fieldType === 'input' && labelIsPhoneDeviceTypeField(field.label)) {
+      return { field, value: null, status: 'skipped' };
     }
 
     const value = resolveValueForField(field, lookup);
@@ -261,8 +313,11 @@ function getHardcodedValueForField(field) {
     .trim();
 
   if (
-    /phone device type/.test(haystack) ||
-    (/phone/.test(haystack) && /device/.test(haystack) && /type/.test(haystack))
+    !/\bphone\s+number\b/.test(haystack) &&
+    !/\bphone\s+type\b/.test(haystack) &&
+    (/phone\s*device\s*type/.test(haystack) ||
+      /\bphone\s+device\b/.test(haystack) ||
+      (/\bphone\b/.test(haystack) && /\bdevice\b/.test(haystack) && /\btype\b/.test(haystack)))
   ) {
     return 'Mobile';
   }

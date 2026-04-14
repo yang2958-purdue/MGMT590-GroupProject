@@ -382,3 +382,45 @@
 **Prompt:** Implement the plan "LLM-based skill extraction for ATS scoring and tailoring": OpenAI via Flask `/extract-skills`, prompts in `python-server/prompts/skills_extraction.py`, shared overlap in `skillMatch.js`, async `scoreJob` + `targetPage` wiring, async tailor with heuristic fallback, README updates.
 
 **Outcome:** Added `python-server/prompts/` with tunable skill prompts; implemented `POST /extract-skills` in `server.py`; added `llmSkillExtractor.js` and `skillMatch.js`; updated `scorer.js`, `tailor.js`, `targetPage.js`; documented §4.2 and project structure in `README.md`.
+
+## 2026-04-14 - Autofill: phone device type + location parsing
+
+**Prompt:** The autofill function is struggling to fill in some fields (address and phone device type). Phone device type should default to mobile or whichever mobile-adjacent choice is present. The parser is not extracting location from the resume even though it is present, so location is not getting filled out.
+
+**Outcome:** Improved `extractLocation` in `resumeParser.js` (full US state names, pipe-separated contact lines, Address/Location prefixes, longer header scan; maps full names to USPS abbreviations). `fieldFiller.js` now matches mobile/cell/cellular/wireless dropdown options and tries multiple search tokens when filling custom comboboxes. `fieldMapper.js` hardcoded label rules for phone device type were tightened to avoid phone-number fields. `fieldInference.js` recognizes phone device type selects. `server.py` LLM resume prompt now explicitly asks for location extraction. Resume upload debug matrix includes city/state/ZIP. README updated.
+
+## 2026-04-14 - Autofill: location fields not filling (field inference)
+
+**Prompt:** Issue reproduced (debug matrix shows location but form fields not filled); proceed after log analysis.
+
+**Outcome:** Runtime logs (`debug-4efe86.log`) showed `keysToTryCount: 0` for City/Postal text inputs with `primaryInferKey: unmapped` (city/zip only inferred for select/radio), and State select used `suggestedDataKey: commonAnswers.country` because `contextLabel` concatenated `name` containing "country". Fixed by mapping city/postal/state for **input** types in `fieldInference.js`, evaluating **state before country** for selects, and inferring `suggestedDataKey` from label/placeholder only in `domFieldScanner.js`. Debug instrumentation kept for verification pass.
+
+## 2026-04-14 - Autofill: State + Phone Device Type dropdowns (Workday)
+
+**Prompt:** City text box fills; State and Phone Device Type dropdowns still fail.
+
+**Outcome:** Logs showed `locationFieldResolved` for State with a 2-character value (lookup works). Filling failed because Workday options use **full state names** and **listbox** UIs, not raw `<option value="IL">`. Added `usStateAbbrev.js` (`abbrToFullStateName`), expanded native `findMatchingOption` for abbrev→full name, `buildComboboxSearchTokens` to try full name before abbrev, `setComboboxValue` calls `clickWorkdayPromptOptionByToken` with `allowFallback: false` to avoid picking the wrong row. Same path helps Phone Device Type when the generic option finder misses.
+
+## 2026-04-14 - Autofill: dropdown selection not sticking after blur
+
+**Prompt:** Dropdown appears to pick the correct option but the choice does not stay after clicking away; asks if autofill is not confirming or is moving too fast.
+
+**Outcome:** Removed immediate `blur` on the combobox trigger after option selection (it fired before Workday/React committed). Added `settleSelection` (refocus `el`, 300ms sleep, then `input`/`change`), `mousedown`/`mouseup` around generic option `click`, and an extra 220ms pause after any `fieldType === 'select'` before the normal inter-field delay so the next field does not steal focus too early.
+
+## 2026-04-14 - Autofill: dropdown selection still reverting
+
+**Prompt:** Issue reproduced (dropdown picks correctly then value does not stick).
+
+**Outcome:** Logs still only showed mapper/fill attempts, not DOM commit. Removed **synthetic `input`/`change` on the trigger** after selection (likely reset React/Workday state). Added `waitForWorkdayListboxToSettle` until the active listbox is hidden or detached, then a 350ms pause. Scoped `findCustomDropdownOption` to the active list container to avoid clicking stale options. Increased post-`clickWorkdayPromptOptionByToken` sleep and inter-field select buffer to 320ms.
+
+## 2026-04-14 - Autofill: duplicate State / Phone Device controls revert selection
+
+**Prompt:** Issue reproduced again (dropdown selection not sticking).
+
+**Outcome:** Runtime logs showed **two** ready fields with the same **State\*** label (`select` then `input`) both mapped to the 2-letter state, with fill attempts ~1.2s apart — the second fill likely overwrote the Workday combobox. `mapFields` now skips **State** and **Phone Device Type** **text inputs** when a **select** for the same label exists on the page. Instrumentation logs `skipDuplicateStateInput` / `skipDuplicatePhoneDeviceTypeInput` with `hypothesisId: H_dup`.
+
+## 2026-04-14 - Remove autofill debug instrumentation
+
+**Prompt:** The issue has been fixed. Please clean up the instrumentation.
+
+**Outcome:** Removed all `fetch`-to-ingest debug blocks and `#region agent log` sections from `fieldMapper.js` (`resolveValueForField`, duplicate state/phone skips) and `fieldFiller.js` (`fillFieldsSequentially`). Dropped unused `inferDataKeyFromLabel` import from `fieldMapper.js`. Restored `mapFields` JSDoc placement above `export function mapFields`.
