@@ -6,13 +6,14 @@
  *
  * Message types handled:
  *   EXTRACT_FIELDS_DOM — return FormField[] from a live DOM scan
+ *   PREPARE_WORKDAY_REPEATERS — click Add on Work Experience / Education so row fields exist
  *   FILL_FIELDS       — start sequential filling with a FilledField[] array
  *   RESUME_AUTOFILL   — continue after a pause_required field
  *   SKIP_FIELD        — skip the paused field and move on
  *   PAUSE_AUTOFILL    — user-initiated pause from the side panel
  */
 
-import { fillFieldsSequentially } from '../modules/autofill/fieldFiller.js';
+import { fillFieldsSequentially, prepareWorkdayRepeatersForAutofill } from '../modules/autofill/fieldFiller.js';
 import { scanFormFieldsInDocument } from '../modules/autofill/domFieldScanner.js';
 
 const BOUND = '__jobbotContentScriptMsgBound';
@@ -41,6 +42,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case 'EXTRACT_FIELDS_DOM': {
       const fields = scanFormFieldsInDocument();
       sendResponse({ ok: true, fields });
+      return true;
+    }
+
+    case 'PREPARE_WORKDAY_REPEATERS': {
+      prepareWorkdayRepeatersForAutofill()
+        .then(() => sendResponse({ ok: true }))
+        .catch((e) =>
+          sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }),
+        );
       return true;
     }
 

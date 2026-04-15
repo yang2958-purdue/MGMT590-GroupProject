@@ -123,6 +123,25 @@ export async function runAutofillPipeline(tabId, pageUrl) {
 
   const resume = await getResume();
   const profile = await getUserProfile();
+
+  if (shouldPrepareWorkdayRepeaters(resume)) {
+    try {
+      await tabSendMessageWithContentScriptFallback(
+        tabId,
+        { type: 'PREPARE_WORKDAY_REPEATERS' },
+        { injectFrameId: typeof contentFrameId === 'number' ? contentFrameId : undefined },
+      );
+    } catch {
+      /* ignore — mapping still runs with whatever fields exist */
+    }
+    await delay(1200);
+    const scanAfter = await requestDomFieldScan(tabId);
+    if (scanAfter.fields.length) {
+      formFields = scanAfter.fields;
+      if (typeof scanAfter.frameId === 'number') contentFrameId = scanAfter.frameId;
+    }
+  }
+
   const filledFields = mapFields(formFields, resume, profile);
 
   const nonSkipped = filledFields.filter((f) => f.status !== 'skipped');
@@ -397,6 +416,26 @@ async function requestDomFieldScan(tabId) {
  * @param {number} tabId
  * @returns {Promise<void>}
  */
+/**
+ * @param {import('../resumeParser.js').ResumeData | null} resume
+ */
+function shouldPrepareWorkdayRepeaters(resume) {
+  if (!resume) return false;
+  const ex = resume.experience?.[0];
+  const ed = resume.education?.[0];
+  const hasWork = !!(ex && (String(ex.title || '').trim() || String(ex.company || '').trim()));
+  const hasEdu = !!(ed && (String(ed.school || '').trim() || String(ed.degree || '').trim()));
+  return hasWork || hasEdu;
+}
+
+/**
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function waitForTabLoad(tabId) {
   return new Promise((resolve) => {
     function listener(updatedTabId, changeInfo) {

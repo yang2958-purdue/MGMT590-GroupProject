@@ -18,6 +18,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
  * @property {string} title
  * @property {string} company
  * @property {string} dates
+ * @property {string} [location] - Job site / employment location when parsed (not mailing address).
  * @property {string[]} bullets
  */
 
@@ -204,44 +205,153 @@ function extractContact(text) {
   };
 }
 
+/** US full state / territory name (lowercase) → USPS abbreviation */
+const US_STATE_FULL_TO_ABBR = {
+  alabama: 'AL',
+  alaska: 'AK',
+  arizona: 'AZ',
+  arkansas: 'AR',
+  california: 'CA',
+  colorado: 'CO',
+  connecticut: 'CT',
+  delaware: 'DE',
+  'district of columbia': 'DC',
+  florida: 'FL',
+  georgia: 'GA',
+  hawaii: 'HI',
+  idaho: 'ID',
+  illinois: 'IL',
+  indiana: 'IN',
+  iowa: 'IA',
+  kansas: 'KS',
+  kentucky: 'KY',
+  louisiana: 'LA',
+  maine: 'ME',
+  maryland: 'MD',
+  massachusetts: 'MA',
+  michigan: 'MI',
+  minnesota: 'MN',
+  mississippi: 'MS',
+  missouri: 'MO',
+  montana: 'MT',
+  nebraska: 'NE',
+  nevada: 'NV',
+  'new hampshire': 'NH',
+  'new jersey': 'NJ',
+  'new mexico': 'NM',
+  'new york': 'NY',
+  'north carolina': 'NC',
+  'north dakota': 'ND',
+  ohio: 'OH',
+  oklahoma: 'OK',
+  oregon: 'OR',
+  pennsylvania: 'PA',
+  'rhode island': 'RI',
+  'south carolina': 'SC',
+  'south dakota': 'SD',
+  tennessee: 'TN',
+  texas: 'TX',
+  utah: 'UT',
+  vermont: 'VT',
+  virginia: 'VA',
+  washington: 'WA',
+  'west virginia': 'WV',
+  wisconsin: 'WI',
+  wyoming: 'WY',
+  'puerto rico': 'PR',
+  guam: 'GU',
+  'american samoa': 'AS',
+  'virgin islands': 'VI',
+  'northern mariana islands': 'MP',
+};
+
 /**
- * Extract city/state/zip from top resume lines.
- * Handles patterns like "Austin, TX 78701" and "Austin TX 78701".
+ * @param {string} name
+ * @returns {string}
+ */
+function fullStateNameToAbbr(name) {
+  const k = (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return US_STATE_FULL_TO_ABBR[k] || '';
+}
+
+/**
+ * Try to parse one line (or segment) as City, ST / City, State / + ZIP.
+ * @param {string} line
+ * @returns {{ city: string, state: string, zip: string } | null}
+ */
+function parseLocationLine(line) {
+  const s = (line || '').trim();
+  if (!s || EMAIL_RE.test(s) || /^https?:\/\//i.test(s)) return null;
+
+  const cityStateZip = /^([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/;
+  const cityStateZipNoComma = /^([A-Za-z][A-Za-z\s.'-]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/;
+  const cityState = /^([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\b\s*$/;
+  const cityFullStateZip =
+    /^([A-Za-z][A-Za-z\s.'-]+),\s*([A-Za-z][A-Za-z\s]{2,})\s+(\d{5}(?:-\d{4})?)\s*$/;
+  const cityFullState = /^([A-Za-z][A-Za-z\s.'-]+),\s*([A-Za-z][A-Za-z\s]{2,})\s*$/;
+
+  let m = s.match(cityStateZip);
+  if (m) {
+    return { city: m[1].trim(), state: m[2].trim(), zip: m[3].trim() };
+  }
+
+  m = s.match(cityStateZipNoComma);
+  if (m) {
+    return { city: m[1].trim(), state: m[2].trim(), zip: m[3].trim() };
+  }
+
+  m = s.match(cityFullStateZip);
+  if (m) {
+    const abbr = fullStateNameToAbbr(m[2]);
+    if (abbr) return { city: m[1].trim(), state: abbr, zip: m[3].trim() };
+  }
+
+  m = s.match(cityFullState);
+  if (m) {
+    const abbr = fullStateNameToAbbr(m[2]);
+    if (abbr) return { city: m[1].trim(), state: abbr, zip: '' };
+  }
+
+  m = s.match(cityState);
+  if (m) {
+    return { city: m[1].trim(), state: m[2].trim(), zip: '' };
+  }
+
+  return null;
+}
+
+/**
+ * Extract city/state/zip from the header and contact area of the resume.
+ * Handles "Austin, TX 78701", "Austin TX 78701", "Chicago, Illinois 60601", pipe-separated contact lines, and Address:/Location: prefixes.
  * @param {string} text
  * @returns {{ city: string, state: string, zip: string }}
  */
 function extractLocation(text) {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 30);
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 100);
   const location = { city: '', state: '', zip: '' };
 
-  const cityStateZip = /([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/;
-  const cityState = /([A-Za-z][A-Za-z\s.'-]+?),\s*([A-Z]{2})\b/;
-  const cityStateZipNoComma = /([A-Za-z][A-Za-z\s.'-]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/;
+  for (let line of lines) {
+    if (SECTION_HEADERS.test(line) && line.length < 60) break;
 
-  for (const line of lines) {
-    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || /^https?:\/\//i.test(line)) continue;
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(line)) continue;
+    if (PHONE_RE.test(line) && !/[|,]/.test(line)) continue;
 
-    let m = line.match(cityStateZip);
-    if (m) {
-      location.city = m[1].trim();
-      location.state = m[2].trim();
-      location.zip = m[3].trim();
-      return location;
-    }
+    line = line.replace(/^(address|location|residing in|based in|current\s+address)\s*[:\-–—]\s*/i, '').trim();
+    if (!line) continue;
 
-    m = line.match(cityStateZipNoComma);
-    if (m) {
-      location.city = m[1].trim();
-      location.state = m[2].trim();
-      location.zip = m[3].trim();
-      return location;
-    }
+    const segments = line.includes('|') ? line.split('|').map((x) => x.trim()).filter(Boolean) : [line];
 
-    m = line.match(cityState);
-    if (m) {
-      location.city = m[1].trim();
-      location.state = m[2].trim();
-      return location;
+    for (const seg of segments) {
+      if (EMAIL_RE.test(seg) || /^https?:\/\//i.test(seg)) continue;
+      if (PHONE_RE.test(seg) && !/[|,]/.test(seg)) continue;
+
+      const parsed = parseLocationLine(seg);
+      if (parsed && parsed.city && parsed.state) {
+        location.city = parsed.city;
+        location.state = parsed.state;
+        location.zip = parsed.zip || '';
+        return location;
+      }
     }
   }
 
@@ -251,10 +361,101 @@ function extractLocation(text) {
 const SKILLS_PREFIXES = ['skills', 'technical skills', 'core competencies', 'technologies', 'proficiencies', 'tools', 'expertise'];
 const SPLIT_RE = /[,|•·▪■►●;]/;
 
+const EXP_PREFIXES = ['experience', 'work experience', 'professional experience', 'employment'];
+const PROJECT_PREFIXES = [
+  'projects',
+  'selected projects',
+  'personal projects',
+  'key projects',
+  'academic projects',
+  'side projects',
+];
+
+/**
+ * @param {string[]} items
+ * @returns {string[]}
+ */
+function dedupeSkillsCaseInsensitive(items) {
+  const seen = new Set();
+  const out = [];
+  for (const s of items) {
+    const t = String(s).trim();
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
+}
+
+/**
+ * Pull skill-like tokens from experience and project bullets (parentheticals, "Tech:", comma lists).
+ * @param {string} blocks
+ * @returns {string[]}
+ */
+function extractSkillsFromTechnicalText(blocks) {
+  const skills = [];
+  const lines = blocks.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const labelMatch = trimmed.match(
+      /\b(?:technologies|tech stack|tools|stack|built with|using|environment)\s*[:\-–]\s*(.+)$/i,
+    );
+    if (labelMatch) {
+      skills.push(...parseSkillsList(labelMatch[1]));
+    }
+
+    for (const m of trimmed.matchAll(/\(([^)]+)\)/g)) {
+      const inner = m[1];
+      if (inner.length > 140) continue;
+      if (SPLIT_RE.test(inner) || inner.includes(',')) {
+        skills.push(...parseSkillsList(inner));
+      }
+    }
+
+    if (/^[\-–—*•]/.test(trimmed)) {
+      const afterBullet = trimmed.replace(/^[\-–—*•\s]+/, '');
+      const chunk = afterBullet.includes(':')
+        ? afterBullet
+            .split(':')
+            .slice(1)
+            .join(':')
+            .trim()
+        : afterBullet;
+      const parts = chunk.split(SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        for (const part of parts) {
+          const c = part.replace(/^[\s\-–—*]+/, '').replace(/[\s\-–—*.]+$/, '');
+          if (isLikelySkill(c)) skills.push(c);
+        }
+      }
+    }
+  }
+
+  return dedupeSkillsCaseInsensitive(skills);
+}
+
+/**
+ * @param {string} text
+ * @returns {string[]}
+ */
+function extractSkillsFromExperienceAndProjects(text) {
+  const sections = splitSections(text);
+  const exp = findSection(sections, EXP_PREFIXES);
+  const proj = findSection(sections, PROJECT_PREFIXES);
+  const blocks = [exp, proj].filter(Boolean).join('\n\n');
+  if (!blocks.trim()) return [];
+  return extractSkillsFromTechnicalText(blocks);
+}
+
 /**
  * Extract skills from the resume text.
- * Finds the skills section and splits on common delimiters.
- * Falls back to scanning for short comma-separated phrases if no section is found.
+ * Uses a dedicated Skills section when present; also mines experience/project bullets for tools and technologies.
+ * Falls back to scanning for short comma-separated phrases if no skills section is found.
  * @param {string} text
  * @returns {string[]}
  */
@@ -262,11 +463,10 @@ function extractSkills(text) {
   const sections = splitSections(text);
   const skillsText = findSection(sections, SKILLS_PREFIXES);
 
-  if (skillsText) {
-    return parseSkillsList(skillsText);
-  }
+  const fromSection = skillsText ? parseSkillsList(skillsText) : fallbackSkillsScan(text);
+  const fromExpProj = extractSkillsFromExperienceAndProjects(text);
 
-  return fallbackSkillsScan(text);
+  return dedupeSkillsCaseInsensitive([...fromSection, ...fromExpProj]);
 }
 
 /**
@@ -335,8 +535,31 @@ function isLikelySkill(token) {
   return true;
 }
 
-const EXP_PREFIXES = ['experience', 'work experience', 'professional experience', 'employment'];
 const DATE_RE = /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*(?:[-–—]\s*(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|Present|Current))?|\d{1,2}\/\d{4}\s*[-–—]\s*(?:\d{1,2}\/\d{4}|Present|Current)|\d{4}\s*[-–—]\s*(?:\d{4}|Present|Current)/i;
+
+/**
+ * @param {string} s
+ * @returns {boolean}
+ */
+function looksLikeJobLocationLine(s) {
+  const t = (s || '').trim();
+  if (!t || t.length < 2 || t.length > 80) return false;
+  if (DATE_RE.test(t)) return false;
+  if (/^\d[\d\s\-().]+$/.test(t)) return false;
+  if (/^(remote|hybrid|on-?site)\s*$/i.test(t)) return true;
+  return /^[A-Za-z][A-Za-z\s.'-]+?,\s*([A-Z]{2}|[A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)?)\s*$/.test(t);
+}
+
+/**
+ * @param {string} line
+ * @returns {string}
+ */
+function extractJobLocationFromPipe(line) {
+  const parts = String(line || '').split(/\s*\|\s*/);
+  if (parts.length < 2) return '';
+  const right = parts.slice(1).join('|').trim();
+  return looksLikeJobLocationLine(right) ? right : '';
+}
 
 /**
  * Extract work experience entries from the resume text.
@@ -390,6 +613,7 @@ function extractExperience(text) {
         company,
         dates: dateStr,
         bullets: [],
+        location: '',
       };
       recentHeaderLines.length = 0;
       continue;
@@ -402,8 +626,14 @@ function extractExperience(text) {
     }
 
     if (current) {
+      if (!current.location && looksLikeJobLocationLine(trimmed)) {
+        current.location = trimmed;
+        continue;
+      }
       // Many resumes place company/title on lines adjacent to dates.
       if (!current.company && looksLikeCompanyLine(trimmed)) {
+        const locPipe = extractJobLocationFromPipe(trimmed);
+        if (locPipe) current.location = locPipe;
         current.company = extractCompanyFromLine(trimmed);
         continue;
       }
