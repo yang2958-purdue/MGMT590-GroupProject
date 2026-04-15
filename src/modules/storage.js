@@ -13,6 +13,9 @@ export const KEYS = {
   USER_PROFILE: 'jobbot_userProfile',
   SETTINGS: 'jobbot_settings',
   AUTOFILL_STATE: 'jobbot_autofillState',
+  /** Persistent API keys (see `src/lib/apiKeys.js`). */
+  FIRECRAWL_API_KEY: 'jobbot_firecrawlApiKey',
+  OPENAI_API_KEY: 'jobbot_openaiApiKey',
 
   // BACKLOG: Application tracking table (company, title, date, link, resume used, status)
   // TRACKING: 'jobbot_tracking',

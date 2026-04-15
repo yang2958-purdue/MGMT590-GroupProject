@@ -56,6 +56,14 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _openai_api_key_from_request() -> str:
+    """Prefer per-request key from the extension; fall back to server environment."""
+    header_key = (request.headers.get("X-OpenAI-API-Key") or "").strip()
+    if header_key:
+        return header_key
+    return os.getenv("OPENAI_API_KEY", "").strip()
+
+
 def _warn_if_openai_line_empty_in_env_files() -> None:
     """If `.env` contains `OPENAI_API_KEY=` with nothing after `=`, explain why the key is missing."""
     for p in (_project_root / ".env", _server_dir / ".env"):
@@ -86,7 +94,7 @@ else:
     _warn_if_openai_line_empty_in_env_files()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, allow_headers=["Content-Type", "X-OpenAI-API-Key"])
 
 KNOWN_UNIVERSITIES = [
     "Purdue University",
@@ -133,7 +141,12 @@ log.info("Active scraper adapter: %s", config.ACTIVE_ADAPTER)
 @app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint used by the browser extension."""
-    return jsonify({"status": "ok"})
+    return jsonify(
+        {
+            "status": "ok",
+            "openai_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+        }
+    )
 
 
 @app.route("/scrape", methods=["POST"])
@@ -186,9 +199,14 @@ def parse_resume_llm():
     if not raw_text:
         return jsonify({"error": "Missing rawText"}), 400
 
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = _openai_api_key_from_request()
     if not api_key:
-        return jsonify({"error": "OPENAI_API_KEY is not set on python server"}), 400
+        return jsonify(
+            {
+                "error": "OPENAI_API_KEY is not set. Add it in the extension (Settings → API keys) "
+                "or in project `.env` / `python-server/.env` for the server."
+            }
+        ), 400
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
     raw_text = raw_text[:24000]
@@ -293,9 +311,14 @@ def extract_skills():
     if kind not in ("resume", "job"):
         return jsonify({"error": 'kind must be "resume" or "job"'}), 400
 
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = _openai_api_key_from_request()
     if not api_key:
-        return jsonify({"error": "OPENAI_API_KEY is not set on python server"}), 400
+        return jsonify(
+            {
+                "error": "OPENAI_API_KEY is not set. Add it in the extension (Settings → API keys) "
+                "or in project `.env` / `python-server/.env` for the server."
+            }
+        ), 400
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
     text = text[:24000]

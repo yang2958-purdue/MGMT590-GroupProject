@@ -1,9 +1,6 @@
-// CONFIG: set your Firecrawl API key in config/firecrawl.config.js
-import {
-  FIRECRAWL_API_KEY,
-  FIRECRAWL_BASE_URL,
-  USE_MOCK,
-} from '../../config/firecrawl.config.js';
+// CONFIG: optional build-time key in config/firecrawl.config.js; runtime prefers chrome.storage (see apiKeys.js)
+import { FIRECRAWL_BASE_URL, USE_MOCK } from '../../config/firecrawl.config.js';
+import { getResolvedFirecrawlApiKey } from '../../lib/apiKeys.js';
 
 /**
  * @typedef {Object} ScrapeResult
@@ -49,11 +46,12 @@ export function shouldSkipRemoteExtract(url) {
 export async function scrapePageContent(url) {
   if (USE_MOCK) return getMockScrapeResult(url);
 
+  const apiKey = await getResolvedFirecrawlApiKey();
   const res = await fetch(`${FIRECRAWL_BASE_URL}/scrape`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({ url, formats: ['markdown', 'html'] }),
   });
@@ -84,7 +82,8 @@ export async function extractFormFields(url) {
     return getMockFormFields();
   }
 
-  if (!FIRECRAWL_API_KEY?.trim()) {
+  const apiKey = await getResolvedFirecrawlApiKey();
+  if (!apiKey) {
     return [];
   }
 
@@ -116,7 +115,7 @@ export async function extractFormFields(url) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       urls: [url],

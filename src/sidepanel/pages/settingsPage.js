@@ -1,15 +1,22 @@
 /**
- * Settings page: scraper status, expanded user profile, resume overrides, custom autofill keys.
+ * Settings page: scraper status, API keys, expanded user profile, resume overrides, custom autofill keys.
  * @param {HTMLElement} container
  */
-import { getUserProfile, setUserProfile } from '../../modules/storage.js';
+import { invalidateApiKeyValidationCache, validateResolvedApiKeys } from '../../lib/apiKeyValidation.js';
 import { SCRAPER_URL } from '../../lib/constants.js';
+import { getUserProfile, setUserProfile, get, set, remove, KEYS } from '../../modules/storage.js';
 
 export async function renderSettingsPage(container) {
   container.innerHTML = `
     <h1>Settings</h1>
-    <p class="text-muted mt-8">Configure your profile, resume corrections, and server connection.</p>
+    <p class="text-muted mt-8">Configure API keys, your profile, resume corrections, and server connection.</p>
 
+    <div class="settings-subtabs" role="tablist" aria-label="Settings sections">
+      <button type="button" id="tab-profile" class="settings-subtab settings-subtab--active" role="tab" aria-selected="true" aria-controls="panel-profile">Profile</button>
+      <button type="button" id="tab-apikeys" class="settings-subtab" role="tab" aria-selected="false" aria-controls="panel-apikeys">API keys</button>
+    </div>
+
+    <div id="panel-profile" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-profile">
     <div class="card mt-16">
       <h3>Scraper Server</h3>
       <p class="text-muted text-sm mt-8">
@@ -168,11 +175,257 @@ export async function renderSettingsPage(container) {
       <button type="button" id="btn-save-profile" class="btn btn-primary">Save profile</button>
       <span id="profile-save-status" class="text-muted text-sm ml-12" role="status"></span>
     </div>
+    </div>
+
+    <div id="panel-apikeys" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-apikeys" hidden>
+    <div id="api-keys-validation-banner" class="card mt-16">
+      <h3>Key checks</h3>
+      <p id="api-keys-validation-status" class="text-muted text-sm mt-8">Open this tab to verify keys.</p>
+      <div id="api-keys-validation-details" class="mt-12"></div>
+    </div>
+
+    <div class="card mt-16">
+      <h3>About API keys</h3>
+      <p class="text-muted text-sm mt-8">
+        Keys are stored in <code>chrome.storage.local</code> for this browser profile. They are not synced to the Python server except OpenAI: the extension sends your OpenAI key to the local server only in request headers when you use LLM features.
+      </p>
+      <ul class="text-muted text-sm mt-8" style="padding-left:1.25rem;">
+        <li><strong>Firecrawl:</strong> extension storage first, then <code>VITE_FIRECRAWL_API_KEY</code> at build time if storage is empty.</li>
+        <li><strong>OpenAI:</strong> extension storage first (sent to <code>localhost:5001</code>); if not set, the server uses <code>OPENAI_API_KEY</code> from its <code>.env</code>.</li>
+      </ul>
+    </div>
+
+    <div class="card mt-16">
+      <h3>Firecrawl API key</h3>
+      <p id="api-key-firecrawl-status" class="text-muted text-sm mt-8"></p>
+      <div class="mt-12">
+        <label for="api-key-firecrawl">Key</label>
+        <input type="password" id="api-key-firecrawl" autocomplete="off" spellcheck="false" placeholder="Paste key to save (hidden)" />
+      </div>
+      <div class="mt-12 flex gap-8 flex-wrap align-start">
+        <button type="button" id="btn-save-api-firecrawl" class="btn btn-sm btn-primary">Save</button>
+        <button type="button" id="btn-clear-api-firecrawl" class="btn btn-sm btn-danger">Clear stored key</button>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <h3>OpenAI API key</h3>
+      <p id="api-key-openai-status" class="text-muted text-sm mt-8"></p>
+      <div class="mt-12">
+        <label for="api-key-openai">Key</label>
+        <input type="password" id="api-key-openai" autocomplete="off" spellcheck="false" placeholder="Paste key to save (hidden)" />
+      </div>
+      <div class="mt-12 flex gap-8 flex-wrap align-start">
+        <button type="button" id="btn-save-api-openai" class="btn btn-sm btn-primary">Save</button>
+        <button type="button" id="btn-clear-api-openai" class="btn btn-sm btn-danger">Clear stored key</button>
+      </div>
+    </div>
+
+    <p id="api-keys-save-status" class="text-muted text-sm mt-16" role="status"></p>
+    </div>
   `;
 
+  wireSettingsTabs(container);
   await refreshServerStatus(container);
   await loadProfileIntoForm(container);
   wireProfileForm(container);
+  await refreshApiKeyStatus(container);
+  wireApiKeysForm(container);
+}
+
+/**
+ * @param {HTMLElement} container
+ */
+function wireSettingsTabs(container) {
+  const btnProfile = container.querySelector('#tab-profile');
+  const btnApi = container.querySelector('#tab-apikeys');
+  const panelProfile = container.querySelector('#panel-profile');
+  const panelApi = container.querySelector('#panel-apikeys');
+
+  /**
+   * @param {'profile' | 'apikeys'} name
+   */
+  function show(name) {
+    const profile = name === 'profile';
+    if (panelProfile) panelProfile.hidden = !profile;
+    if (panelApi) panelApi.hidden = profile;
+    btnProfile?.classList.toggle('settings-subtab--active', profile);
+    btnApi?.classList.toggle('settings-subtab--active', !profile);
+    btnProfile?.setAttribute('aria-selected', profile ? 'true' : 'false');
+    btnApi?.setAttribute('aria-selected', profile ? 'false' : 'true');
+  }
+
+  btnProfile?.addEventListener('click', () => show('profile'));
+  btnApi?.addEventListener('click', () => {
+    show('apikeys');
+    void refreshApiKeyValidation(container);
+  });
+}
+
+/**
+ * @param {HTMLElement} container
+ */
+async function refreshApiKeyStatus(container) {
+  const fc = await get(KEYS.FIRECRAWL_API_KEY);
+  const oa = await get(KEYS.OPENAI_API_KEY);
+  const hasFc = fc != null && String(fc).trim().length > 0;
+  const hasOa = oa != null && String(oa).trim().length > 0;
+
+  const elFc = container.querySelector('#api-key-firecrawl-status');
+  const elOa = container.querySelector('#api-key-openai-status');
+  if (elFc) {
+    elFc.textContent = hasFc
+      ? 'A Firecrawl key is saved in this browser. Enter a new value and Save to replace it.'
+      : 'No key in storage. You can set VITE_FIRECRAWL_API_KEY at build time instead.';
+  }
+  if (elOa) {
+    elOa.textContent = hasOa
+      ? 'An OpenAI key is saved in this browser. Enter a new value and Save to replace it.'
+      : 'No key in storage. The Python server can use OPENAI_API_KEY from its .env instead.';
+  }
+}
+
+/**
+ * Live validation against Firecrawl / OpenAI (and server health for OpenAI fallback).
+ * @param {HTMLElement} container
+ */
+async function refreshApiKeyValidation(container) {
+  const statusEl = container.querySelector('#api-keys-validation-status');
+  const body = container.querySelector('#api-keys-validation-details');
+  if (statusEl) statusEl.textContent = 'Checking keys…';
+  if (body) body.innerHTML = '';
+
+  try {
+    invalidateApiKeyValidationCache();
+    const { firecrawl, openai } = await validateResolvedApiKeys();
+
+    const problem = (s) => !s.ok && s.kind !== 'missing';
+    const warnOnly = (s) => !s.ok && s.kind === 'missing';
+    const hasProblem = problem(firecrawl) || problem(openai);
+    const hasWarn = warnOnly(firecrawl) || warnOnly(openai);
+
+    if (statusEl) {
+      if (hasProblem) statusEl.textContent = 'Invalid or unreachable key — see below.';
+      else if (hasWarn) statusEl.textContent = 'Some keys are unset — optional features may be limited.';
+      else statusEl.textContent = 'Checked keys look good.';
+    }
+
+    if (body) {
+      body.innerHTML = [renderValidationRow('Firecrawl', firecrawl), renderValidationRow('OpenAI', openai)].join('');
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (statusEl) statusEl.textContent = 'Validation failed.';
+    if (body) body.innerHTML = `<p class="api-key-line api-key-line--err">${esc(msg)}</p>`;
+  }
+}
+
+/**
+ * @param {string} label
+ * @param {{ ok: boolean; kind: string; message: string }} slice
+ */
+function renderValidationRow(label, slice) {
+  const okish = slice.ok || slice.kind === 'server';
+  const cls = okish
+    ? 'api-key-line--ok'
+    : slice.kind === 'missing'
+      ? 'api-key-line--warn'
+      : 'api-key-line--err';
+  return `<p class="api-key-line ${cls}"><strong>${esc(label)}</strong> — ${esc(slice.message)}</p>`;
+}
+
+/**
+ * @param {HTMLElement} container
+ */
+function wireApiKeysForm(container) {
+  const status = container.querySelector('#api-keys-save-status');
+
+  const saveFc = container.querySelector('#btn-save-api-firecrawl');
+  const saveOa = container.querySelector('#btn-save-api-openai');
+  const clearFc = container.querySelector('#btn-clear-api-firecrawl');
+  const clearOa = container.querySelector('#btn-clear-api-openai');
+
+  saveFc?.addEventListener('click', async () => {
+    const raw = container.querySelector('#api-key-firecrawl')?.value?.trim() ?? '';
+    if (!raw) {
+      if (status) status.textContent = 'Enter a Firecrawl key before saving.';
+      return;
+    }
+    if (status) status.textContent = 'Saving…';
+    try {
+      await set(KEYS.FIRECRAWL_API_KEY, raw);
+      const input = container.querySelector('#api-key-firecrawl');
+      if (input) input.value = '';
+      await refreshApiKeyStatus(container);
+      invalidateApiKeyValidationCache();
+      await refreshApiKeyValidation(container);
+      if (status) status.textContent = 'Firecrawl key saved.';
+      setTimeout(() => {
+        if (status?.textContent === 'Firecrawl key saved.') status.textContent = '';
+      }, 2500);
+    } catch (e) {
+      if (status) status.textContent = 'Save failed.';
+      console.error(e);
+    }
+  });
+
+  saveOa?.addEventListener('click', async () => {
+    const raw = container.querySelector('#api-key-openai')?.value?.trim() ?? '';
+    if (!raw) {
+      if (status) status.textContent = 'Enter an OpenAI key before saving.';
+      return;
+    }
+    if (status) status.textContent = 'Saving…';
+    try {
+      await set(KEYS.OPENAI_API_KEY, raw);
+      const input = container.querySelector('#api-key-openai');
+      if (input) input.value = '';
+      await refreshApiKeyStatus(container);
+      invalidateApiKeyValidationCache();
+      await refreshApiKeyValidation(container);
+      if (status) status.textContent = 'OpenAI key saved.';
+      setTimeout(() => {
+        if (status?.textContent === 'OpenAI key saved.') status.textContent = '';
+      }, 2500);
+    } catch (e) {
+      if (status) status.textContent = 'Save failed.';
+      console.error(e);
+    }
+  });
+
+  clearFc?.addEventListener('click', async () => {
+    if (status) status.textContent = 'Clearing…';
+    try {
+      await remove(KEYS.FIRECRAWL_API_KEY);
+      await refreshApiKeyStatus(container);
+      invalidateApiKeyValidationCache();
+      await refreshApiKeyValidation(container);
+      if (status) status.textContent = 'Firecrawl key cleared.';
+      setTimeout(() => {
+        if (status?.textContent === 'Firecrawl key cleared.') status.textContent = '';
+      }, 2500);
+    } catch (e) {
+      if (status) status.textContent = 'Clear failed.';
+      console.error(e);
+    }
+  });
+
+  clearOa?.addEventListener('click', async () => {
+    if (status) status.textContent = 'Clearing…';
+    try {
+      await remove(KEYS.OPENAI_API_KEY);
+      await refreshApiKeyStatus(container);
+      invalidateApiKeyValidationCache();
+      await refreshApiKeyValidation(container);
+      if (status) status.textContent = 'OpenAI key cleared.';
+      setTimeout(() => {
+        if (status?.textContent === 'OpenAI key cleared.') status.textContent = '';
+      }, 2500);
+    } catch (e) {
+      if (status) status.textContent = 'Clear failed.';
+      console.error(e);
+    }
+  });
 }
 
 /**

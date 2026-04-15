@@ -1,3 +1,4 @@
+import { buildJsonHeadersWithOptionalOpenAi } from '../lib/apiKeys.js';
 import { SCRAPER_URL } from '../lib/constants.js';
 
 /**
@@ -8,11 +9,10 @@ import { SCRAPER_URL } from '../lib/constants.js';
  * @returns {Promise<string[]>}
  */
 export async function extractSkillsLLM(text, kind) {
+  const headers = await buildJsonHeadersWithOptionalOpenAi();
   const res = await fetch(`${SCRAPER_URL}/extract-skills`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       text: text || '',
       kind,

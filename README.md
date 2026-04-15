@@ -22,7 +22,7 @@ npm install
 npm run build
 ```
 
-The built extension is output to the `dist/` folder. The build runs two steps: the main Vite bundle (side panel + service worker) and a second pass that emits `content/content.js` as a single **IIFE** (required so `chrome.scripting.executeScript` can load the autofill listener as a classic script).
+The built extension is output to the `dist/` folder. The build first generates toolbar PNGs (`icons/icon16.png`, etc.) from [`src/sidepanel/icons/billiards-fill.svg`](src/sidepanel/icons/billiards-fill.svg) via [`scripts/generate-extension-icons.mjs`](scripts/generate-extension-icons.mjs), then runs two Vite steps: the main bundle (side panel + service worker) and a second pass that emits `content/content.js` as a single **IIFE** (required so `chrome.scripting.executeScript` can load the autofill listener as a classic script).
 
 ### 3. Load in Chrome
 
@@ -60,11 +60,13 @@ The LLM parser now scans the full resume text for likely university/college name
 When LLM parsing is enabled, education entries from heuristic + LLM parsing are merged so prior schools are retained instead of being dropped.
 
 1. Create an OpenAI API key from your OpenAI account.
-2. Configure the key for the Python server (pick one approach):
+2. Configure the key (pick one approach):
 
-**Option A — `.env` file (recommended):** Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) in either the **project root** `.env` or [`python-server/.env`](python-server/.env.example) (copy from [`python-server/.env.example`](python-server/.env.example) if you use that path). The server loads **both** files on startup and applies **non-empty** values only (project root first, then `python-server/`), so a blank `OPENAI_API_KEY=` line in one file does not block a real key in the other. When you run `start_server.bat` or `./start_server.sh`, these files are picked up automatically.
+**Option A — Extension (simplest):** Open **More → Settings** in the side panel, go to the **API keys** tab, paste your OpenAI key, and click **Save**. The extension stores it in `chrome.storage.local` and sends it to the local Python server only when calling `/parse-resume-llm` and `/extract-skills` (via the `X-OpenAI-API-Key` header). If you do not save a key in the extension, the server still uses **Option B** or **C** below.
 
-**Option B — shell environment:** Set variables before starting the Python server:
+**Option B — `.env` file:** Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) in either the **project root** `.env` or [`python-server/.env`](python-server/.env.example) (copy from [`python-server/.env.example`](python-server/.env.example) if you use that path). The server loads **both** files on startup and applies **non-empty** values only (project root first, then `python-server/`), so a blank `OPENAI_API_KEY=` line in one file does not block a real key in the other. When you run `start_server.bat` or `./start_server.sh`, these files are picked up automatically.
+
+**Option C — shell environment:** Set variables before starting the Python server:
 
 **Windows (PowerShell):**
 ```powershell
@@ -82,11 +84,11 @@ cd python-server
 ./start_server.sh
 ```
 
-If `OPENAI_API_KEY` is missing, the extension automatically falls back to heuristic parsing.
+If no OpenAI key is available (neither in the extension nor in the server environment), the extension automatically falls back to heuristic parsing.
 
 ### 4.2 ATS / keyword scoring and tailoring (OpenAI via local server)
 
-When `OPENAI_API_KEY` is set on the Python server, the extension calls **`POST /extract-skills`** (`http://localhost:5001/extract-skills`) to extract **skill phrases** from your resume and from each job description. Fit score and ATS score are computed from the overlap of those lists (same env vars as resume parsing: `OPENAI_API_KEY`, optional `OPENAI_MODEL`).
+When an OpenAI key is available (extension **API keys** tab and/or `OPENAI_API_KEY` on the Python server), the extension calls **`POST /extract-skills`** (`http://localhost:5001/extract-skills`) to extract **skill phrases** from your resume and from each job description. Fit score and ATS score are computed from the overlap of those lists (same env vars as resume parsing: `OPENAI_API_KEY`, optional `OPENAI_MODEL`).
 
 - **Request body:** `{ "text": "<plain text>", "kind": "resume" | "job" }`
 - **Response:** `{ "skills": ["...", ...] }` (deduplicated, capped server-side)
@@ -97,9 +99,11 @@ Prompt text lives in [`python-server/prompts/skills_extraction.py`](python-serve
 
 **Cost / latency:** Each job search performs **one** resume extraction plus **one extraction per job posting** returned by the scraper.
 
-### 5. User profile (Settings)
+### 5. User profile and API keys (Settings)
 
-Open **Settings** in the side panel and click **Save profile**. The saved profile is stored in `chrome.storage.local` under the key `jobbot_userProfile` and is used by **Autofill** together with the parsed resume.
+Open **More → Settings** in the side panel. Use the **Profile** tab to edit answers and overrides, then click **Save profile**. The saved profile is stored in `chrome.storage.local` under the key `jobbot_userProfile` and is used by **Autofill** together with the parsed resume.
+
+Use the **API keys** tab to store **Firecrawl** and **OpenAI** keys in `chrome.storage.local` (see §4.1 and `.env.example`). The **Key checks** card on that tab probes the Firecrawl API (when a key is present), OpenAI’s models endpoint (when an extension key starts with `sk-`), and `GET /health` on the Python server (which reports whether `OPENAI_API_KEY` is set server-side). Resolution order: **Firecrawl** — extension storage first, then `VITE_FIRECRAWL_API_KEY` at build time if storage is empty. **OpenAI** — extension storage first (sent to `localhost:5001`); if unset, the Python server uses `OPENAI_API_KEY` from its `.env`.
 
 **Session vs persistent data:** Parsed resume, search targets, job results, selected job, and in-progress autofill state are stored in **`chrome.storage.session`** and are cleared when the browser session ends (typically after you quit the browser). Settings and the saved user profile remain in **`chrome.storage.local`** across restarts. If `chrome.storage.session` is unavailable, the extension falls back to `local` for those keys (data may persist until you clear extension storage).
 
@@ -125,7 +129,7 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 
 1. `npm install`
 2. `npm run build`
-3. Set `OPENAI_API_KEY` (and optional `OPENAI_MODEL`) via `python-server/.env` (copy from `python-server/.env.example`) or shell `export` / `$env:...`
+3. Provide an OpenAI key: **More → Settings → API keys** (Save), and/or set `OPENAI_API_KEY` (and optional `OPENAI_MODEL`) via `python-server/.env` (copy from `python-server/.env.example`) or shell `export` / `$env:...`
 4. Start python server (`start_server.bat` or `./start_server.sh`)
 5. Load/reload unpacked extension from `dist/`
 6. Upload resume again (Debug tab should show `Parser Source = llm-hybrid`)
@@ -144,7 +148,7 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   │   └── autofill.config.js   # Fill delay, pause-trigger keywords
 │   ├── modules/            # Core business logic (ES modules)
 │   │   ├── resumeParser.js # PDF/DOCX → structured resume object
-│   │   ├── storage.js      # chrome.storage.session (ephemeral) + local (profile/settings)
+│   │   ├── storage.js      # chrome.storage.session (ephemeral) + local (profile/settings/API keys)
 │   │   ├── jobScraper.js   # Calls Flask server for job postings
 │   │   ├── scorer.js       # Fit + ATS scores (LLM skill overlap or heuristic fallback)
 │   │   ├── tailor.js       # Tailoring advice + auto-tailor (same)
@@ -157,7 +161,7 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   │       ├── fieldMapper.js         # Maps form fields → resume/profile values
 │   │       └── fieldFiller.js         # Content-script DOM filling logic
 │   ├── data/               # Static data (company seed list)
-│   └── lib/                # Shared constants
+│   └── lib/                # Shared constants and API key resolution (`apiKeys.js`)
 ├── python-server/          # Local Flask scraper server
 │   ├── server.py           # Flask app (/health, /scrape, /parse-resume-llm, /extract-skills)
 │   ├── prompts/            # OpenAI prompt strings (e.g. skills_extraction.py)
@@ -189,4 +193,4 @@ JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOB
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
 - **AI/LLM calls** — Resume parsing and skill extraction go through the Python server (`/parse-resume-llm`, `/extract-skills`). Prompts for skill extraction are in `python-server/prompts/`. The extension falls back to heuristics if OpenAI is unavailable.
 - **The JS side** calls `localhost:5001/scrape` and knows nothing about which adapter is active on the server.
-- **Autofill pipeline** — Open the **real** application site in a normal browser tab (e.g. Workday, Greenhouse). In the side panel, go to **Autofill** and press **Autofill this tab** to extract fields and fill using pause/resume/skip controls. The job **Detail** page only offers **Open job posting** (listing URL); it does not start autofill. Field discovery uses **Firecrawl** when the site is allowed and `VITE_FIRECRAWL_API_KEY` is set in `.env.local` (see `.env.example`); otherwise the extension scans the **live tab DOM**. **LinkedIn** is skipped for remote Firecrawl extract — rely on DOM scan on the application page. Mapping uses label + control type (e.g. **select** options matched by text/value; phone/email are not applied to yes/no controls). Edit **Settings** to maintain `jobbot_userProfile` (answers, resume overrides, custom keys). Rebuild after changing env vars (`npm run build`).
+- **Autofill pipeline** — Open the **real** application site in a normal browser tab (e.g. Workday, Greenhouse). In the side panel, go to **Autofill** and press **Autofill this tab** to extract fields and fill using pause/resume/skip controls. The job **Detail** page only offers **Open job posting** (listing URL); it does not start autofill. Field discovery uses **Firecrawl** when the site is allowed and a Firecrawl key is set (**More → Settings → API keys**, or `VITE_FIRECRAWL_API_KEY` in `.env.local` at build time — see `.env.example`); otherwise the extension scans the **live tab DOM**. **LinkedIn** is skipped for remote Firecrawl extract — rely on DOM scan on the application page. Mapping uses label + control type (e.g. **select** options matched by text/value; phone/email are not applied to yes/no controls). Edit **Settings → Profile** to maintain `jobbot_userProfile` (answers, resume overrides, custom keys). Rebuild after changing Vite env vars (`npm run build`) if you rely on build-time Firecrawl key fallback.

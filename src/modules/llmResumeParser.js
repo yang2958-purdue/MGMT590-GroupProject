@@ -1,3 +1,4 @@
+import { buildJsonHeadersWithOptionalOpenAi } from '../lib/apiKeys.js';
 import { SCRAPER_URL } from '../lib/constants.js';
 
 /**
@@ -7,11 +8,10 @@ import { SCRAPER_URL } from '../lib/constants.js';
  * @returns {Promise<Object|null>}
  */
 export async function parseResumeWithLLM(rawText, fileName) {
+  const headers = await buildJsonHeadersWithOptionalOpenAi();
   const res = await fetch(`${SCRAPER_URL}/parse-resume-llm`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       rawText,
       fileName,

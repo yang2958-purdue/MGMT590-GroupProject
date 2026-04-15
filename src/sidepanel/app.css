@@ -56,6 +56,25 @@ body {
   min-width: 0;
 }
 
+.nav-brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.nav-brand-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+
+.nav-brand-icon-svg {
+  display: block;
+  vertical-align: middle;
+}
+
 .nav-brand {
   font-size: 15px;
   white-space: nowrap;
@@ -242,8 +261,75 @@ body {
   color: var(--color-danger);
 }
 
+/* Settings: Profile | API keys (More → Settings only) */
+.settings-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.settings-subtab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.settings-subtab:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.settings-subtab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.settings-subtab--active {
+  border-color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--color-text);
+}
+
+.settings-tab-panel {
+  margin-top: 8px;
+}
+
+.api-key-line {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.api-key-line strong {
+  font-weight: 600;
+}
+
+.api-key-line--ok {
+  color: var(--color-success);
+}
+
+.api-key-line--warn {
+  color: var(--color-warning);
+}
+
+.api-key-line--err {
+  color: var(--color-danger);
+}
+
 input[type="text"],
 input[type="number"],
+input[type="password"],
 select,
 textarea {
   width: 100%;

@@ -382,3 +382,21 @@
 **Prompt:** Implement the plan "LLM-based skill extraction for ATS scoring and tailoring": OpenAI via Flask `/extract-skills`, prompts in `python-server/prompts/skills_extraction.py`, shared overlap in `skillMatch.js`, async `scoreJob` + `targetPage` wiring, async tailor with heuristic fallback, README updates.
 
 **Outcome:** Added `python-server/prompts/` with tunable skill prompts; implemented `POST /extract-skills` in `server.py`; added `llmSkillExtractor.js` and `skillMatch.js`; updated `scorer.js`, `tailor.js`, `targetPage.js`; documented §4.2 and project structure in `README.md`.
+
+## 2026-04-15 - Extension API keys (storage-first, .env fallback)
+
+**Prompt:** Implement the plan "Extension API key UI": persistent `chrome.storage.local` for Firecrawl and OpenAI keys; Settings page sub-tabs (More → Settings, Profile | API keys); resolve Firecrawl at runtime (storage then `VITE_FIRECRAWL_API_KEY`); forward OpenAI to Flask via `X-OpenAI-API-Key` with server fallback to `OPENAI_API_KEY`; README, `.env.example`, PROMPTS.
+
+**Outcome:** Added `KEYS.FIRECRAWL_API_KEY` / `KEYS.OPENAI_API_KEY` and `src/lib/apiKeys.js`; updated `firecrawlAdapter.js`, `autofillController.js`, `llmResumeParser.js`, `llmSkillExtractor.js`; `_openai_api_key_from_request()` and CORS allow_headers in `server.py`; `settingsPage.js` sub-tabs and API key save/clear; documentation updates.
+
+## 2026-04-15 - Billiards icon as extension + sidebar brand
+
+**Prompt:** Use `billiards-fill.svg` as the extension logo/icon and show the icon top-left next to JobBot in the sidebar.
+
+**Outcome:** Added `src/sidepanel/icons/billiards-fill.svg`; `scripts/generate-extension-icons.mjs` + `sharp` rasterizes it to `icons/icon16|48|128.png` (indigo fill for visible toolbar icons); `npm run build` / `predev` run the script; `nav.js` + `app.css` render the SVG beside the JobBot title; README build description updated.
+
+## 2026-04-15 - API key validation in Settings
+
+**Prompt:** Add validation for API keys with errors in the API key section if missing/invalid.
+
+**Outcome:** Added `src/lib/apiKeyValidation.js` (Firecrawl scrape probe, OpenAI `GET /v1/models`, server `/health` now includes `openai_configured`); **API keys** tab shows a **Key checks** card with status lines; runs on tab open and after save/clear; `app.css` line styles for ok/warn/err.

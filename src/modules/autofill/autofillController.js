@@ -13,7 +13,8 @@ import {
   shouldSkipRemoteExtract,
 } from '../scraper/firecrawlAdapter.js';
 import { mapFields } from './fieldMapper.js';
-import { FIRECRAWL_API_KEY, USE_MOCK } from '../../config/firecrawl.config.js';
+import { USE_MOCK } from '../../config/firecrawl.config.js';
+import { getResolvedFirecrawlApiKey } from '../../lib/apiKeys.js';
 import {
   getResume,
   getUserProfile,
@@ -91,7 +92,7 @@ export async function runAutofillPipeline(tabId, pageUrl) {
 
   if (USE_MOCK) {
     formFields = await extractFormFields(pageUrl);
-  } else if (!shouldSkipRemoteExtract(pageUrl) && FIRECRAWL_API_KEY.trim()) {
+  } else if (!shouldSkipRemoteExtract(pageUrl) && (await getResolvedFirecrawlApiKey())) {
     try {
       formFields = await extractFormFields(pageUrl);
     } catch {

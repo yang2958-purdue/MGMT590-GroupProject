@@ -8,6 +8,7 @@
  * @param {string} activeHash - The current route hash (e.g. '#/upload').
  */
 
+import billiardsFill from '../icons/billiards-fill.svg?raw';
 import uploadLine from '../icons/upload-line.svg?raw';
 import seoLine from '../icons/seo-line.svg?raw';
 import folderLine from '../icons/folder-line.svg?raw';
@@ -19,11 +20,18 @@ function navSvg(svgRaw) {
   return svgRaw.replace(/<svg\s+/, '<svg width="20" height="20" aria-hidden="true" ');
 }
 
+/** Brand mark next to JobBot (slightly larger than section icons). */
+function brandSvg(svgRaw) {
+  return svgRaw.replace(/<svg\s+/, '<svg width="22" height="22" aria-hidden="true" class="nav-brand-icon-svg" ');
+}
+
 const STROKE_ATTR =
   'xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
 
 /** Kept as stroke glyph (no asset provided for "More") */
 const ICON_MORE = `<svg ${STROKE_ATTR}><path d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"/></svg>`;
+
+const BRAND_ICON = brandSvg(billiardsFill);
 
 const ICONS = {
   upload: navSvg(uploadLine),
@@ -73,7 +81,10 @@ export function renderNav(container, activeHash) {
 
   container.innerHTML = `
     <div class="nav-inner">
-      <strong class="nav-brand">JobBot</strong>
+      <div class="nav-brand-wrap">
+        <span class="nav-brand-icon">${BRAND_ICON}</span>
+        <strong class="nav-brand">JobBot</strong>
+      </div>
       <div class="nav-icons" role="toolbar" aria-label="Main sections">
         ${primaryHtml}
         <details class="nav-more">
