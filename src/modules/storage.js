@@ -255,6 +255,7 @@ export async function setSelectedJob(data) {
  * @property {string} [jobTitle] - Maps to workExperience[0].title
  * @property {string} [company] - Maps to workExperience[0].company
  * @property {string} [workDates] - Maps to workExperience[0].dates
+ * @property {string} [workLocation] - Maps to workExperience[0].location (job site, not mailing address)
  * @property {string} [school] - Maps to education[0].school
  * @property {string} [degree] - Maps to education[0].degree
  * @property {string} [eduDates] - Maps to education[0].dates

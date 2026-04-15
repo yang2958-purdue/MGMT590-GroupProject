@@ -424,3 +424,81 @@
 **Prompt:** The issue has been fixed. Please clean up the instrumentation.
 
 **Outcome:** Removed all `fetch`-to-ingest debug blocks and `#region agent log` sections from `fieldMapper.js` (`resolveValueForField`, duplicate state/phone skips) and `fieldFiller.js` (`fillFieldsSequentially`). Dropped unused `inferDataKeyFromLabel` import from `fieldMapper.js`. Restored `mapFields` JSDoc placement above `export function mapFields`.
+
+## 2026-04-14 - Autofill: work experience, education, and skills incomplete on Workday
+
+**Prompt:** The autofill does not add work experience or education, and it does not fill in all of the detected skills that were parsed from the resume, even though more skills are shown as detected in the debug matrix.
+
+**Outcome:** Added `PREPARE_WORKDAY_REPEATERS` (content script) and `prepareWorkdayRepeatersForAutofill` in `fieldFiller.js` to click Workday-style **Add** under Work Experience and Education, then `runAutofillPipeline` rescans the DOM before `mapFields`. Broadened `inferDataKeyFromLabel` for **Company** and job-title phrasing; broadened `isWorkdaySkillsInput` (placeholder / `data-automation-id`); raised skills cap to 24, added a short delay between tags, removed trailing `blur` on the skills control. Updated `README.md` to describe the behavior.
+
+## 2026-04-14 - Workday repeaters still empty; skills only from Skills section
+
+**Prompt:** Autofill still failed to add new rows to experience and education on Workday. Skills parsing only used explicitly listed skills, not technologies from experience or projects.
+
+**Outcome:** Reworked `prepareWorkdayRepeatersForAutofill`: walk **shadow DOM** and **nested same-origin iframes**, collect visible controls whose `data-automation-id` / `aria-label` / text look like **Add**, match each to the Work Experience or Education section by ancestor text, dispatch mousedown/mouseup/click, track clicked nodes in a `WeakSet`, longer waits. Increased post-prepare delay in `autofillController.js` to 1200ms. **Heuristic resume parsing** (`resumeParser.js`): merged skills from dedicated Skills section with tokens mined from **experience** and **projects** sections (labels, parentheticals, multi-part bullets). **LLM** (`server.py`, `skills_extraction.py`): prompt rules to fill skills from experience/projects. **`mergeResumeData`**: skills are a deduplicated union of LLM + heuristic lists. README updated.
+
+## 2026-04-14 - Work experience: missing dates, location, role description (debug + fix)
+
+**Prompt:** Issue reproduced (proceed after debug). Autofill missed experience section fields beyond job title and company.
+
+**Outcome (evidence from `debug-4efe86.log`):** Parser had `datesLen: 22`, `bulletsCount: 3`; mapper had no keys for Location / Role Description (`keysTried: []`); filler only ran for title and company. **Fix:** `buildLookup` adds `workExperience[0].location` (resume city/state), `description` (bullets joined), `startDate`/`endDate` (split from `dates` for MM/YYYY). `inferDataKeyFromLabel` / scoped helpers map Workday `From`/`To`/`Location`/`Role Description` and `education-0` vs `workExperience-0` from labels and `data-automation-id`. `domFieldScanner` uses `data-automation-id` in the inference string. Debug ingest logs kept for verification run.
+
+## 2026-04-14 - Role Description hang; wrong work location
+
+**Prompt:** Extension stuck on Role Description in Experience; Location used user address instead of role location.
+
+**Outcome (evidence):** Mapper showed Role Description `ready` with long text but filler logs stopped after Location — `setFieldValue` treated the control as a combobox (`isComboboxLike`) and ran `setComboboxValue` + listbox wait. **Fix:** `isComboboxLike` returns false for `HTMLTextAreaElement`. **Location:** stopped using `resume.location` for job Location; `buildLookup` uses `experience[0].location` only; heuristic parser adds `location` (standalone `City, ST` / Remote lines and `Company | Location` pipes); LLM schema + `_normalize_resume_payload` include `location` with prompt not to use mailing address; `resumeOverrides.workLocation` override; removed `commonAnswers.city` fallback for work Location. README updated.
+
+## 2026-04-14 - Role Description still hanging; From/To and “currently work” empty
+
+**Prompt:** Still hanging on Role Description; From/To and “I currently work here” not filled.
+
+**Outcome (root cause):** `domFieldScanner.mapFieldType` ran `isComboboxLike` **before** `HTMLTextAreaElement`, so Workday’s `role="combobox"` description fields were stored as `fieldType: "select"` and the filler ran **dropdown** logic on long text (hang). **Fix:** classify **textarea** and **contenteditable** first; align `isComboboxLike` in the scanner with the filler (exclude contenteditable / non-input `role="textbox"`). **fieldFiller:** fill contenteditable / ARIA textbox via `textContent` + `InputEvent`; broaden Workday split date `id`/`data-automation-id` matching; add combined **MM/YYYY** single input path; **parseDateRange** split on `\s*-\s*` for tight dashes; skip end-date fill when range is Present. **Checkbox:** `workExperience[0].currentlyEmployed` in lookup when dates mention Present; inference for “I currently work here” and scoped `workexperience0` + currently. README updated. Debug ingest logs retained for verification.
+
+## 2026-04-14 - Checkbox half-toggled; From/To empty; Role Description stuck
+
+**Prompt:** Autofill clicked “I currently work here” but it did not fully register (highlight, no checkmark); From/To never filled; Role Description stuck again.
+
+**Outcome (in progress):** **Hypotheses:** (H1) Workday hides the real checkbox—setting `.checked` or synthetic events does not commit React state; (H2) split date inputs are not detected or month/year is chosen incorrectly; (H3) Role Description is still mapped as `select` with a nested `<textarea>`, so combobox logic runs. **Code:** `setWorkdayCheckboxValue` finds `input[type=checkbox]`, prefers `label[for]` + `click()`, then `input.click()`; `fillNativeTextarea` + early path when `fieldType === 'textarea'` or `fieldType === 'select'` with inner textarea and long value; broader `isWorkdayDateSectionInput` / `isWorkdayMonthYearCombinedInput`; `setWorkdayDateSectionValue` uses explicit year vs month hints plus legacy `wantsMonth`. **Instrumentation:** ingest logs for checkbox (including “no native input”), `fillNativeTextarea`, and `setWorkdayDateSectionValue`. README updated. Awaiting verification run on `debug-4efe86.log`.
+
+## 2026-04-14 - Experience “From” date not filled (rest OK)
+
+**Prompt:** Autofill still failed to fill the From date field in the Experience section; other Experience fields filled.
+
+**Outcome (hypothesis H5, code-level):** `workExperience[0].startDate` / `endDate` are normalized to **`MM/YYYY`**. Native split month/year **inputs** use `setWorkdayDateSectionValue` (parses and sets `08` vs `2020`). **From** **month** is often a **`role="combobox"`** listbox (`fieldType: select`); `setComboboxValue` searched only the literal **`08/2020`**, which Workday options often do not match (they expose month names / single digits). **Fix:** Extract `getWorkdayExpDateTarget` (shared with native date inputs). **`buildComboboxSearchTokens(raw, el)`** — for Work Experience **month** dropdowns, expand to month long/short names, padded MM, and `MM/YYYY`; for **year** dropdowns, pass **`[year]`** only so year listboxes are not fed month labels. **`work experience`** in **aria-label** is detected via compact `workexperience`. Ingest log `WE month combobox tokens` (H5). README updated.
+
+## 2026-04-14 - From date still missing after combobox fix (reproduction log)
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome (runtime evidence from `debug-4efe86.log`):** `fieldMapper.js:mapFields` **workExperience** `fieldRows` had **no From/To** fields at all (only Job Title, Company, Location, checkbox, Role Description, Skills). No `setWorkdayDateSectionValue` or **`WE month combobox tokens`** lines — combobox logic never ran because **those nodes were not in the scanned field list**. **Root cause:** `domFieldScanner` used `document.querySelectorAll` **only in the light DOM**; Workday often places date controls inside **open shadow roots**. **Fix:** `queryControlsInDocumentAndShadowRoots` walks each `Document` / `ShadowRoot`, collects `CONTROL_SELECTOR` matches, then queues `el.shadowRoot` for every host. Added ingest **`scan summary`** (`H6`: `total`, `wxDateFields`). Cleared log for next verification run. README updated.
+
+## 2026-04-14 - Second repro: wxDateFields still 0 after shadow scan
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome (evidence):** `scan summary` showed **`wxDateFields: 0`** despite **`total: 16`**; `fieldRows` still omitted From/To. Checkbox log id ended with **`workExperience-11--currentlyWorkHere`** — repeater index **11**, not **0**. **Root cause:** `inferWorkExperienceScopedKey` / `inferEducationScopedKey` required **`workexperience0`** / **`education0`** in the compact string, so any other repeater row never mapped to `workExperience[0].startDate` etc. **Fix:** require **`/workexperience\d+/`** and **`/education\d+/`** instead. **`inferKeySource`** in `domFieldScanner` now **joins** label, placeholder, `data-automation-id`, and name (not only the first non-empty) so scoped ids always reach inference. Log cleared for verification; instrumentation retained.
+
+## 2026-04-14 - Third repro: wxDateFields still 0 after repeater-index fix
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome (evidence):** Latest log still **`wxDateFields: 0`**, **`total: 16`**, no From/To in **`fieldRows`** — so date controls are still **not** in the scanned control set (not only mis-keyed). **Hypothesis H7:** Workday exposes From/To month/year as **`disabled`** until interaction, and **`CONTROL_SELECTOR`** excludes **`:disabled`** inputs, so they never appear in **`queryControlsInDocumentAndShadowRoots`**. **Fix:** **`WORKDAY_WX_DATE_FALLBACK_SELECTOR`** walks the same document + shadow stack, matches **`dateSectionMonth` / `dateSectionYear` / `fromDate` / `toDate`** on **inputs** (including disabled) and matching **combobox** / **listbox** triggers; **merge** unique nodes after the primary query. **`scan summary`** now logs **`fallbackMerged`**. Log cleared for next run.
+
+## 2026-04-14 - Fourth repro: fallbackMerged still 0
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome (evidence):** **`fallbackMerged: 0`** — fallback nodes were **not** a subset issue; **zero** nodes matched CSS **`[id*="fromDate"]`**-style selectors. **Conclusion:** This tenant encodes scope in **aria-label** / **automation-id** without those substrings, or uses only attributes our selectors skipped. **Fix:** Replaced string selector fallback with **`elementLooksLikeWorkExperienceDateField`**: walks **input, select, textarea, button, [role=combobox]** in document + shadow, keeps **`workexperience\d+`** plus date tokens, excludes **job title / company / location / role / skills / currently work**. Allows **`type=button`** inputs. **`probeWxExp`** in **`scan summary`** when date count still zero (H8 diagnostic). Log cleared. README updated.
+
+## 2026-04-14 - probeWxExp showed startDate/endDate ids; fields still not mapped
+
+**Prompt:** The field still does not seem to get detected or filled in.
+
+**Outcome (evidence):** **`probeWxExp`** listed **`workexperience11startdatedatesectionmonth...`** and **`workexperience11enddatedatesectionyear...`** — DOM had the controls. **`fallbackMerged: 0`** is consistent with those inputs **already** matching the primary query (enabled). **`inferKeySource`** joined label, placeholder, **`data-automation-id`**, and **name** but **never `el.id`**, so **`inferWorkExperienceScopedKey`** never saw **`startdate` / `enddate`** embedded only in the element **id**. **Fix:** append **`(el.id).replace(/[_-]+/g,' ')`** to **`inferKeySource`**. Log cleared; ingest kept for verification.
+
+## 2026-04-14 - Remove autofill debug instrumentation
+
+**Prompt:** The issue has been fixed. Please clean up the instrumentation.
+
+**Outcome:** Removed all **`fetch`** calls to the debug ingest endpoint (`127.0.0.1:7696/ingest/...`) and **`#region agent log`** blocks from **`fieldFiller.js`** (fill loop, textarea, checkbox, date section, combobox tokens), **`fieldMapper.js`** (`mapFields` trace), and **`domFieldScanner.js`** (scan summary + **`probeWorkExperienceControlCompacts`**). Tightened **`setWorkdayDateSectionValue`** destructuring to **`nextValue`** only. README Architecture note dropped the **`probeWxExp`** line. Rebuild verified with **`npm run build`**.

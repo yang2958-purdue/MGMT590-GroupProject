@@ -355,11 +355,142 @@ function parseDateRange(text) {
   };
 
   const normalized = String(text || '').replace(/[–—]/g, '-');
-  const parts = normalized.split(/\s+-\s+/);
+  const parts = normalized
+    .split(/\s*-\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (parts.length >= 2) {
     return { start: parseSingle(parts[0]), end: parseSingle(parts[1]) };
   }
   return { start: parseSingle(normalized), end: null };
+}
+
+/**
+ * Rich text / ARIA textbox (not native textarea element).
+ * @param {HTMLElement} el
+ * @param {string} value
+ */
+function setContentEditableOrTextboxValue(el, value) {
+  const text = String(value ?? '');
+  el.focus();
+  el.textContent = text;
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Workday sometimes uses one MM/YYYY text field instead of split month/year inputs.
+ * @param {Element} el
+ * @returns {boolean}
+ */
+function isWorkdayMonthYearCombinedInput(el) {
+  if (!(el instanceof HTMLInputElement)) return false;
+  const id = (el.id || '').toLowerCase();
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  const ph = (el.getAttribute('placeholder') || '').toLowerCase();
+  const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+  if (id.includes('datesectionmonth-input') || id.includes('datesectionyear-input')) return false;
+  const inWx =
+    id.includes('workexperience') ||
+    aid.includes('workexperience') ||
+    id.includes('fromdate') ||
+    id.includes('todate') ||
+    aid.includes('fromdate') ||
+    aid.includes('todate');
+  if (!inWx) return false;
+  const type = (el.type || '').toLowerCase();
+  const textLike = type === 'text' || type === '' || type === 'tel';
+  const looksMM =
+    (ph.includes('mm') && ph.includes('yyyy')) ||
+    ph.includes('m/yyyy') ||
+    ph.includes('mm/yyyy') ||
+    aria.includes('mm/yyyy');
+  const looksDateish = looksMM || ph.includes('date') || aria.includes('date');
+  return textLike && looksDateish;
+}
+
+/**
+ * @param {HTMLInputElement} el
+ * @param {string} value
+ */
+function setWorkdayMonthYearCombinedValue(el, value) {
+  const rawDates = String(value || '');
+  const parsed = parseDateRange(rawDates);
+  const id = (el.id || '').toLowerCase();
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  const wantsEnd =
+    id.includes('to') || id.includes('end') || aid.includes('todate') || aid.includes('enddate');
+  if (wantsEnd && !parsed.end && /\b(present|current|now)\b/i.test(rawDates)) {
+    return;
+  }
+  const target = wantsEnd ? parsed.end || parsed.start : parsed.start || parsed.end;
+  if (!target) return;
+  const mmYYYY = `${target.month}/${target.year}`;
+  el.focus();
+  el.value = mmYYYY;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * @param {HTMLTextAreaElement} el
+ * @param {string} value
+ */
+function fillNativeTextarea(el, value) {
+  const v = String(value ?? '');
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+  if (setter) setter.call(el, v);
+  else el.value = v;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+/**
+ * Workday often hides the real checkbox; React/Vue need a real click, not only `.checked =`.
+ * @param {Element} el
+ * @param {string} value
+ */
+function setWorkdayCheckboxValue(el, value) {
+  const want = value === 'true' || value === '1' || /^yes$/i.test(String(value));
+  let input =
+    el instanceof HTMLInputElement && el.type === 'checkbox'
+      ? el
+      : el.querySelector?.('input[type="checkbox"]');
+  if (!input && el instanceof HTMLElement) {
+    input = el.parentElement?.querySelector?.('input[type="checkbox"]');
+  }
+  if (!(input instanceof HTMLInputElement)) {
+    if ((el.getAttribute('role') || '').toLowerCase() === 'checkbox') {
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }
+    return;
+  }
+  if (input.checked !== want) {
+    const doc = input.ownerDocument;
+    if (input.id) {
+      const esc =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(input.id)
+          : escapeAttr(input.id);
+      const lbl = doc.querySelector(`label[for="${esc}"]`);
+      if (lbl instanceof HTMLElement) {
+        lbl.click();
+      }
+      if (input.checked !== want) {
+        input.focus();
+        input.click();
+      }
+    } else {
+      input.focus();
+      input.click();
+    }
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 /**
@@ -393,6 +524,36 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
   const el = root.querySelector(selector);
   if (!el) return;
 
+  const innerTextarea =
+    el instanceof HTMLTextAreaElement ? el : el.querySelector?.('textarea');
+  if (fieldType === 'textarea' && innerTextarea instanceof HTMLTextAreaElement) {
+    fillNativeTextarea(innerTextarea, value);
+    return;
+  }
+  if (
+    fieldType === 'select' &&
+    innerTextarea instanceof HTMLTextAreaElement &&
+    String(value).length > 80
+  ) {
+    fillNativeTextarea(innerTextarea, value);
+    return;
+  }
+
+  if (el instanceof HTMLElement && el.isContentEditable) {
+    setContentEditableOrTextboxValue(el, value);
+    return;
+  }
+  const r = (el.getAttribute('role') || '').toLowerCase();
+  if (r === 'textbox' && !(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
+    setContentEditableOrTextboxValue(el, value);
+    return;
+  }
+
+  if (isWorkdayMonthYearCombinedInput(el)) {
+    setWorkdayMonthYearCombinedValue(el, value);
+    return;
+  }
+
   if (isWorkdayDateSectionInput(el)) {
     setWorkdayDateSectionValue(el, value);
     return;
@@ -418,10 +579,8 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
     return;
   }
 
-  if (el instanceof HTMLInputElement && el.type === 'checkbox') {
-    el.checked = value === 'true' || value === '1' || /^yes$/i.test(String(value));
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+  if (fieldType === 'checkbox' || (el instanceof HTMLInputElement && el.type === 'checkbox')) {
+    setWorkdayCheckboxValue(el, value);
     return;
   }
 
@@ -462,7 +621,15 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
 function isWorkdayDateSectionInput(el) {
   if (!(el instanceof HTMLInputElement)) return false;
   const id = (el.id || '').toLowerCase();
-  return id.includes('datesectionmonth-input') || id.includes('datesectionyear-input');
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  const h = `${id} ${aid}`;
+  if (h.includes('datesectionmonth') || h.includes('datesectionyear')) return true;
+  if (h.includes('datesection') && (h.includes('month') || h.includes('year'))) return true;
+  const wx =
+    h.includes('workexperience') &&
+    (h.includes('from') || h.includes('to') || h.includes('start') || h.includes('end'));
+  if (wx && (h.includes('month') || h.includes('year'))) return true;
+  return false;
 }
 
 /**
@@ -473,7 +640,12 @@ function isWorkdaySkillsInput(el) {
   if (!(el instanceof HTMLInputElement)) return false;
   const id = (el.id || '').toLowerCase();
   const name = (el.getAttribute('name') || '').toLowerCase();
-  return id.includes('skills--skills') || name === 'skills';
+  const ph = (el.getAttribute('placeholder') || '').toLowerCase();
+  const auto = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  if (id.includes('skills--skills') || name === 'skills') return true;
+  if (ph.includes('skill') && (ph.includes('add') || ph.includes('type'))) return true;
+  if (auto.includes('skill') && (auto.includes('multiselect') || auto.includes('prompt'))) return true;
+  return false;
 }
 
 /**
@@ -501,20 +673,55 @@ function isWorkdayEducationFieldOfStudyControl(el) {
 }
 
 /**
+ * Parsed segment for Work Experience From/To month-year inputs and matching listboxes.
+ * @param {Element} el
+ * @param {string} rawDates
+ * @returns {{ nextValue: string, wantsEnd: boolean, isYearField: boolean, isMonthField: boolean, wantsMonth: boolean, target: { month: string, year: string }, id: string } | null}
+ */
+function getWorkdayExpDateTarget(el, rawDates) {
+  const parsed = parseDateRange(String(rawDates || ''));
+  const id = (el.id || '').toLowerCase();
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  const wantsEnd =
+    id.includes('enddate') ||
+    id.includes('todate') ||
+    aid.includes('todate') ||
+    aid.includes('enddate') ||
+    (id.includes('to') && !id.includes('from'));
+  const h = `${id} ${aid}`;
+  const isYearField =
+    h.includes('datesectionyear') ||
+    h.includes('year-input') ||
+    (h.includes('year') && !h.includes('month'));
+  const isMonthField =
+    h.includes('datesectionmonth') ||
+    h.includes('month-input') ||
+    (h.includes('month') && !h.includes('year'));
+  if (wantsEnd && !parsed.end && /\b(present|current|now)\b/i.test(String(rawDates))) {
+    return null;
+  }
+  const target = wantsEnd ? parsed.end || parsed.start : parsed.start || parsed.end;
+  if (!target) return null;
+
+  const wantsMonth = id.includes('datesectionmonth') || id.includes('month-input');
+  let nextValue;
+  if (isYearField) nextValue = target.year;
+  else if (isMonthField) nextValue = target.month;
+  else nextValue = wantsMonth ? target.month : target.year;
+  if (!nextValue) return null;
+  return { nextValue, wantsEnd, isYearField, isMonthField, wantsMonth, target, id };
+}
+
+/**
  * Fill Workday split date inputs from a combined date/range string.
  * @param {HTMLInputElement} el
  * @param {string} value
  */
 function setWorkdayDateSectionValue(el, value) {
-  const parsed = parseDateRange(String(value || ''));
-  const id = (el.id || '').toLowerCase();
-  const wantsEnd = id.includes('enddate');
-  const wantsMonth = id.includes('datesectionmonth-input');
-  const target = wantsEnd ? (parsed.end || parsed.start) : (parsed.start || parsed.end);
-  if (!target) return;
-
-  const nextValue = wantsMonth ? target.month : target.year;
-  if (!nextValue) return;
+  const rawDates = String(value || '');
+  const seg = getWorkdayExpDateTarget(el, rawDates);
+  if (!seg) return;
+  const { nextValue } = seg;
 
   el.focus();
   el.value = nextValue;
@@ -535,7 +742,7 @@ async function setWorkdaySkillsInputValue(el, value) {
     .map((s) => s.trim())
     .filter(Boolean)
     .filter((s, i, arr) => arr.indexOf(s) === i)
-    .slice(0, 12);
+    .slice(0, 24);
   if (!skills.length) return;
 
   for (const skill of skills) {
@@ -586,10 +793,11 @@ async function setWorkdaySkillsInputValue(el, value) {
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
       await waitForSkillCommitted(el, skill, beforeCount, 1200);
     }
+
+    await sleep(200);
   }
 
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new Event('blur', { bubbles: true }));
 }
 
 /**
@@ -858,7 +1066,13 @@ function resolveDropdownTarget(el) {
  * @param {Element} el
  */
 function isComboboxLike(el) {
+  // Workday sometimes marks rich text / description areas with combobox ARIA; never treat real textareas as dropdowns.
+  if (el instanceof HTMLTextAreaElement) return false;
+  if (el instanceof HTMLElement && el.isContentEditable) return false;
   const role = (el.getAttribute('role') || '').toLowerCase();
+  if (role === 'textbox' && !(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
+    return false;
+  }
   const popup = (el.getAttribute('aria-haspopup') || '').toLowerCase();
   if (role === 'combobox') return true;
   if (popup === 'listbox') return true;
@@ -892,12 +1106,93 @@ function expandStateSearchTokens(raw) {
   return [full, String(raw).trim()];
 }
 
+const _MONTH_LONG = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+const _MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Workday month listboxes often match "August" / "8", not the resume token "08/2020".
+ * @param {string} s
+ * @returns {string[]|null}
+ */
+function expandMonthYearComboboxTokens(s) {
+  const t = String(s ?? '').trim();
+  const m = t.match(/^(\d{1,2})\s*\/\s*(\d{4})$/);
+  if (!m) return null;
+  const mm = Math.min(12, Math.max(1, parseInt(m[1], 10)));
+  const pad = String(mm).padStart(2, '0');
+  const yy = m[2];
+  const idx = mm - 1;
+  const longN = _MONTH_LONG[idx];
+  const shortN = _MONTH_SHORT[idx];
+  return [...new Set([longN, shortN, pad, String(mm), `${pad}/${yy}`, t])];
+}
+
+/**
+ * @param {Element} el
+ */
+function workdayWxDateHaystack(el) {
+  if (!(el instanceof HTMLElement)) return '';
+  const id = (el.id || '').toLowerCase();
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+  return `${id} ${aid} ${aria}`;
+}
+
+/**
+ * Work Experience "month" listbox (not year): needs name tokens, not raw MM/YYYY only.
+ * @param {Element} el
+ */
+function isWorkdayWxMonthDropdown(el) {
+  const h = workdayWxDateHaystack(el);
+  const compact = h.replace(/[^a-z0-9]+/g, '');
+  const wx =
+    compact.includes('workexperience') || h.includes('fromdate') || h.includes('todate');
+  if (!wx) return false;
+  if (h.includes('datesectionyear') && !h.includes('datesectionmonth')) return false;
+  return (
+    h.includes('datesectionmonth') ||
+    h.includes('month-input') ||
+    (/\bmonth\b/.test(h) && !/\byear\b/.test(h) && !h.includes('datesectionyear'))
+  );
+}
+
+/**
+ * @param {Element} el
+ */
+function isWorkdayWxYearDropdown(el) {
+  const h = workdayWxDateHaystack(el);
+  const compact = h.replace(/[^a-z0-9]+/g, '');
+  const wx =
+    compact.includes('workexperience') || h.includes('fromdate') || h.includes('todate');
+  if (!wx) return false;
+  if (h.includes('datesectionmonth') && !h.includes('datesectionyear')) return false;
+  return (
+    h.includes('datesectionyear') ||
+    h.includes('year-input') ||
+    (/\byear\b/.test(h) && !/\bmonth\b/.test(h) && !h.includes('datesectionmonth'))
+  );
+}
+
 /**
  * Tokens to try for custom dropdowns (Workday listboxes): mobile synonyms or state full names.
  * @param {string} raw
+ * @param {Element} [el] trigger for Work Experience month/year listbox token shaping
  * @returns {string[]}
  */
-function buildComboboxSearchTokens(raw) {
+function buildComboboxSearchTokens(raw, el) {
   const s = String(raw ?? '').trim();
   if (!s) return [];
   if (isMobilePhoneDeviceIntent(s)) {
@@ -905,6 +1200,24 @@ function buildComboboxSearchTokens(raw) {
   }
   const st = expandStateSearchTokens(s);
   if (st.length) return [...new Set(st)];
+
+  if (el instanceof HTMLElement) {
+    if (isWorkdayWxMonthDropdown(el)) {
+      const seg = getWorkdayExpDateTarget(el, s);
+      if (seg?.target) {
+        const my = expandMonthYearComboboxTokens(`${seg.target.month}/${seg.target.year}`);
+        if (my?.length) {
+          return my;
+        }
+      }
+    }
+    if (isWorkdayWxYearDropdown(el)) {
+      const seg = getWorkdayExpDateTarget(el, s);
+      if (seg?.nextValue) {
+        return [String(seg.nextValue)];
+      }
+    }
+  }
   return [s];
 }
 
@@ -950,7 +1263,7 @@ async function setComboboxValue(el, value) {
     el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   };
 
-  const searchTokens = buildComboboxSearchTokens(raw);
+  const searchTokens = buildComboboxSearchTokens(raw, el);
 
   for (const token of searchTokens) {
     openDropdown();
@@ -1035,6 +1348,220 @@ export function unhighlightField(selector, iframePath) {
   if (el) {
     el.setAttribute('style', el.dataset.prevStyle || '');
     delete el.dataset.prevStyle;
+  }
+}
+
+// ─── Workday repeaters (Add Work Experience / Add Education) ───
+
+/**
+ * Depth-first walk including open shadow roots (Workday often nests controls in shadow DOM).
+ * @param {Document|Element|ShadowRoot} root
+ * @returns {Generator<Element>}
+ */
+function* allElementsDeep(root) {
+  const start =
+    root instanceof Document
+      ? root.documentElement
+      : root instanceof ShadowRoot
+        ? root
+        : root;
+  if (!start) return;
+  const stack = [start];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (node instanceof Element) {
+      yield node;
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push(node.children[i]);
+      }
+      if (node.shadowRoot) {
+        for (let i = node.shadowRoot.children.length - 1; i >= 0; i--) {
+          stack.push(node.shadowRoot.children[i]);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
+function isLikelyVisible(el) {
+  if (!(el instanceof HTMLElement)) return false;
+  const st = getComputedStyle(el);
+  if (st.display === 'none' || st.visibility === 'hidden' || st.pointerEvents === 'none') return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0;
+}
+
+/**
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
+function looksLikeAddControl(el) {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button') {
+    if (tag !== 'A') return false;
+  }
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  if (aid.includes('addrow') || aid.includes('add-row') || aid.includes('addanother')) return true;
+  const lab = (el.getAttribute('aria-label') || '').trim().toLowerCase();
+  if (/^add(\s|$|\.)/.test(lab) || /\badd\s+(another|more|row|work|job|education|school|schools)\b/.test(lab)) {
+    return true;
+  }
+  const txt = (el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return txt === 'add' || /^add\s/.test(txt);
+}
+
+/**
+ * @param {HTMLElement} btn
+ * @param {RegExp} headingRe
+ * @returns {boolean}
+ */
+function ancestorBlockMatchesHeading(btn, headingRe) {
+  let node = btn.parentElement;
+  for (let depth = 0; depth < 16 && node; depth++, node = node.parentElement) {
+    const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length > 2200) continue;
+    if (headingRe.test(text)) return true;
+  }
+  return false;
+}
+
+/**
+ * @param {Document|Element|ShadowRoot} root
+ * @returns {HTMLElement[]}
+ */
+function collectAddButtonsDeep(root) {
+  const out = [];
+  for (const el of allElementsDeep(root)) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (!looksLikeAddControl(el)) continue;
+    if (!isLikelyVisible(el)) continue;
+    out.push(el);
+  }
+  return out;
+}
+
+/**
+ * @param {Element} el
+ * @returns {boolean}
+ */
+function isLikelySectionHeading(el) {
+  if (!(el instanceof Element)) return false;
+  if (/^H[1-4]$/i.test(el.tagName) || el.tagName === 'LEGEND' || el.getAttribute('role') === 'heading') {
+    return true;
+  }
+  const aid = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  if (aid.includes('subtitle')) return false;
+  return /\b(title|heading)\b/.test(aid) || aid.includes('widgetheader');
+}
+
+/**
+ * @param {HTMLElement} el
+ */
+function dispatchClick(el) {
+  el.focus();
+  el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+  el.click();
+}
+
+/**
+ * Click "Add" in Work Experience / Education sections so `workExperience-0--*` and
+ * `education-0--*` fields exist before autofill mapping runs.
+ * @param {Document} root
+ * @param {RegExp} headingRe
+ * @param {WeakSet<HTMLElement>} used
+ */
+async function clickAddNearHeading(root, headingRe, used) {
+  const candidates = collectAddButtonsDeep(root).filter((b) => !used.has(b));
+  for (const btn of candidates) {
+    if (ancestorBlockMatchesHeading(btn, headingRe)) {
+      btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      dispatchClick(btn);
+      used.add(btn);
+      await sleep(650);
+      return;
+    }
+  }
+
+  for (const h of allElementsDeep(root)) {
+    if (!(h instanceof Element)) continue;
+    if (!isLikelySectionHeading(h)) continue;
+    const text = (h.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!headingRe.test(text)) continue;
+    let section = h.closest('section') || h.closest('[role="region"]') || h.closest('fieldset') || h.parentElement;
+    for (let depth = 0; depth < 16 && section; depth++, section = section.parentElement) {
+      const innerBtns = section.querySelectorAll(
+        'button, [role="button"], a[href], div[role="button"]',
+      );
+      for (const btn of innerBtns) {
+        if (!(btn instanceof HTMLElement)) continue;
+        if (!looksLikeAddControl(btn) || !isLikelyVisible(btn)) continue;
+        if (used.has(btn)) continue;
+        btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        dispatchClick(btn);
+        used.add(btn);
+        await sleep(650);
+        return;
+      }
+    }
+  }
+}
+
+/**
+ * @param {Document} root
+ */
+async function ensureWorkdayRepeatersInRoot(root) {
+  if (!root?.body) return;
+  const used = new WeakSet();
+  await clickAddNearHeading(root, /work\s*experience|employment\s*history|professional\s*experience/i, used);
+  await clickAddNearHeading(
+    root,
+    /(^|\s)(education|academic\s*history|schools?\s*attended)(\s|$)/i,
+    used,
+  );
+}
+
+/**
+ * All same-origin documents reachable from `document` (nested iframes included).
+ * @returns {Document[]}
+ */
+function collectSameOriginDocuments() {
+  const out = [];
+  const seen = new Set();
+  const queue = [document];
+  while (queue.length) {
+    const doc = queue.shift();
+    if (!doc || seen.has(doc)) continue;
+    seen.add(doc);
+    out.push(doc);
+    try {
+      doc.querySelectorAll('iframe').forEach((fr) => {
+        try {
+          if (fr.contentDocument) queue.push(fr.contentDocument);
+        } catch {
+          /* cross-origin */
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+  return out;
+}
+
+/**
+ * Clicks Workday "Add" row controls for Experience/Education in the main document and same-origin iframes.
+ * Call from the content script before a fresh DOM field scan.
+ */
+export async function prepareWorkdayRepeatersForAutofill() {
+  for (const root of collectSameOriginDocuments()) {
+    await ensureWorkdayRepeatersInRoot(root);
   }
 }
 

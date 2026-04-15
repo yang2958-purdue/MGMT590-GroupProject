@@ -27,7 +27,8 @@ export async function parseResumeWithLLM(rawText, fileName) {
 }
 
 /**
- * Merge deterministic and LLM parser output (LLM wins when non-empty).
+ * Merge deterministic and LLM parser output. Skills are a deduplicated union (LLM first);
+ * experience prefers LLM when non-empty; education merges unique entries from both.
  * @param {Object} baseData
  * @param {Object|null} llmData
  * @returns {Object}
@@ -52,7 +53,7 @@ export function mergeResumeData(baseData, llmData) {
       state: llmData?.location?.state || baseData?.location?.state || '',
       zip: llmData?.location?.zip || baseData?.location?.zip || '',
     },
-    skills: Array.isArray(llmData?.skills) && llmData.skills.length ? llmData.skills : baseData.skills,
+    skills: mergeSkillLists(baseData?.skills, llmData?.skills),
     experience:
       Array.isArray(llmData?.experience) && llmData.experience.length ? llmData.experience : baseData.experience,
     education: mergedEducation,
@@ -60,6 +61,28 @@ export function mergeResumeData(baseData, llmData) {
   };
 
   return merged;
+}
+
+/**
+ * Union of heuristic and LLM skills (LLM first, then unique heuristic additions).
+ * @param {string[]|undefined} baseSkills
+ * @param {string[]|undefined} llmSkills
+ * @returns {string[]}
+ */
+function mergeSkillLists(baseSkills, llmSkills) {
+  const llm = Array.isArray(llmSkills) ? llmSkills : [];
+  const base = Array.isArray(baseSkills) ? baseSkills : [];
+  const seen = new Set();
+  const out = [];
+  for (const s of [...llm, ...base]) {
+    const t = String(s).trim();
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
 }
 
 /**

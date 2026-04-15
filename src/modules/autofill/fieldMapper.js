@@ -74,7 +74,7 @@ export function mapFields(formFields, resume, userProfile) {
     (f) => f.fieldType === 'select' && labelIsPhoneDeviceTypeField(f.label),
   );
 
-  return formFields.map((field) => {
+  const filledFields = formFields.map((field) => {
     if (shouldPause(field)) {
       return { field, value: null, status: 'pause_required' };
     }
@@ -98,6 +98,8 @@ export function mapFields(formFields, resume, userProfile) {
 
     return { field, value: null, status: 'skipped' };
   });
+
+  return filledFields;
 }
 
 // ─── Pause-trigger detection ────────────────────────────────────
@@ -118,6 +120,23 @@ function shouldPause(field) {
 }
 
 // ─── Value resolution ───────────────────────────────────────────
+
+/**
+ * Candidate resume/profile keys for a form field (order preserved).
+ * @param {FormField} field
+ * @returns {string[]}
+ */
+function collectCandidateKeys(field) {
+  const keysToTry = [];
+  const addKey = (k) => {
+    if (k && k !== 'unmapped' && !keysToTry.includes(k)) keysToTry.push(k);
+  };
+  addKey(field.suggestedDataKey);
+  for (const k of inferDataKeysToTry(field.label || '', field.fieldType)) {
+    addKey(k);
+  }
+  return keysToTry;
+}
 
 /**
  * Build a flat key -> value lookup from resume and profile data.
@@ -183,6 +202,8 @@ function applyResumeOverrides(map, ro) {
   if (co) map['workExperience[0].company'] = co;
   const wd = trimStr(ro.workDates);
   if (wd) map['workExperience[0].dates'] = wd;
+  const wl = trimStr(ro.workLocation);
+  if (wl) map['workExperience[0].location'] = wl;
 
   const sch = trimStr(ro.school);
   if (sch) map['education[0].school'] = sch;
@@ -193,6 +214,84 @@ function applyResumeOverrides(map, ro) {
 
   const sk = trimStr(ro.skills);
   if (sk) map['skills'] = sk;
+}
+
+const MONTH_WORD_TO_INDEX = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
+
+/**
+ * Normalize one date fragment to MM/YYYY for Workday month pickers.
+ * @param {string} tok
+ * @returns {string}
+ */
+function parseMonthYearToken(tok) {
+  const t = String(tok || '').trim();
+  if (!t) return '';
+  let m = t.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const mm = Math.min(12, Math.max(1, parseInt(m[1], 10)));
+    return `${String(mm).padStart(2, '0')}/${m[2]}`;
+  }
+  m = t.match(/^([A-Za-z]+)\s+(\d{4})/);
+  if (m) {
+    const mi = MONTH_WORD_TO_INDEX[m[1].toLowerCase()];
+    if (mi != null) return `${String(mi + 1).padStart(2, '0')}/${m[2]}`;
+  }
+  m = t.match(/^(\d{4})$/);
+  if (m) return `01/${m[1]}`;
+  return '';
+}
+
+/**
+ * Split a combined experience date line (e.g. "Aug 2020 – Present") into Workday From/To.
+ * @param {string} raw
+ * @returns {{ start: string, end: string }}
+ */
+function splitExperienceDatesForWorkday(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return { start: '', end: '' };
+  const present = /\b(present|current|now)\b/i;
+  const normalized = s.replace(/\s+/g, ' ').replace(/[–—]/g, '-');
+  const parts = normalized
+    .split(/\s*-\s*|\s+to\s+|\s+through\s+/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  let start = '';
+  let end = '';
+  if (parts.length >= 1) {
+    start = parseMonthYearToken(parts[0]);
+  }
+  if (parts.length >= 2) {
+    end = present.test(parts[1]) ? '' : parseMonthYearToken(parts[1]);
+  }
+  if (!start && !end) {
+    start = parseMonthYearToken(s);
+  }
+  return { start, end };
 }
 
 function buildLookup(resume, profile) {
@@ -215,6 +314,18 @@ function buildLookup(resume, profile) {
       map['workExperience[0].title'] = exp.title || '';
       map['workExperience[0].company'] = exp.company || '';
       map['workExperience[0].dates'] = exp.dates || '';
+      const bullets = Array.isArray(exp.bullets) ? exp.bullets : [];
+      map['workExperience[0].description'] = bullets
+        .map((b) => String(b).trim())
+        .filter(Boolean)
+        .join('\n\n');
+      map['workExperience[0].location'] = trimStr(exp.location || '');
+      const { start, end } = splitExperienceDatesForWorkday(exp.dates || '');
+      map['workExperience[0].startDate'] = start;
+      map['workExperience[0].endDate'] = end;
+      if (/\b(present|current|now)\b/i.test(String(exp.dates || ''))) {
+        map['workExperience[0].currentlyEmployed'] = 'Yes';
+      }
     }
 
     if (resume.education?.length) {
@@ -273,16 +384,7 @@ function resolveValueForField(field, lookup) {
   const label = field.label || '';
   const hardcodedValue = getHardcodedValueForField(field);
   if (hardcodedValue) return hardcodedValue;
-  const keysToTry = [];
-
-  const addKey = (k) => {
-    if (k && k !== 'unmapped' && !keysToTry.includes(k)) keysToTry.push(k);
-  };
-
-  addKey(field.suggestedDataKey);
-  for (const k of inferDataKeysToTry(label, field.fieldType)) {
-    addKey(k);
-  }
+  const keysToTry = collectCandidateKeys(field);
 
   for (const key of keysToTry) {
     const raw = lookup[key];
