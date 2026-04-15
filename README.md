@@ -24,6 +24,8 @@ npm run build
 
 The built extension is output to the `dist/` folder. The build runs two steps: the main Vite bundle (side panel + service worker) and a second pass that emits `content/content.js` as a single **IIFE** (required so `chrome.scripting.executeScript` can load the autofill listener as a classic script).
 
+**Toolbar icons:** Chrome uses PNGs (`icons/icon16.png`, `icon48.png`, `icon128.png`) for the extension toolbar and management UI. The source asset is **`src/sidepanel/icons/billiards-fill.png`** (also used in the side panel header). After replacing that PNG or editing [`src/sidepanel/icons/billiards-fill.svg`](src/sidepanel/icons/billiards-fill.svg), run `npm run icons` before `npm run build` so the packaged toolbar icons stay in sync. To regenerate `billiards-fill.png` from the SVG (white, 512×512), run `node scripts/rasterize-brand-svg.mjs`, then `npm run icons`.
+
 ### 3. Load in Chrome
 
 1. Open `chrome://extensions/`

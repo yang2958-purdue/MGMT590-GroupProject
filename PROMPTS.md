@@ -502,3 +502,15 @@
 **Prompt:** The issue has been fixed. Please clean up the instrumentation.
 
 **Outcome:** Removed all **`fetch`** calls to the debug ingest endpoint (`127.0.0.1:7696/ingest/...`) and **`#region agent log`** blocks from **`fieldFiller.js`** (fill loop, textarea, checkbox, date section, combobox tokens), **`fieldMapper.js`** (`mapFields` trace), and **`domFieldScanner.js`** (scan summary + **`probeWorkExperienceControlCompacts`**). Tightened **`setWorkdayDateSectionValue`** destructuring to **`nextValue`** only. README Architecture note dropped the **`probeWxExp`** line. Rebuild verified with **`npm run build`**.
+
+## 2026-04-14 - Extension logo: billiards SVG + header brand
+
+**Prompt:** Use `billiards-fill.svg` as the extension icon/logo and show the icon to the left of “JobBot” in the top-left of the side panel header.
+
+**Outcome:** Added `src/sidepanel/icons/billiards-fill.svg` and updated `nav.js` / `app.css` so the header shows inline SVG + “JobBot”. Added `scripts/generate-icons.mjs` (sharp) and `npm run icons` to rasterize the SVG into `icons/icon16.png`, `icon48.png`, and `icon128.png` for Manifest V3 toolbar icons. README documents regenerating icons after SVG edits.
+
+## 2026-04-14 - Brand asset: PNG instead of inline SVG
+
+**Prompt:** Use a PNG for the extension icon instead of the SVG; show it before “JobBot” in the header.
+
+**Outcome:** `nav.js` now uses an `<img>` with `billiards-fill.png` (Vite URL import). `generate-icons.mjs` resizes that PNG to manifest sizes. Added `scripts/rasterize-brand-svg.mjs` and `npm run brand:png` to optionally rebuild `billiards-fill.png` from `billiards-fill.svg` (the chat attachment could not be copied as a valid binary). README updated for the PNG workflow.
