@@ -6,7 +6,7 @@ SKILLS_JSON_SYSTEM = (
     'The object must have exactly one key: "skills", whose value is an array of strings.'
 )
 
-SKILLS_JSON_USER_RESUME = """From the resume text below, list concrete skills, technologies, tools, frameworks, languages, certifications, and methodologies the candidate demonstrates.
+SKILLS_JSON_USER_RESUME = """From the resume text below, list concrete skills, technologies, tools, frameworks, languages, certifications, and methodologies the candidate demonstrates. Include items mentioned in work experience, projects, and other sections — not only lines under a "Skills" heading.
 
 Include:
 - Programming languages, frameworks, libraries, cloud platforms, databases, DevOps tools

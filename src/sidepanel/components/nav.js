@@ -13,6 +13,7 @@ import seoLine from '../icons/seo-line.svg?raw';
 import folderLine from '../icons/folder-line.svg?raw';
 import draftLine from '../icons/draft-line.svg?raw';
 import pencilAiLine from '../icons/pencil-ai-line.svg?raw';
+import billiardsFillPng from '../icons/billiards-fill.png';
 
 /** @param {string} svgRaw - SVG markup from `?raw` import */
 function navSvg(svgRaw) {
@@ -73,7 +74,17 @@ export function renderNav(container, activeHash) {
 
   container.innerHTML = `
     <div class="nav-inner">
-      <strong class="nav-brand">JobBot</strong>
+      <span class="nav-brand">
+        <img
+          class="nav-brand-icon"
+          src="${billiardsFillPng}"
+          width="22"
+          height="22"
+          alt=""
+          aria-hidden="true"
+        />
+        <strong class="nav-brand-text">JobBot</strong>
+      </span>
       <div class="nav-icons" role="toolbar" aria-label="Main sections">
         ${primaryHtml}
         <details class="nav-more">
