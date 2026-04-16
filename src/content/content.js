@@ -46,7 +46,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     case 'PREPARE_WORKDAY_REPEATERS': {
-      prepareWorkdayRepeatersForAutofill()
+      prepareWorkdayRepeatersForAutofill({
+        workExperienceTargetCount: message.workExperienceTargetCount,
+        educationAdd: message.educationAdd !== false,
+      })
         .then(() => sendResponse({ ok: true }))
         .catch((e) =>
           sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }),

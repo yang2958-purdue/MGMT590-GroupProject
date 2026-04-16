@@ -65,6 +65,8 @@ function labelIsPhoneDeviceTypeField(label) {
  * @returns {FilledField[]}
  */
 export function mapFields(formFields, resume, userProfile) {
+  normalizeWorkExperienceFieldKeys(formFields);
+
   const lookup = buildLookup(resume, userProfile);
 
   const hasStateDropdown = formFields.some(
@@ -122,14 +124,22 @@ function shouldPause(field) {
 // ─── Value resolution ───────────────────────────────────────────
 
 /**
- * Candidate resume/profile keys for a form field (order preserved).
- * @param {FormField} field
- * @returns {string[]}
+ * Remap `workExperience[0].*` candidate keys to the repeater row index when known (Workday DOM).
+ * @param {string|undefined} key
+ * @param {number|undefined} wxIdx
+ * @returns {string|undefined}
  */
+function remapWorkExperienceKey(key, wxIdx) {
+  if (wxIdx == null || key == null || typeof key !== 'string') return key;
+  return key.replace(/^workExperience\[\d+\]/, `workExperience[${wxIdx}]`);
+}
+
 function collectCandidateKeys(field) {
+  const wxIdx = field.wxResumeIndex;
   const keysToTry = [];
   const addKey = (k) => {
-    if (k && k !== 'unmapped' && !keysToTry.includes(k)) keysToTry.push(k);
+    const k2 = remapWorkExperienceKey(k, wxIdx);
+    if (k2 && k2 !== 'unmapped' && !keysToTry.includes(k2)) keysToTry.push(k2);
   };
   addKey(field.suggestedDataKey);
   for (const k of inferDataKeysToTry(field.label || '', field.fieldType)) {
@@ -139,11 +149,53 @@ function collectCandidateKeys(field) {
 }
 
 /**
- * Build a flat key -> value lookup from resume and profile data.
- * @param {ResumeData|null} resume
- * @param {UserProfile|null} profile
- * @returns {Object.<string, string>}
+ * Workday uses internal ids (e.g. workExperience-11--jobTitle). Map sorted ids to resume indices 0..n-1.
+ * @param {import('../scraper/firecrawlAdapter.js').FormField[]} formFields
  */
+function normalizeWorkExperienceFieldKeys(formFields) {
+  const allNs = new Set();
+  for (const f of formFields) {
+    const blob = f.inferenceSource || [f.label, f.selector, f.suggestedDataKey].filter(Boolean).join(' ');
+    for (const n of extractWorkexperienceIdsFromBlob(blob)) {
+      allNs.add(n);
+    }
+  }
+  const sortedNs = [...allNs].sort((a, b) => a - b);
+
+  for (const f of formFields) {
+    const blob = f.inferenceSource || [f.label, f.selector, f.suggestedDataKey].filter(Boolean).join(' ');
+    const ids = extractWorkexperienceIdsFromBlob(blob);
+    const N = ids.length ? ids[0] : null;
+    if (N == null) {
+      delete f.wxResumeIndex;
+      continue;
+    }
+    const idx = sortedNs.indexOf(N);
+    if (idx >= 0) {
+      f.wxResumeIndex = idx;
+    } else {
+      delete f.wxResumeIndex;
+    }
+  }
+}
+
+/**
+ * @param {string} blob
+ * @returns {number[]}
+ */
+function extractWorkexperienceIdsFromBlob(blob) {
+  const compact = String(blob || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  const out = [];
+  const re = /workexperience(\d+)/g;
+  let m;
+  while ((m = re.exec(compact)) !== null) {
+    out.push(parseInt(m[1], 10));
+  }
+  return out;
+}
+
 /**
  * @param {string|undefined} s
  */
@@ -310,22 +362,24 @@ function buildLookup(resume, profile) {
     map['commonAnswers.zip'] = resume.location?.zip || '';
 
     if (resume.experience?.length) {
-      const exp = resume.experience[0];
-      map['workExperience[0].title'] = exp.title || '';
-      map['workExperience[0].company'] = exp.company || '';
-      map['workExperience[0].dates'] = exp.dates || '';
-      const bullets = Array.isArray(exp.bullets) ? exp.bullets : [];
-      map['workExperience[0].description'] = bullets
-        .map((b) => String(b).trim())
-        .filter(Boolean)
-        .join('\n\n');
-      map['workExperience[0].location'] = trimStr(exp.location || '');
-      const { start, end } = splitExperienceDatesForWorkday(exp.dates || '');
-      map['workExperience[0].startDate'] = start;
-      map['workExperience[0].endDate'] = end;
-      if (/\b(present|current|now)\b/i.test(String(exp.dates || ''))) {
-        map['workExperience[0].currentlyEmployed'] = 'Yes';
-      }
+      resume.experience.forEach((exp, i) => {
+        const prefix = `workExperience[${i}]`;
+        map[`${prefix}.title`] = exp.title || '';
+        map[`${prefix}.company`] = exp.company || '';
+        map[`${prefix}.dates`] = exp.dates || '';
+        const bullets = Array.isArray(exp.bullets) ? exp.bullets : [];
+        map[`${prefix}.description`] = bullets
+          .map((b) => String(b).trim())
+          .filter(Boolean)
+          .join('\n\n');
+        map[`${prefix}.location`] = trimStr(exp.location || '');
+        const { start, end } = splitExperienceDatesForWorkday(exp.dates || '');
+        map[`${prefix}.startDate`] = start;
+        map[`${prefix}.endDate`] = end;
+        if (/\b(present|current|now)\b/i.test(String(exp.dates || ''))) {
+          map[`${prefix}.currentlyEmployed`] = 'Yes';
+        }
+      });
     }
 
     if (resume.education?.length) {
