@@ -58,6 +58,7 @@ The server starts on `http://localhost:5001`. The extension calls this server to
 The extension can enhance resume parsing via ChatGPT through the local Python server.
 The LLM parser now scans the full resume text for likely university/college names to improve `education.school` extraction quality.
 When LLM parsing is enabled, education entries from heuristic + LLM parsing are merged so prior schools are retained instead of being dropped.
+For PDF uploads, the extension now also sends the original PDF bytes to the server so the LLM can parse from the document directly (with extracted text used as fallback context).
 
 1. Create an OpenAI API key from your OpenAI account.
 2. Configure the key (pick one approach):

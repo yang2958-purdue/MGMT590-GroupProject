@@ -149,7 +149,7 @@ async function handleFile(file, container) {
     let resumeData = { ...baseData, parserSource: 'heuristic' };
 
     try {
-      const llmData = await parseResumeWithLLM(baseData.rawText, baseData.fileName);
+      const llmData = await parseResumeWithLLM(baseData.rawText, baseData.fileName, file);
       resumeData = mergeResumeData(baseData, llmData);
     } catch (llmErr) {
       console.warn('LLM parser unavailable, using heuristic parse:', llmErr);

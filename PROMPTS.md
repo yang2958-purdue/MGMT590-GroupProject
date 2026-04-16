@@ -406,3 +406,9 @@
 **Prompt:** Implement the plan "Multi-role Workday autofill": populate `workExperience[i].*` for every parsed resume role, remap DOM repeater ids to resume index, add enough Work Experience rows before scanning, README + PROMPTS.
 
 **Outcome:** `fieldMapper.js` loops `resume.experience` in `buildLookup`, `normalizeWorkExperienceFieldKeys` + `wxResumeIndex` remap keys; `domFieldScanner` passes `inferenceSource`; `fieldFiller` counts Workday repeater ids and clicks Add to reach target; `autofillController` / `content.js` pass `workExperienceTargetCount` (cap 10); `FormField` typedef extended; README autofill bullet updated.
+
+## 2026-04-16 - Parse resume from attached PDF in LLM call
+
+**Prompt:** lets rewrite the prompt to have chatgpt read the pdf file we give it rather than the individual text
+
+**Outcome:** Updated client/server LLM parsing flow so the uploaded PDF bytes are sent to `/parse-resume-llm` and forwarded to OpenAI Responses API as an attached file (`input_file`) with document-first parsing instructions; raw extracted text is now fallback context. Updated `src/modules/llmResumeParser.js`, `src/sidepanel/components/resumeUpload.js`, `python-server/server.py`, and README notes.

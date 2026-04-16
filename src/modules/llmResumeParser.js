@@ -3,18 +3,23 @@ import { SCRAPER_URL } from '../lib/constants.js';
 
 /**
  * Call local Python server to parse resume via ChatGPT.
+ * Sends the original file payload when available so the backend can ask
+ * the model to read the document directly (PDF-first flow).
  * @param {string} rawText
  * @param {string} fileName
+ * @param {File} [file]
  * @returns {Promise<Object|null>}
  */
-export async function parseResumeWithLLM(rawText, fileName) {
+export async function parseResumeWithLLM(rawText, fileName, file) {
   const headers = await buildJsonHeadersWithOptionalOpenAi();
+  const filePayload = await toLlmFilePayload(file);
   const res = await fetch(`${SCRAPER_URL}/parse-resume-llm`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
       rawText,
       fileName,
+      ...filePayload,
     }),
   });
 
@@ -24,6 +29,31 @@ export async function parseResumeWithLLM(rawText, fileName) {
   }
 
   return res.json();
+}
+
+/**
+ * Convert browser File to compact payload for LLM endpoint.
+ * @param {File | undefined} file
+ * @returns {Promise<{ fileData?: string, fileMimeType?: string }>}
+ */
+async function toLlmFilePayload(file) {
+  if (!(file instanceof File)) return {};
+  const mime = (file.type || '').toLowerCase();
+  if (!mime) return {};
+  if (mime !== 'application/pdf') return {};
+
+  const ab = await file.arrayBuffer();
+  const bytes = new Uint8Array(ab);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  const b64 = btoa(binary);
+  return {
+    fileData: b64,
+    fileMimeType: mime,
+  };
 }
 
 /**
