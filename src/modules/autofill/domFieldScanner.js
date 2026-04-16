@@ -206,6 +206,7 @@ function scanInto(doc, iframePath, out, seenRadioKeys, scanStats) {
       selector: cssSel,
       isRequired: !!isRequired,
       suggestedDataKey,
+      inferenceSource: inferKeySource,
     };
     if (iframePath.length) {
       field.iframePath = [...iframePath];

@@ -400,3 +400,9 @@
 **Prompt:** Add validation for API keys with errors in the API key section if missing/invalid.
 
 **Outcome:** Added `src/lib/apiKeyValidation.js` (Firecrawl scrape probe, OpenAI `GET /v1/models`, server `/health` now includes `openai_configured`); **API keys** tab shows a **Key checks** card with status lines; runs on tab open and after save/clear; `app.css` line styles for ok/warn/err.
+
+## 2026-04-15 - Multiple work experience rows for Workday autofill
+
+**Prompt:** Implement the plan "Multi-role Workday autofill": populate `workExperience[i].*` for every parsed resume role, remap DOM repeater ids to resume index, add enough Work Experience rows before scanning, README + PROMPTS.
+
+**Outcome:** `fieldMapper.js` loops `resume.experience` in `buildLookup`, `normalizeWorkExperienceFieldKeys` + `wxResumeIndex` remap keys; `domFieldScanner` passes `inferenceSource`; `fieldFiller` counts Workday repeater ids and clicks Add to reach target; `autofillController` / `content.js` pass `workExperienceTargetCount` (cap 10); `FormField` typedef extended; README autofill bullet updated.

@@ -126,9 +126,15 @@ export async function runAutofillPipeline(tabId, pageUrl) {
 
   if (shouldPrepareWorkdayRepeaters(resume)) {
     try {
+      const expLen = resume?.experience?.length ?? 0;
+      const workExperienceTargetCount = expLen > 0 ? Math.min(expLen, 10) : 0;
       await tabSendMessageWithContentScriptFallback(
         tabId,
-        { type: 'PREPARE_WORKDAY_REPEATERS' },
+        {
+          type: 'PREPARE_WORKDAY_REPEATERS',
+          workExperienceTargetCount,
+          educationAdd: true,
+        },
         { injectFrameId: typeof contentFrameId === 'number' ? contentFrameId : undefined },
       );
     } catch {
@@ -411,11 +417,6 @@ async function requestDomFieldScan(tabId) {
   }
 }
 
-/**
- * Wait for a tab to finish loading (status === 'complete').
- * @param {number} tabId
- * @returns {Promise<void>}
- */
 /**
  * @param {import('../resumeParser.js').ResumeData | null} resume
  */

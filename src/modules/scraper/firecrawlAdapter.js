@@ -18,6 +18,8 @@ import { getResolvedFirecrawlApiKey } from '../../lib/apiKeys.js';
  * @property {string} suggestedDataKey - Hint for which resume/profile key maps here
  *   (e.g. "firstName", "email", "workExperience[0].title", "commonAnswers.sponsorship").
  * @property {number[]} [iframePath]   - Indices into nested same-origin iframes from the top document; omit for top-level.
+ * @property {string} [inferenceSource] - DOM scan only: id/name/aria blob used to infer Workday repeater scope.
+ * @property {number} [wxResumeIndex]   - Set in fieldMapper: resume row index for Workday repeater fields.
  */
 
 /**

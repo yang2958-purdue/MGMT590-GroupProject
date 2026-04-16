@@ -1514,17 +1514,58 @@ async function clickAddNearHeading(root, headingRe, used) {
 }
 
 /**
- * @param {Document} root
+ * Count distinct Workday workExperience-<N> repeater ids in the DOM (shadow DOM included).
+ * @param {Document|Element|ShadowRoot} root
+ * @returns {number}
  */
-async function ensureWorkdayRepeatersInRoot(root) {
+function countWorkExperienceRowsInRoot(root) {
+  const ids = new Set();
+  for (const el of allElementsDeep(root)) {
+    if (!(el instanceof Element)) continue;
+    const blob = [
+      el.id,
+      el.getAttribute('name'),
+      el.getAttribute('data-automation-id'),
+      el.getAttribute('aria-label'),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const compact = blob.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const re = /workexperience(\d+)/g;
+    let m;
+    while ((m = re.exec(compact)) !== null) {
+      ids.add(parseInt(m[1], 10));
+    }
+  }
+  return ids.size;
+}
+
+/**
+ * @param {Document} root
+ * @param {number} workExperienceTargetCount - Desired number of Work Experience rows (capped by caller).
+ * @param {boolean} educationAdd - Click Education "Add" once when true.
+ */
+async function ensureWorkdayRepeatersInRoot(root, workExperienceTargetCount, educationAdd) {
   if (!root?.body) return;
-  const used = new WeakSet();
-  await clickAddNearHeading(root, /work\s*experience|employment\s*history|professional\s*experience/i, used);
-  await clickAddNearHeading(
-    root,
-    /(^|\s)(education|academic\s*history|schools?\s*attended)(\s|$)/i,
-    used,
-  );
+  const cap = Math.min(Math.max(workExperienceTargetCount, 0), 10);
+  if (cap > 0) {
+    const existing = countWorkExperienceRowsInRoot(root);
+    const need = Math.max(0, cap - existing);
+    for (let i = 0; i < need; i++) {
+      await clickAddNearHeading(
+        root,
+        /work\s*experience|employment\s*history|professional\s*experience/i,
+        new WeakSet(),
+      );
+    }
+  }
+  if (educationAdd) {
+    await clickAddNearHeading(
+      root,
+      /(^|\s)(education|academic\s*history|schools?\s*attended)(\s|$)/i,
+      new WeakSet(),
+    );
+  }
 }
 
 /**
@@ -1558,10 +1599,19 @@ function collectSameOriginDocuments() {
 /**
  * Clicks Workday "Add" row controls for Experience/Education in the main document and same-origin iframes.
  * Call from the content script before a fresh DOM field scan.
+ *
+ * @param {Object} [opts]
+ * @param {number} [opts.workExperienceTargetCount] - Number of Work Experience rows to ensure (default 1).
+ * @param {boolean} [opts.educationAdd] - Also add one Education row (default true).
  */
-export async function prepareWorkdayRepeatersForAutofill() {
+export async function prepareWorkdayRepeatersForAutofill(opts = {}) {
+  const wxTarget =
+    typeof opts.workExperienceTargetCount === 'number' && !Number.isNaN(opts.workExperienceTargetCount)
+      ? opts.workExperienceTargetCount
+      : 1;
+  const educationAdd = opts.educationAdd !== false;
   for (const root of collectSameOriginDocuments()) {
-    await ensureWorkdayRepeatersInRoot(root);
+    await ensureWorkdayRepeatersInRoot(root, wxTarget, educationAdd);
   }
 }
 
