@@ -185,19 +185,25 @@ def scrape():
 @app.route("/parse-resume-llm", methods=["POST"])
 def parse_resume_llm():
     """
-    Parse resume text with OpenAI chat model.
+    Parse resume using OpenAI model.
 
     Body:
       {
         "rawText": "<resume plain text>",
-        "fileName": "resume.pdf"
+        "fileName": "resume.pdf",
+        "fileData": "<base64 PDF bytes, optional>",
+        "fileMimeType": "application/pdf"
       }
     """
     payload = request.get_json(silent=True) or {}
     raw_text = (payload.get("rawText") or "").strip()
     file_name = (payload.get("fileName") or "").strip()
-    if not raw_text:
-        return jsonify({"error": "Missing rawText"}), 400
+    file_data = (payload.get("fileData") or "").strip()
+    file_mime_type = (payload.get("fileMimeType") or "").strip().lower()
+    has_pdf_payload = bool(file_data and file_mime_type == "application/pdf")
+
+    if not raw_text and not has_pdf_payload:
+        return jsonify({"error": "Missing rawText or PDF fileData"}), 400
 
     api_key = _openai_api_key_from_request()
     if not api_key:
@@ -210,6 +216,8 @@ def parse_resume_llm():
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
     raw_text = raw_text[:24000]
+    if len(file_data) > 12_000_000:
+        return jsonify({"error": "fileData payload is too large"}), 400
 
     schema_instructions = {
         "fileName": file_name or "",
@@ -242,13 +250,15 @@ def parse_resume_llm():
         ],
     }
 
-    school_candidates = _extract_school_candidates(raw_text)
+    school_candidates = _extract_school_candidates(raw_text if raw_text else "")
 
     prompt = (
-        "Extract structured resume information from the provided text. "
+        "Extract structured resume information from the provided resume document. "
         "Return JSON only (no markdown, no prose), using this exact shape keys:\n"
         f"{json.dumps(schema_instructions)}\n\n"
         "Rules:\n"
+        "- Primary source is the attached resume file when provided (PDF). Use the full document content.\n"
+        "- Use the provided raw text only as fallback/context if needed.\n"
         "- Name fields must preserve initials (e.g., 'Alec X. Neville').\n"
         "- Extract location (city, state, ZIP) from the contact/header block, address lines, or lines labeled Address, Location, Mailing address, or similar. If the resume shows a US address, use a 2-letter state abbreviation when clearly implied (e.g. IL for Illinois). If city and state appear in a pipe-separated line (e.g. \"Name | City, ST | email\"), capture them.\n"
         "- Experience entries should capture both title and company where possible.\n"
@@ -265,31 +275,20 @@ def parse_resume_llm():
     )
 
     try:
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=45,
-            json={
-                "model": model,
-                "temperature": 0,
-                "messages": [
-                    {"role": "system", "content": "You are a resume parsing engine. Output valid JSON only."},
-                    {"role": "user", "content": f"{prompt}\n\nResume text:\n{raw_text}"},
-                ],
-            },
+        response = _call_openai_resume_parser(
+            api_key=api_key,
+            model=model,
+            prompt=prompt,
+            raw_text=raw_text,
+            file_name=file_name or "resume.pdf",
+            file_data=file_data,
+            file_mime_type=file_mime_type,
         )
         if not response.ok:
             return jsonify({"error": f"OpenAI error ({response.status_code}): {response.text[:300]}"}), 502
 
         completion = response.json()
-        content = (
-            completion.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        )
+        content = _extract_llm_text(completion)
         parsed = _parse_json_from_llm_content(content)
         normalized = _normalize_resume_payload(parsed, file_name)
         normalized["parserSource"] = "llm"
@@ -297,6 +296,103 @@ def parse_resume_llm():
     except Exception as exc:
         log.exception("LLM parse error: %s", exc)
         return jsonify({"error": f"LLM parse failed: {exc}"}), 500
+
+
+def _call_openai_resume_parser(
+    api_key: str,
+    model: str,
+    prompt: str,
+    raw_text: str,
+    file_name: str,
+    file_data: str,
+    file_mime_type: str,
+):
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    has_pdf_payload = bool(file_data and file_mime_type == "application/pdf")
+
+    # Use Responses API for file-aware parsing when a PDF is available.
+    if has_pdf_payload:
+        user_content = [
+            {"type": "input_text", "text": prompt},
+        ]
+        if raw_text:
+            user_content.append(
+                {
+                    "type": "input_text",
+                    "text": f"Fallback extracted text (use only if needed):\n{raw_text}",
+                }
+            )
+        user_content.append(
+            {
+                "type": "input_file",
+                "filename": file_name or "resume.pdf",
+                "file_data": f"data:{file_mime_type};base64,{file_data}",
+            }
+        )
+        return requests.post(
+            "https://api.openai.com/v1/responses",
+            headers=headers,
+            timeout=60,
+            json={
+                "model": model,
+                "temperature": 0,
+                "input": [
+                    {
+                        "role": "system",
+                        "content": [{"type": "input_text", "text": "You are a resume parsing engine. Output valid JSON only."}],
+                    },
+                    {"role": "user", "content": user_content},
+                ],
+            },
+        )
+
+    # Fallback for text-only inputs.
+    return requests.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers=headers,
+        timeout=45,
+        json={
+            "model": model,
+            "temperature": 0,
+            "messages": [
+                {"role": "system", "content": "You are a resume parsing engine. Output valid JSON only."},
+                {"role": "user", "content": f"{prompt}\n\nResume text:\n{raw_text}"},
+            ],
+        },
+    )
+
+
+def _extract_llm_text(payload: dict) -> str:
+    # Chat Completions shape.
+    chat_text = (
+        (payload.get("choices", [{}])[0].get("message", {}) or {}).get("content", "")
+        if isinstance(payload, dict)
+        else ""
+    )
+    if isinstance(chat_text, str) and chat_text.strip():
+        return chat_text
+
+    # Responses API convenience field.
+    output_text = payload.get("output_text", "") if isinstance(payload, dict) else ""
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    # Responses API nested output blocks.
+    if isinstance(payload, dict):
+        outputs = payload.get("output") or []
+        if isinstance(outputs, list):
+            for out in outputs:
+                content = out.get("content") if isinstance(out, dict) else None
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    txt = block.get("text") if isinstance(block, dict) else ""
+                    if isinstance(txt, str) and txt.strip():
+                        return txt
+    return ""
 
 
 @app.route("/extract-skills", methods=["POST"])
