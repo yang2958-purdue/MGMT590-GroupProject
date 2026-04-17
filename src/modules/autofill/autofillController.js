@@ -20,11 +20,71 @@ import {
   getUserProfile,
   getAutofillState,
   setAutofillState,
+  getSelectedJob,
 } from '../storage.js';
 import { FILL_DELAY_MS } from '../../config/autofill.config.js';
 
 /**
  * @typedef {import('./fieldMapper.js').FilledField} FilledField
+ */
+
+/**
+ * Extract company name from page URL or form fields.
+ * Used when user navigates directly to career site without selecting a job.
+ * 
+ * @param {string} pageUrl - Current page URL
+ * @param {import('../scraper/firecrawlAdapter.js').FormField[]} formFields - Detected form fields
+ * @returns {string} Company name or empty string
+ */
+function extractCompanyFromPage(pageUrl, formFields) {
+  try {
+    const url = new URL(pageUrl);
+    
+    // Strategy 1: Extract from Workday subdomain pattern (e.g., leidos.wd1.myworkdayjobs.com)
+    if (url.hostname.includes('myworkdayjobs.com')) {
+      const subdomain = url.hostname.split('.')[0];
+      if (subdomain && subdomain !== 'www' && subdomain !== 'wd1' && subdomain !== 'wd5') {
+        // Capitalize first letter
+        return subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
+      }
+    }
+    
+    // Strategy 2: Look for company name in "previously worked for [Company]" radio button labels
+    const previousWorkQuestions = formFields.filter(f => 
+      f.fieldType === 'radio' && 
+      f.label && 
+      /previously\s+work|worked\s+for|prior\s+employ/i.test(f.label)
+    );
+    
+    for (const field of previousWorkQuestions) {
+      // Match pattern: "...for XYZ (" or "...for XYZ)" or "...for XYZ?"
+      const match = field.label.match(/\bfor\s+([A-Z][A-Za-z0-9&\s]+?)[\s]*[\(\)\?\*]/);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+    
+    // Strategy 3: Extract from common career site domains
+    const hostname = url.hostname.toLowerCase();
+    if (hostname.includes('careers.')) {
+      const parts = hostname.replace('careers.', '').split('.');
+      if (parts[0] && parts[0] !== 'www') {
+        return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      }
+    }
+    
+  } catch (e) {
+    console.warn('[extractCompanyFromPage] Failed to parse URL:', e);
+  }
+  
+  return '';
+}
+
+/**
+ * @typedef {Object} SkippedRequiredField
+ * @property {string} label - Field label
+ * @property {string} fieldType - Field type (input, select, etc.)
+ * @property {string} [suggestedDataKey] - What data key was expected
  */
 
 /**
@@ -37,6 +97,7 @@ import { FILL_DELAY_MS } from '../../config/autofill.config.js';
  * @property {number} totalFields        - Total field count (for progress display).
  * @property {string} [errorMessage]     - Error details when status is "error".
  * @property {number|null} [contentFrameId] - Frame ID where the content script runs (for messaging).
+ * @property {SkippedRequiredField[]} [skippedRequired] - Required fields that were skipped due to missing profile data.
  */
 
 /**
@@ -100,10 +161,38 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     }
   }
 
-  if (!formFields.length) {
-    const scan = await requestDomFieldScan(tabId);
-    formFields = scan.fields;
+  // ALWAYS run DOM scan to supplement Firecrawl (catches radio buttons it misses)
+  const scan = await requestDomFieldScan(tabId);
+  
+  if (scan.fields.length > 0) {
     contentFrameId = scan.frameId;
+    
+    if (formFields.length > 0) {
+      // Merge Firecrawl + DOM scan results
+      const firecrawlSelectors = new Set(formFields.map(f => f.selector));
+      
+      // Add fields that DOM found but Firecrawl missed
+      const additionalFields = scan.fields.filter(f => !firecrawlSelectors.has(f.selector));
+      formFields = [...formFields, ...additionalFields];
+    } else {
+      // No Firecrawl results, use DOM scan entirely
+      formFields = scan.fields;
+    }
+  }
+
+  if (!formFields.length) {
+    const msg =
+      'No fillable fields were found. Open the application step where the form is visible (some career sites load the form inside a frame), then try again.';
+    await setAutofillState({
+      tabId,
+      jobUrl: pageUrl,
+      fields: [],
+      currentIndex: 0,
+      totalFields: 0,
+      status: 'error',
+      errorMessage: msg,
+    });
+    throw new Error(msg);
   }
 
   if (!formFields.length) {
@@ -148,9 +237,26 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     }
   }
 
-  const filledFields = mapFields(formFields, resume, profile);
+  const selectedJob = await getSelectedJob();
+  let targetCompany = selectedJob?.company || '';
+  
+  // Fallback: extract company from current page if not selected from job results
+  if (!targetCompany) {
+    targetCompany = extractCompanyFromPage(pageUrl, formFields);
+  }
+  
+  const filledFields = mapFields(formFields, resume, profile, targetCompany);
 
   const nonSkipped = filledFields.filter((f) => f.status !== 'skipped');
+  
+  // Track required fields that were skipped (missing profile data)
+  const skippedRequired = filledFields
+    .filter((f) => f.status === 'skipped' && f.field.isRequired)
+    .map((f) => ({
+      label: f.field.label || 'Unlabeled field',
+      fieldType: f.field.fieldType,
+      suggestedDataKey: f.field.suggestedDataKey,
+    }));
 
   const state = {
     tabId,
@@ -160,6 +266,7 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     totalFields: nonSkipped.length,
     status: 'filling',
     contentFrameId,
+    skippedRequired: skippedRequired.length > 0 ? skippedRequired : undefined,
   };
   await setAutofillState(state);
 

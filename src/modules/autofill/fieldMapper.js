@@ -64,7 +64,7 @@ function labelIsPhoneDeviceTypeField(label) {
  * @param {UserProfile|null} userProfile - Stored user profile Q&A.
  * @returns {FilledField[]}
  */
-export function mapFields(formFields, resume, userProfile) {
+export function mapFields(formFields, resume, userProfile, targetCompany = '') {
   normalizeWorkExperienceFieldKeys(formFields);
 
   const lookup = buildLookup(resume, userProfile);
@@ -92,7 +92,7 @@ export function mapFields(formFields, resume, userProfile) {
       return { field, value: null, status: 'skipped' };
     }
 
-    const value = resolveValueForField(field, lookup);
+    const value = resolveValueForField(field, lookup, resume, targetCompany);
 
     if (value != null && value !== '') {
       return { field, value: String(value), status: 'ready' };
@@ -412,6 +412,7 @@ function buildLookup(resume, profile) {
     map['commonAnswers.salary'] = trimStr(profile.desiredSalary);
     map['commonAnswers.relocation'] = trimStr(profile.relocation);
     map['commonAnswers.sensitiveOptional'] = trimStr(profile.sensitiveOptional);
+    map['commonAnswers.address'] = trimStr(profile.address);
     map['commonAnswers.country'] = trimStr(profile.country);
     if (trimStr(profile.city)) map['commonAnswers.city'] = trimStr(profile.city);
     if (trimStr(profile.state)) map['commonAnswers.state'] = trimStr(profile.state);
@@ -432,11 +433,13 @@ function buildLookup(resume, profile) {
 /**
  * @param {FormField} field
  * @param {Object.<string, string>} lookup
+ * @param {ResumeData|null} resume
+ * @param {string} targetCompany
  * @returns {string|null}
  */
-function resolveValueForField(field, lookup) {
+function resolveValueForField(field, lookup, resume, targetCompany) {
   const label = field.label || '';
-  const hardcodedValue = getHardcodedValueForField(field);
+  const hardcodedValue = getHardcodedValueForField(field, resume, targetCompany);
   if (hardcodedValue) return hardcodedValue;
   const keysToTry = collectCandidateKeys(field);
 
@@ -455,9 +458,11 @@ function resolveValueForField(field, lookup) {
 /**
  * Hardcoded values for specific known form labels.
  * @param {FormField} field
+ * @param {ResumeData|null} resume
+ * @param {string} targetCompany
  * @returns {string|null}
  */
-function getHardcodedValueForField(field) {
+function getHardcodedValueForField(field, resume, targetCompany) {
   const haystack = [
     field.label || '',
     field.selector || '',
@@ -467,6 +472,34 @@ function getHardcodedValueForField(field) {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Check for "Have you previously worked for [company]?" question
+  if (
+    targetCompany &&
+    resume?.experience?.length &&
+    (/previously\s+work/i.test(haystack) || /worked\s+for/i.test(haystack) || /prior\s+employ/i.test(haystack))
+  ) {
+    // Normalize company names for comparison (lowercase, remove common suffixes)
+    const normalizeCompany = (name) => {
+      return String(name || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\b(inc|llc|ltd|corporation|corp|co|company)\b\.?/gi, '')
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const targetNormalized = normalizeCompany(targetCompany);
+    
+    // Check if any work experience matches the target company
+    const hasWorkedAtCompany = resume.experience.some((exp) => {
+      const expCompanyNormalized = normalizeCompany(exp.company);
+      return expCompanyNormalized && targetNormalized && expCompanyNormalized.includes(targetNormalized);
+    });
+
+    return hasWorkedAtCompany ? 'Yes' : 'No';
+  }
 
   if (
     !/\bphone\s+number\b/.test(haystack) &&

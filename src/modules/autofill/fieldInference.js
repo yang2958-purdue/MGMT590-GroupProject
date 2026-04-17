@@ -98,6 +98,7 @@ export function inferDataKeyFromLabel(labelText, fieldType) {
     if (t.includes('linkedin')) return 'linkedin';
     if (/\bemail\b|e-mail/.test(t)) return 'email';
     if (/\bmiddle\s*name\b|\bmiddle\s*initial\b/.test(t)) return 'middleName';
+    if (/\baddress\s*line\b|\bstreet\s*address\b|\baddress\s*1\b|\baddress\s*\*?\s*$/.test(t) && !/\bemail\b/.test(t)) return 'commonAnswers.address';
     if (/\bcity\b/.test(t) && !/capacity|velocity/.test(t)) return 'commonAnswers.city';
     if (/\b(zip|postal|post code)\b/.test(t)) return 'commonAnswers.zip';
     if (/^state\*?$|^\s*state\s*\*?\s*$/i.test(t) || /^state$/.test(t)) return 'commonAnswers.state';

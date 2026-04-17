@@ -35,6 +35,13 @@ export function createAutofillPanel(container, { onPause, onResume, onSkip } = {
           <p class="text-muted text-sm mt-8">Click Next on the application page when ready.</p>
         </div>
       </div>
+      <div id="af-skipped-required" style="display:none; margin-top:12px;">
+        <div class="card" style="border-color:var(--color-warning); background:rgba(251,191,36,0.08); padding:12px;">
+          <p style="font-weight:600; color:var(--color-warning); margin-bottom:8px;">⚠️ Missing profile data</p>
+          <p class="text-muted text-sm mb-8">Some required fields were skipped. Add this info in Settings → Profile:</p>
+          <ul id="af-skipped-list" class="text-sm" style="margin:0; padding-left:20px;"></ul>
+        </div>
+      </div>
     </div>
   `;
 
@@ -58,6 +65,7 @@ export function createAutofillPanel(container, { onPause, onResume, onSkip } = {
  * @param {string} [state.fieldLabel]
  * @param {string} [state.reason]
  * @param {string} [state.errorMessage]
+ * @param {Array<{label: string, fieldType: string, suggestedDataKey?: string}>} [state.skippedRequired]
  */
 export function updateAutofillPanel(container, state) {
   const badge = container.querySelector('#af-status-badge');
@@ -68,6 +76,8 @@ export function updateAutofillPanel(container, state) {
   const btnResume = container.querySelector('#af-btn-resume');
   const btnSkip = container.querySelector('#af-btn-skip');
   const completeEl = container.querySelector('#af-complete');
+  const skippedRequiredEl = container.querySelector('#af-skipped-required');
+  const skippedListEl = container.querySelector('#af-skipped-list');
 
   if (!badge) return;
 
@@ -81,6 +91,19 @@ export function updateAutofillPanel(container, state) {
   btnResume.style.display = 'none';
   btnSkip.style.display = 'none';
   completeEl.style.display = 'none';
+  
+  // Show skipped required fields warning (if any)
+  if (state.skippedRequired && state.skippedRequired.length > 0) {
+    skippedRequiredEl.style.display = 'block';
+    skippedListEl.innerHTML = state.skippedRequired
+      .map((field) => {
+        const hint = getProfileHint(field.suggestedDataKey);
+        return `<li style="margin-bottom:4px;"><strong>${escapeHtml(field.label)}</strong>${hint ? ` — ${hint}` : ''}</li>`;
+      })
+      .join('');
+  } else {
+    skippedRequiredEl.style.display = 'none';
+  }
 
   switch (status) {
     case 'scanning':
@@ -122,4 +145,98 @@ export function updateAutofillPanel(container, state) {
     default:
       break;
   }
+}
+
+/**
+ * Get a user-friendly hint for what profile field to fill based on the data key.
+ * @param {string | undefined} dataKey
+ * @returns {string}
+ */
+function getProfileHint(dataKey) {
+  if (!dataKey) return 'check Settings → Profile';
+  
+  const hints = {
+    // Location/Contact (Settings → Profile → Mailing/location)
+    'commonAnswers.address': 'add Street Address in Settings → Profile',
+    'commonAnswers.city': 'add City in Settings → Profile',
+    'commonAnswers.state': 'add State in Settings → Profile',
+    'commonAnswers.zip': 'add ZIP code in Settings → Profile',
+    'commonAnswers.country': 'add Country in Settings → Profile',
+    
+    // Work Authorization (Settings → Profile → Application answers)
+    'commonAnswers.workAuthorization': 'add "Authorized to work" in Settings → Profile',
+    'commonAnswers.sponsorship': 'add "Requires sponsorship" in Settings → Profile',
+    'commonAnswers.citizenship': 'add Citizenship in Settings → Profile',
+    'commonAnswers.relocation': 'add Relocation preference in Settings → Profile',
+    'commonAnswers.salary': 'add Desired Salary in Settings → Profile',
+    'commonAnswers.sensitiveOptional': 'add EEO/Veteran answer in Settings → Profile',
+    
+    // Contact & Documents (Settings → Profile → Contact & documents)
+    'linkedin': 'add LinkedIn URL in Settings → Profile',
+    'coverLetter': 'add Cover Letter in Settings → Profile',
+    
+    // Resume Corrections (Settings → Profile → Resume corrections)
+    'firstName': 'add First Name in Settings → Resume Corrections',
+    'lastName': 'add Last Name in Settings → Resume Corrections',
+    'middleName': 'add Middle Name in Settings → Resume Corrections',
+    'name': 'add Full Name in Settings → Resume Corrections',
+    'email': 'add Email in Settings → Resume Corrections',
+    'phone': 'add Phone in Settings → Resume Corrections',
+    
+    // Work Experience (Settings → Resume Corrections → Most recent role)
+    'workExperience[0].title': 'add Job Title in Settings → Resume Corrections',
+    'workExperience[0].company': 'add Company in Settings → Resume Corrections',
+    'workExperience[0].dates': 'add Work Dates in Settings → Resume Corrections',
+    'workExperience[0].startDate': 'add Work Start Date in Settings → Resume Corrections',
+    'workExperience[0].endDate': 'add Work End Date in Settings → Resume Corrections',
+    'workExperience[0].location': 'add Work Location in Settings → Resume Corrections',
+    'workExperience[0].description': 'add Role Description in Settings → Resume Corrections',
+    
+    // Education (Settings → Resume Corrections → Education)
+    'education[0].school': 'add School in Settings → Resume Corrections',
+    'education[0].degree': 'add Degree in Settings → Resume Corrections',
+    'education[0].dates': 'add Education Dates in Settings → Resume Corrections',
+    
+    // Skills
+    'skills': 'add Skills in Settings → Resume Corrections',
+  };
+  
+  // Check for exact match first
+  if (hints[dataKey]) return hints[dataKey];
+  
+  // Check for pattern matches (e.g., workExperience[1], workExperience[2], etc.)
+  if (dataKey.startsWith('workExperience[')) {
+    if (dataKey.includes('.title')) return 'add Job Title in Settings → Resume Corrections';
+    if (dataKey.includes('.company')) return 'add Company in Settings → Resume Corrections';
+    if (dataKey.includes('.dates') || dataKey.includes('Date')) return 'add Work Dates in Settings → Resume Corrections';
+    if (dataKey.includes('.location')) return 'add Work Location in Settings → Resume Corrections';
+    if (dataKey.includes('.description')) return 'add Role Description in Settings → Resume Corrections';
+    return 'add Work Experience in Settings → Resume Corrections';
+  }
+  
+  if (dataKey.startsWith('education[')) {
+    if (dataKey.includes('.school')) return 'add School in Settings → Resume Corrections';
+    if (dataKey.includes('.degree')) return 'add Degree in Settings → Resume Corrections';
+    if (dataKey.includes('.dates')) return 'add Education Dates in Settings → Resume Corrections';
+    return 'add Education in Settings → Resume Corrections';
+  }
+  
+  // Custom answers (from custom Q&A section)
+  if (dataKey.startsWith('commonAnswers.')) {
+    return 'add in Settings → Profile → Custom Q&A';
+  }
+  
+  // Generic fallback
+  return 'check Settings → Profile';
+}
+
+/**
+ * Escape HTML to prevent XSS.
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }

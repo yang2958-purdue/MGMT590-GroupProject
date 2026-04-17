@@ -121,7 +121,7 @@ export async function extractFormFields(url) {
     },
     body: JSON.stringify({
       urls: [url],
-      prompt: 'Extract every form field on this job application page. For each field, return the label, HTML field type, a CSS selector, whether it is required, and a suggestedDataKey that maps to a typical resume field name.',
+      prompt: 'Extract every form field on this job application page, including all interactive form controls. For each field, return the label, HTML field type, a CSS selector, whether it is required (look for asterisks or "required" indicators), and a suggestedDataKey that maps to a typical resume field name. CRITICAL: Pay special attention to radio buttons - for radio button groups (input[type="radio"]), extract them as a SINGLE field entry using the shared "name" attribute as the identifier, and use fieldType="radio". Look for questions with Yes/No options, especially those asking about previous employment, work authorization, sponsorship needs, etc. Common patterns include: input[type="radio"][name="candidateIsPreviousWorker"], input[type="radio"][name="workAuth"], and similar. Also detect: ARIA-based controls (role="radio", role="radiogroup", role="checkbox", role="combobox"); custom dropdown buttons (aria-haspopup="listbox"); and any interactive elements functioning as form inputs (common on Workday and ATS platforms).',
       schema,
     }),
   });
