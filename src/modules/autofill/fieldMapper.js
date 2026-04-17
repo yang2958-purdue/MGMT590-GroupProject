@@ -64,7 +64,7 @@ function labelIsPhoneDeviceTypeField(label) {
  * @param {UserProfile|null} userProfile - Stored user profile Q&A.
  * @returns {FilledField[]}
  */
-export function mapFields(formFields, resume, userProfile) {
+export function mapFields(formFields, resume, userProfile, targetCompany = '') {
   normalizeWorkExperienceFieldKeys(formFields);
 
   const lookup = buildLookup(resume, userProfile);
@@ -92,7 +92,7 @@ export function mapFields(formFields, resume, userProfile) {
       return { field, value: null, status: 'skipped' };
     }
 
-    const value = resolveValueForField(field, lookup);
+    const value = resolveValueForField(field, lookup, resume, targetCompany);
 
     if (value != null && value !== '') {
       return { field, value: String(value), status: 'ready' };
@@ -432,11 +432,13 @@ function buildLookup(resume, profile) {
 /**
  * @param {FormField} field
  * @param {Object.<string, string>} lookup
+ * @param {ResumeData|null} resume
+ * @param {string} targetCompany
  * @returns {string|null}
  */
-function resolveValueForField(field, lookup) {
+function resolveValueForField(field, lookup, resume, targetCompany) {
   const label = field.label || '';
-  const hardcodedValue = getHardcodedValueForField(field);
+  const hardcodedValue = getHardcodedValueForField(field, resume, targetCompany);
   if (hardcodedValue) return hardcodedValue;
   const keysToTry = collectCandidateKeys(field);
 
@@ -455,9 +457,11 @@ function resolveValueForField(field, lookup) {
 /**
  * Hardcoded values for specific known form labels.
  * @param {FormField} field
+ * @param {ResumeData|null} resume
+ * @param {string} targetCompany
  * @returns {string|null}
  */
-function getHardcodedValueForField(field) {
+function getHardcodedValueForField(field, resume, targetCompany) {
   const haystack = [
     field.label || '',
     field.selector || '',
@@ -467,6 +471,49 @@ function getHardcodedValueForField(field) {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Check for "Have you previously worked for [company]?" question
+  if (
+    targetCompany &&
+    resume?.experience?.length &&
+    (/previously\s+work/i.test(haystack) || /worked\s+for/i.test(haystack) || /prior\s+employ/i.test(haystack))
+  ) {
+    console.log('[JobBot] Detected "previously worked" question:', {
+      label: field.label,
+      targetCompany,
+      experienceCount: resume.experience.length
+    });
+    
+    // Normalize company names for comparison (lowercase, remove common suffixes)
+    const normalizeCompany = (name) => {
+      return String(name || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\b(inc|llc|ltd|corporation|corp|co|company)\b\.?/gi, '')
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const targetNormalized = normalizeCompany(targetCompany);
+    
+    // Check if any work experience matches the target company
+    const hasWorkedAtCompany = resume.experience.some((exp) => {
+      const expCompanyNormalized = normalizeCompany(exp.company);
+      const matches = expCompanyNormalized && targetNormalized && expCompanyNormalized.includes(targetNormalized);
+      console.log('[JobBot] Checking experience:', {
+        resumeCompany: exp.company,
+        normalized: expCompanyNormalized,
+        targetNormalized,
+        matches
+      });
+      return matches;
+    });
+
+    const answer = hasWorkedAtCompany ? 'Yes' : 'No';
+    console.log('[JobBot] "Previously worked" answer:', answer);
+    return answer;
+  }
 
   if (
     !/\bphone\s+number\b/.test(haystack) &&

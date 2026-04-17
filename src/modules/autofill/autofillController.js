@@ -20,6 +20,7 @@ import {
   getUserProfile,
   getAutofillState,
   setAutofillState,
+  getSelectedJob,
 } from '../storage.js';
 import { FILL_DELAY_MS } from '../../config/autofill.config.js';
 
@@ -100,10 +101,42 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     }
   }
 
-  if (!formFields.length) {
+  // Run DOM scan as fallback or if Firecrawl missed radio/checkbox fields
+  const needsDomScan = 
+    formFields.length === 0 || // No Firecrawl results
+    !formFields.some(f => f.fieldType === 'radio') || // Missing radio buttons
+    !formFields.some(f => f.fieldType === 'checkbox'); // Missing checkboxes
+  
+  if (needsDomScan) {
     const scan = await requestDomFieldScan(tabId);
-    formFields = scan.fields;
-    contentFrameId = scan.frameId;
+    if (scan.fields.length > 0) {
+      contentFrameId = scan.frameId;
+      
+      if (formFields.length > 0) {
+        // Merge: add DOM fields that Firecrawl missed
+        const existingSelectors = new Set(formFields.map(f => f.selector));
+        const domOnlyFields = scan.fields.filter(f => !existingSelectors.has(f.selector));
+        formFields = [...formFields, ...domOnlyFields];
+      } else {
+        // No Firecrawl results, use DOM scan entirely
+        formFields = scan.fields;
+      }
+    }
+  }
+
+  if (!formFields.length) {
+    const msg =
+      'No fillable fields were found. Open the application step where the form is visible (some career sites load the form inside a frame), then try again.';
+    await setAutofillState({
+      tabId,
+      jobUrl: pageUrl,
+      fields: [],
+      currentIndex: 0,
+      totalFields: 0,
+      status: 'error',
+      errorMessage: msg,
+    });
+    throw new Error(msg);
   }
 
   if (!formFields.length) {
@@ -148,7 +181,9 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     }
   }
 
-  const filledFields = mapFields(formFields, resume, profile);
+  const selectedJob = await getSelectedJob();
+  const targetCompany = selectedJob?.company || '';
+  const filledFields = mapFields(formFields, resume, profile, targetCompany);
 
   const nonSkipped = filledFields.filter((f) => f.status !== 'skipped');
 

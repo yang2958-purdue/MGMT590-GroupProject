@@ -121,7 +121,7 @@ export async function extractFormFields(url) {
     },
     body: JSON.stringify({
       urls: [url],
-      prompt: 'Extract every form field on this job application page. For each field, return the label, HTML field type, a CSS selector, whether it is required, and a suggestedDataKey that maps to a typical resume field name.',
+      prompt: 'Extract every form field on this job application page, including all interactive form controls. For each field, return the label, HTML field type, a CSS selector, whether it is required (look for asterisks or "required" indicators), and a suggestedDataKey that maps to a typical resume field name. IMPORTANT: Detect ALL types of form controls including: native HTML inputs, selects, and textareas; ARIA-based controls like elements with role="radio", role="radiogroup", role="checkbox", role="combobox"; custom dropdown buttons with aria-haspopup="listbox"; and any interactive elements that function as form inputs even if they use custom implementations (common on Workday and other ATS platforms).',
       schema,
     }),
   });

@@ -13,7 +13,9 @@ const CONTROL_SELECTOR =
   'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
   'select:not([disabled]),textarea:not([disabled]),' +
   'button[aria-haspopup="listbox"]:not([disabled]),' +
-  '[role="combobox"]:not([aria-disabled="true"])';
+  '[role="combobox"]:not([aria-disabled="true"]),' +
+  '[role="radio"]:not([aria-disabled="true"]),' +
+  '[role="radiogroup"]:not([aria-disabled="true"])';
 
 /**
  * True when control metadata looks like Work Experience row **N** date (From/To / month / year).
@@ -158,10 +160,19 @@ function scanInto(doc, iframePath, out, seenRadioKeys, scanStats) {
     const type = el instanceof HTMLInputElement ? (el.type || 'text').toLowerCase() : '';
     if (type === 'file') continue;
 
+    // For native radio buttons, only include one per group (by name)
     if (type === 'radio' && el instanceof HTMLInputElement && el.name) {
       const rk = `${iframePath.join(',')}::${el.name}`;
       if (seenRadioKeys.has(rk)) continue;
       seenRadioKeys.add(rk);
+    }
+    
+    // For ARIA radiogroups, only include the radiogroup container, not individual radios
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    if (role === 'radio' && el.getAttribute('aria-checked') !== null) {
+      // Skip individual ARIA radio buttons if parent radiogroup will be captured
+      const radiogroup = el.closest('[role="radiogroup"]');
+      if (radiogroup && radiogroup !== el) continue;
     }
 
     let marker = el.getAttribute('data-jobbot-af');
@@ -290,6 +301,8 @@ function mapFieldType(el, inputType) {
   if (inputType === 'checkbox') return 'checkbox';
   if ((el.getAttribute('role') || '').toLowerCase() === 'checkbox') return 'checkbox';
   if (inputType === 'radio') return 'radio';
+  const role = (el.getAttribute('role') || '').toLowerCase();
+  if (role === 'radio' || role === 'radiogroup') return 'radio';
   return 'input';
 }
 

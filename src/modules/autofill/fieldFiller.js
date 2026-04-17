@@ -140,7 +140,10 @@ function setRadioGroupValue(el, value) {
 
   for (const r of group) {
     if (r.value === raw || String(r.value).toLowerCase() === raw.toLowerCase()) {
-      r.checked = true;
+      // Use click() to properly change pre-selected radio buttons
+      if (!r.checked) {
+        r.click();
+      }
       r.dispatchEvent(new Event('input', { bubbles: true }));
       r.dispatchEvent(new Event('change', { bubbles: true }));
       return;
@@ -154,18 +157,93 @@ function setRadioGroupValue(el, value) {
     const lab = getRadioOptionLabel(r).toLowerCase();
     const rv = String(r.value || '').toLowerCase();
     if (wantYes && (/^(y|yes|true|1)$/i.test(rv) || /\byes\b/.test(lab))) {
-      r.checked = true;
+      // Use click() to properly change pre-selected radio buttons
+      if (!r.checked) {
+        r.click();
+      }
       r.dispatchEvent(new Event('input', { bubbles: true }));
       r.dispatchEvent(new Event('change', { bubbles: true }));
       return;
     }
     if (wantNo && (/^(n|no|false|0)$/i.test(rv) || (/\bno\b/.test(lab) && !/\bnot\s+sure\b/.test(lab)))) {
-      r.checked = true;
+      // Use click() to properly change pre-selected radio buttons
+      if (!r.checked) {
+        r.click();
+      }
       r.dispatchEvent(new Event('input', { bubbles: true }));
       r.dispatchEvent(new Event('change', { bubbles: true }));
       return;
     }
   }
+}
+
+/**
+ * Handle ARIA radiogroup (Workday bubble fields).
+ * @param {HTMLElement} el - Either a [role="radiogroup"] or individual [role="radio"]
+ * @param {string} value
+ */
+function setAriaRadioGroupValue(el, value) {
+  const raw = String(value ?? '').trim();
+  const doc = el.ownerDocument;
+  
+  console.log('[JobBot] setAriaRadioGroupValue called:', { value: raw, element: el });
+  
+  // Find the radiogroup container
+  let radiogroup = el;
+  if (el.getAttribute('role') === 'radio') {
+    radiogroup = el.closest('[role="radiogroup"]') || el.parentElement;
+  }
+  
+  if (!radiogroup) {
+    console.log('[JobBot] No radiogroup container found');
+    return;
+  }
+  
+  // Find all radio options in this group
+  const radios = Array.from(radiogroup.querySelectorAll('[role="radio"]'));
+  if (!radios.length && el.getAttribute('role') === 'radio') {
+    radios.push(el);
+  }
+  
+  console.log('[JobBot] Found radio options:', radios.length);
+  
+  const wantYes = /^(yes|y|true|1)$/i.test(raw);
+  const wantNo = /^(no|n|false|0)$/i.test(raw);
+  
+  for (const radio of radios) {
+    const label = (radio.textContent || radio.getAttribute('aria-label') || '').trim().toLowerCase();
+    const ariaChecked = radio.getAttribute('aria-checked');
+    
+    console.log('[JobBot] Checking radio option:', { 
+      label, 
+      ariaChecked, 
+      wantYes, 
+      wantNo,
+      matchesYes: wantYes && (/\byes\b/.test(label) || label === 'y'),
+      matchesNo: wantNo && (/\bno\b/.test(label) && !/\bnot\s+sure\b/.test(label))
+    });
+    
+    // Check if this radio matches the desired value
+    let shouldSelect = false;
+    
+    if (wantYes && (/\byes\b/.test(label) || label === 'y')) {
+      shouldSelect = true;
+    } else if (wantNo && (/\bno\b/.test(label) && !/\bnot\s+sure\b/.test(label))) {
+      shouldSelect = true;
+    } else if (label.includes(raw.toLowerCase())) {
+      shouldSelect = true;
+    }
+    
+    if (shouldSelect && ariaChecked !== 'true') {
+      console.log('[JobBot] Clicking radio button:', radio);
+      // Click the radio button to select it
+      radio.click();
+      // Small delay to let Workday process the click
+      return;
+    }
+  }
+  
+  console.log('[JobBot] No matching radio option found to click');
 }
 
 /**
@@ -586,6 +664,20 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
 
   if (el instanceof HTMLInputElement && el.type === 'radio') {
     setRadioGroupValue(el, value);
+    return;
+  }
+  
+  // Handle ARIA radiogroup (Workday bubble fields)
+  const role = (el.getAttribute('role') || '').toLowerCase();
+  if (role === 'radiogroup' || role === 'radio') {
+    console.log('[JobBot] Detected ARIA radio/radiogroup, attempting to fill:', {
+      role,
+      selector,
+      value,
+      fieldType,
+      element: el
+    });
+    setAriaRadioGroupValue(el, value);
     return;
   }
 

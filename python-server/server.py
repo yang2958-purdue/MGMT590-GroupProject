@@ -261,6 +261,7 @@ def parse_resume_llm():
         "- Use the provided raw text only as fallback/context if needed.\n"
         "- Name fields must preserve initials (e.g., 'Alec X. Neville').\n"
         "- Extract location (city, state, ZIP) from the contact/header block, address lines, or lines labeled Address, Location, Mailing address, or similar. If the resume shows a US address, use a 2-letter state abbreviation when clearly implied (e.g. IL for Illinois). If city and state appear in a pipe-separated line (e.g. \"Name | City, ST | email\"), capture them.\n"
+        "- If no ZIP code is found in the contact/header block, infer a representative ZIP code based on the city and state from that contact section only. Do not use locations from experience or education sections.\n"
         "- Experience entries should capture both title and company where possible.\n"
         "- For each experience entry, set `location` to the job site or employment location stated for that role (city/state, Remote, etc.). Do not copy the candidate's contact/mailing address into `location` unless the resume clearly uses it as the job location.\n"
         "- For education.school, scan the ENTIRE resume text (not just the Education header).\n"
