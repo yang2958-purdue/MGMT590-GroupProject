@@ -80,23 +80,27 @@ export async function renderSettingsPage(container) {
 
     <div class="card mt-16">
       <h3>Mailing / location</h3>
-      <p class="text-muted text-sm mt-8">Used when forms ask for country, city, state, or postal code.</p>
+      <p class="text-muted text-sm mt-8">Used when forms ask for mailing address, city, state, or postal code.</p>
+      <div class="mt-12">
+        <label for="address">Street address</label>
+        <input type="text" id="address" placeholder="e.g. 123 Main St, Apt 4B" autocomplete="street-address" />
+      </div>
       <div class="settings-grid mt-12">
         <div>
           <label for="country">Country</label>
-          <input type="text" id="country" autocomplete="off" />
+          <input type="text" id="country" autocomplete="country-name" />
         </div>
         <div>
           <label for="city">City</label>
-          <input type="text" id="city" autocomplete="off" />
+          <input type="text" id="city" autocomplete="address-level2" />
         </div>
         <div>
           <label for="state">State / province</label>
-          <input type="text" id="state" autocomplete="off" />
+          <input type="text" id="state" autocomplete="address-level1" />
         </div>
         <div>
           <label for="zip">ZIP / postal code</label>
-          <input type="text" id="zip" autocomplete="off" />
+          <input type="text" id="zip" autocomplete="postal-code" />
         </div>
       </div>
     </div>
@@ -556,6 +560,7 @@ function readProfileFromForm(container) {
     sensitiveOptional: val('sensitive-optional'),
     linkedin: val('linkedin'),
     coverLetter: container.querySelector('#cover-letter')?.value?.trim() ?? '',
+    address: val('address'),
     country: val('country'),
     city: val('city'),
     state: val('state'),
@@ -597,6 +602,7 @@ async function loadProfileIntoForm(container) {
   setVal('linkedin', p.linkedin);
   setVal('cover-letter', p.coverLetter);
 
+  setVal('address', p.address);
   setVal('country', p.country);
   setVal('city', p.city);
   setVal('state', p.state);

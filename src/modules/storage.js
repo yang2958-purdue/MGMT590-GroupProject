@@ -275,6 +275,7 @@ export async function setSelectedJob(data) {
  * @property {string} [coverLetter]
  * @property {string} [relocation]
  * @property {string} [sensitiveOptional] - Veteran / EEO / disability style answers
+ * @property {string} [address] - Street address (e.g. "123 Main St")
  * @property {string} [country]
  * @property {string} [city]
  * @property {string} [state]

@@ -412,6 +412,7 @@ function buildLookup(resume, profile) {
     map['commonAnswers.salary'] = trimStr(profile.desiredSalary);
     map['commonAnswers.relocation'] = trimStr(profile.relocation);
     map['commonAnswers.sensitiveOptional'] = trimStr(profile.sensitiveOptional);
+    map['commonAnswers.address'] = trimStr(profile.address);
     map['commonAnswers.country'] = trimStr(profile.country);
     if (trimStr(profile.city)) map['commonAnswers.city'] = trimStr(profile.city);
     if (trimStr(profile.state)) map['commonAnswers.state'] = trimStr(profile.state);
@@ -478,12 +479,6 @@ function getHardcodedValueForField(field, resume, targetCompany) {
     resume?.experience?.length &&
     (/previously\s+work/i.test(haystack) || /worked\s+for/i.test(haystack) || /prior\s+employ/i.test(haystack))
   ) {
-    console.log('[JobBot] Detected "previously worked" question:', {
-      label: field.label,
-      targetCompany,
-      experienceCount: resume.experience.length
-    });
-    
     // Normalize company names for comparison (lowercase, remove common suffixes)
     const normalizeCompany = (name) => {
       return String(name || '')
@@ -500,19 +495,10 @@ function getHardcodedValueForField(field, resume, targetCompany) {
     // Check if any work experience matches the target company
     const hasWorkedAtCompany = resume.experience.some((exp) => {
       const expCompanyNormalized = normalizeCompany(exp.company);
-      const matches = expCompanyNormalized && targetNormalized && expCompanyNormalized.includes(targetNormalized);
-      console.log('[JobBot] Checking experience:', {
-        resumeCompany: exp.company,
-        normalized: expCompanyNormalized,
-        targetNormalized,
-        matches
-      });
-      return matches;
+      return expCompanyNormalized && targetNormalized && expCompanyNormalized.includes(targetNormalized);
     });
 
-    const answer = hasWorkedAtCompany ? 'Yes' : 'No';
-    console.log('[JobBot] "Previously worked" answer:', answer);
-    return answer;
+    return hasWorkedAtCompany ? 'Yes' : 'No';
   }
 
   if (
