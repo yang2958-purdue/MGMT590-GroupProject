@@ -691,6 +691,21 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
     return;
   }
 
+  // Check if this is a phone number field with potential input mask
+  const isPhoneField = el instanceof HTMLInputElement && 
+    (/phone|tel|mobile|cell/i.test(el.getAttribute('name') || '') ||
+     /phone|tel|mobile|cell/i.test(el.getAttribute('aria-label') || '') ||
+     /phone|tel|mobile|cell/i.test(el.id || ''));
+
+  // For phone fields, use character-by-character typing to trigger input masks
+  if (isPhoneField) {
+    await fillPhoneFieldWithMask(el, value);
+    return;
+  }
+
+  // Focus first to trigger any focus-dependent validation
+  el.focus();
+  
   const nativeInputValueSetter =
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set ||
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
@@ -701,9 +716,63 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
     el.value = value;
   }
 
-  el.dispatchEvent(new Event('input', { bubbles: true }));
+  // Dispatch a comprehensive event sequence that mimics real user interaction
+  // This is especially important for fields with validators or input masks
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new Event('blur', { bubbles: true }));
+  
+  // Some validators only trigger on keyup/keydown
+  el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', keyCode: 13 }));
+  
+  // Blur to trigger validation
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+}
+
+/**
+ * Fill phone field character-by-character to work with input masks.
+ * Normalizes the phone format to digits only, then types each digit.
+ * @param {HTMLInputElement} el
+ * @param {string} value
+ */
+async function fillPhoneFieldWithMask(el, value) {
+  // Extract only digits from the phone number (remove formatting)
+  const digits = String(value).replace(/\D/g, '');
+  
+  // Clear the field first
+  el.focus();
+  el.value = '';
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+  
+  await sleep(50);
+  
+  // Type each digit with a small delay to trigger the input mask
+  for (let i = 0; i < digits.length; i++) {
+    const digit = digits[i];
+    
+    // Use native setter to update value
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(el, el.value + digit);
+    } else {
+      el.value += digit;
+    }
+    
+    // Dispatch events for each character typed
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: digit, keyCode: 48 + parseInt(digit) }));
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: digit }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: digit, keyCode: 48 + parseInt(digit) }));
+    
+    // Small delay between characters to let the mask process
+    if (i < digits.length - 1) {
+      await sleep(20);
+    }
+  }
+  
+  // Final events to commit the value
+  await sleep(50);
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
 }
 
 /**
