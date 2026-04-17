@@ -85,7 +85,10 @@ export async function renderAutofillPage(container) {
     updateAutofillPanel(panelEl, state);
   }
 
-  function onMessage(message) {
+  async function onMessage(message) {
+    // Preserve skippedRequired data from the stored state across all status updates
+    const currentState = await getAutofillState();
+    
     switch (message.type) {
       case 'AUTOFILL_STATUS':
         updateAutofillPanel(panelEl, {
@@ -93,6 +96,7 @@ export async function renderAutofillPage(container) {
           filledCount: message.filledCount,
           totalFields: message.totalFields,
           fieldLabel: message.fieldLabel,
+          skippedRequired: currentState?.skippedRequired,
         });
         break;
 
@@ -103,6 +107,7 @@ export async function renderAutofillPage(container) {
           totalFields: message.totalFields,
           fieldLabel: message.fieldLabel,
           reason: message.reason,
+          skippedRequired: currentState?.skippedRequired,
         });
         break;
 
@@ -111,6 +116,7 @@ export async function renderAutofillPage(container) {
           status: 'complete',
           filledCount: message.filledCount,
           totalFields: message.totalFields,
+          skippedRequired: currentState?.skippedRequired,
         });
         break;
 

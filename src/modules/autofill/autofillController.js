@@ -81,6 +81,13 @@ function extractCompanyFromPage(pageUrl, formFields) {
 }
 
 /**
+ * @typedef {Object} SkippedRequiredField
+ * @property {string} label - Field label
+ * @property {string} fieldType - Field type (input, select, etc.)
+ * @property {string} [suggestedDataKey] - What data key was expected
+ */
+
+/**
  * @typedef {Object} AutofillState
  * @property {number|null} tabId         - Chrome tab ID where autofill is active.
  * @property {string} jobUrl             - URL of the page being filled (storage key name kept for compatibility).
@@ -90,6 +97,7 @@ function extractCompanyFromPage(pageUrl, formFields) {
  * @property {number} totalFields        - Total field count (for progress display).
  * @property {string} [errorMessage]     - Error details when status is "error".
  * @property {number|null} [contentFrameId] - Frame ID where the content script runs (for messaging).
+ * @property {SkippedRequiredField[]} [skippedRequired] - Required fields that were skipped due to missing profile data.
  */
 
 /**
@@ -240,6 +248,15 @@ export async function runAutofillPipeline(tabId, pageUrl) {
   const filledFields = mapFields(formFields, resume, profile, targetCompany);
 
   const nonSkipped = filledFields.filter((f) => f.status !== 'skipped');
+  
+  // Track required fields that were skipped (missing profile data)
+  const skippedRequired = filledFields
+    .filter((f) => f.status === 'skipped' && f.field.isRequired)
+    .map((f) => ({
+      label: f.field.label || 'Unlabeled field',
+      fieldType: f.field.fieldType,
+      suggestedDataKey: f.field.suggestedDataKey,
+    }));
 
   const state = {
     tabId,
@@ -249,6 +266,7 @@ export async function runAutofillPipeline(tabId, pageUrl) {
     totalFields: nonSkipped.length,
     status: 'filling',
     contentFrameId,
+    skippedRequired: skippedRequired.length > 0 ? skippedRequired : undefined,
   };
   await setAutofillState(state);
 
