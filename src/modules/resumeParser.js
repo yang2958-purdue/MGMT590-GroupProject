@@ -39,6 +39,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
  * @property {ExperienceEntry[]} experience
  * @property {EducationEntry[]} education
  * @property {string} [parserSource] - heuristic | llm-hybrid
+ * @property {string} [parsedAt] - ISO timestamp when this resume was last parsed.
  */
 
 /**

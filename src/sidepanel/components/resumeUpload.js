@@ -11,10 +11,40 @@ export async function createResumeUpload(container) {
   const stored = await getResume();
 
   if (stored) {
-    renderStoredPreview(container, stored);
+    renderStoredChoice(container, stored);
   } else {
     renderDropzone(container);
   }
+}
+
+function renderStoredChoice(container, data) {
+  const parsedAt = formatParsedAt(data?.parsedAt);
+  const parserLabel = formatParserSource(data?.parserSource);
+  container.innerHTML = `
+    <div class="card">
+      <p style="font-weight:600;">Saved resume found</p>
+      <p class="text-sm mt-8">
+        Last parsed file: <strong>${escapeHtml(data?.fileName || 'Unknown file')}</strong>
+      </p>
+      <p class="text-muted text-sm mt-8">Parsed: ${escapeHtml(parsedAt)}</p>
+      <p class="text-muted text-sm mt-8">Parser source: ${escapeHtml(parserLabel)}</p>
+      <p class="text-muted text-sm mt-8">
+        Would you like to continue with this resume or upload a new PDF/DOCX?
+      </p>
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button id="btn-use-existing-resume" class="btn btn-primary btn-sm" style="font-size:12px;">Use Existing</button>
+        <button id="btn-upload-new-resume" class="btn btn-sm" style="font-size:12px;">Upload New</button>
+      </div>
+    </div>
+  `;
+
+  container.querySelector('#btn-use-existing-resume').addEventListener('click', () => {
+    renderStoredPreview(container, data);
+  });
+
+  container.querySelector('#btn-upload-new-resume').addEventListener('click', () => {
+    renderDropzone(container);
+  });
 }
 
 function renderStoredPreview(container, data) {
@@ -33,10 +63,12 @@ function renderStoredPreview(container, data) {
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <p style="font-weight:600;">Current resume: ${escapeHtml(data.fileName)}</p>
         <div style="display:flex; gap:8px;">
+          <button id="btn-back-to-choice" class="btn btn-sm" style="font-size:12px;">Back</button>
           <button id="btn-replace-resume" class="btn btn-sm" style="font-size:12px;">Upload New</button>
           <button id="btn-remove-resume" class="btn btn-sm btn-danger" style="font-size:12px;">Remove</button>
         </div>
       </div>
+      <p class="text-muted text-sm mt-8">Parsed: ${escapeHtml(formatParsedAt(data?.parsedAt))}</p>
       <p class="text-muted text-sm mt-8">${data.skills.length} skills detected</p>
       <div class="mt-8" style="display:flex; flex-wrap:wrap; gap:4px;">
         ${data.skills
@@ -68,6 +100,10 @@ function renderStoredPreview(container, data) {
     </div>
   `;
 
+  container.querySelector('#btn-back-to-choice').addEventListener('click', () => {
+    renderStoredChoice(container, data);
+  });
+
   container.querySelector('#btn-replace-resume').addEventListener('click', () => {
     renderDropzone(container);
   });
@@ -88,6 +124,7 @@ function renderStoredPreview(container, data) {
 
 function renderDropzone(container) {
   container.innerHTML = `
+    <p class="text-muted text-sm mb-8">No saved resume found. Upload a compatible file (PDF or DOCX) to continue.</p>
     <div id="dropzone" class="card" style="
       border: 2px dashed var(--color-border);
       text-align: center;
@@ -155,11 +192,29 @@ async function handleFile(file, container) {
       console.warn('LLM parser unavailable, using heuristic parse:', llmErr);
     }
 
+    resumeData = {
+      ...resumeData,
+      parsedAt: new Date().toISOString(),
+    };
+
     await setResume(resumeData);
-    renderStoredPreview(container, resumeData);
+    renderStoredChoice(container, resumeData);
   } catch (err) {
     status.innerHTML = `<p style="color:var(--color-danger);">Error: ${err.message}</p>`;
   }
+}
+
+function formatParsedAt(value) {
+  if (!value) return 'Unknown';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Unknown';
+  return d.toLocaleString();
+}
+
+function formatParserSource(value) {
+  if (value === 'llm-hybrid') return 'LLM hybrid (OpenAI + heuristics)';
+  if (value === 'heuristic') return 'Heuristic';
+  return 'Unknown';
 }
 
 function escapeHtml(str) {

@@ -33,6 +33,8 @@ export function shouldSkipRemoteExtract(url) {
   try {
     const host = new URL(url).hostname.toLowerCase();
     if (host === 'linkedin.com' || host.endsWith('.linkedin.com')) return true;
+    if (host === 'myworkdayjobs.com' || host.endsWith('.myworkdayjobs.com')) return true;
+    if (host === 'workday.com' || host.endsWith('.workday.com')) return true;
     return false;
   } catch {
     return true;

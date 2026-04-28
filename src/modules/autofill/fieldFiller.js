@@ -71,6 +71,10 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
 
     // status === "ready"
     await setFieldValue(field.selector, value, field.iframePath, field.fieldType);
+    if (field.isRequired && isFieldMissingValue(field.selector, field.iframePath, field.fieldType)) {
+      // Retry required fields with keystroke-like typing so strict validators detect user-style input.
+      await setFieldValue(field.selector, value, field.iframePath, field.fieldType, { forceTyping: true });
+    }
     filledCount++;
 
     // Custom dropdowns (Workday listboxes) need time to commit before the next field steals focus.
@@ -492,7 +496,7 @@ function isWorkdayMonthYearCombinedInput(el) {
  * @param {HTMLInputElement} el
  * @param {string} value
  */
-function setWorkdayMonthYearCombinedValue(el, value) {
+async function setWorkdayMonthYearCombinedValue(el, value) {
   const rawDates = String(value || '');
   const parsed = parseDateRange(rawDates);
   const id = (el.id || '').toLowerCase();
@@ -505,11 +509,7 @@ function setWorkdayMonthYearCombinedValue(el, value) {
   const target = wantsEnd ? parsed.end || parsed.start : parsed.start || parsed.end;
   if (!target) return;
   const mmYYYY = `${target.month}/${target.year}`;
-  el.focus();
-  el.value = mmYYYY;
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new Event('blur', { bubbles: true }));
+  await typeAndCommitWorkdayDateInput(el, mmYYYY);
 }
 
 /**
@@ -596,7 +596,8 @@ function resolveRootDocument(iframePath) {
  * @param {string} value    - The value to set.
  * @param {number[]|undefined} [iframePath] - Nested iframe indices when the control is not in the top document.
  */
-export async function setFieldValue(selector, value, iframePath, fieldType) {
+export async function setFieldValue(selector, value, iframePath, fieldType, options = {}) {
+  const forceTyping = options?.forceTyping === true;
   const root = resolveRootDocument(iframePath);
   if (!root) return;
   const el = root.querySelector(selector);
@@ -605,7 +606,11 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
   const innerTextarea =
     el instanceof HTMLTextAreaElement ? el : el.querySelector?.('textarea');
   if (fieldType === 'textarea' && innerTextarea instanceof HTMLTextAreaElement) {
-    fillNativeTextarea(innerTextarea, value);
+    if (forceTyping) {
+      await typeLikeUser(innerTextarea, value);
+    } else {
+      fillNativeTextarea(innerTextarea, value);
+    }
     return;
   }
   if (
@@ -613,27 +618,39 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
     innerTextarea instanceof HTMLTextAreaElement &&
     String(value).length > 80
   ) {
-    fillNativeTextarea(innerTextarea, value);
+    if (forceTyping) {
+      await typeLikeUser(innerTextarea, value);
+    } else {
+      fillNativeTextarea(innerTextarea, value);
+    }
     return;
   }
 
   if (el instanceof HTMLElement && el.isContentEditable) {
-    setContentEditableOrTextboxValue(el, value);
+    if (forceTyping) {
+      await typeLikeUser(el, value);
+    } else {
+      setContentEditableOrTextboxValue(el, value);
+    }
     return;
   }
   const r = (el.getAttribute('role') || '').toLowerCase();
   if (r === 'textbox' && !(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
-    setContentEditableOrTextboxValue(el, value);
+    if (forceTyping) {
+      await typeLikeUser(el, value);
+    } else {
+      setContentEditableOrTextboxValue(el, value);
+    }
     return;
   }
 
   if (isWorkdayMonthYearCombinedInput(el)) {
-    setWorkdayMonthYearCombinedValue(el, value);
+    await setWorkdayMonthYearCombinedValue(el, value);
     return;
   }
 
   if (isWorkdayDateSectionInput(el)) {
-    setWorkdayDateSectionValue(el, value);
+    await setWorkdayDateSectionValue(el, value);
     return;
   }
 
@@ -705,6 +722,11 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
 
   // Focus first to trigger any focus-dependent validation
   el.focus();
+
+  if (forceTyping && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+    await typeLikeUser(el, value);
+    return;
+  }
   
   const nativeInputValueSetter =
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set ||
@@ -727,6 +749,126 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
   
   // Blur to trigger validation
   el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  await commitFieldInteraction(el);
+}
+
+/**
+ * Mimic user keystrokes so strict validators/frameworks recognize entered values.
+ * @param {HTMLElement} el
+ * @param {string} value
+ */
+async function typeLikeUser(el, value) {
+  const text = String(value ?? '');
+  const isInput = el instanceof HTMLInputElement;
+  const isTextarea = el instanceof HTMLTextAreaElement;
+  const isEditable = el instanceof HTMLElement && el.isContentEditable;
+  if (!isInput && !isTextarea && !isEditable) return;
+
+  el.focus();
+
+  if (isEditable) {
+    el.textContent = '';
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+  } else {
+    const setter =
+      (isInput && Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set) ||
+      (isTextarea && Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set);
+    if (setter) setter.call(el, '');
+    else el.value = '';
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+  }
+
+  for (const ch of text) {
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ch }));
+    if (isEditable) {
+      el.textContent = (el.textContent || '') + ch;
+    } else {
+      const setter =
+        (isInput && Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set) ||
+        (isTextarea && Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set);
+      if (setter) setter.call(el, (el.value || '') + ch);
+      else el.value = (el.value || '') + ch;
+    }
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ch }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ch }));
+    await sleep(8);
+  }
+
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  await commitFieldInteraction(el);
+}
+
+/**
+ * Simulate "touched" interaction so validators that rely on real focus/click state commit the field.
+ * @param {HTMLElement} el
+ */
+async function commitFieldInteraction(el) {
+  if (!(el instanceof HTMLElement)) return;
+  const target = el.closest('input,textarea,select,button,[role="combobox"],[role="textbox"],[role="radiogroup"]') || el;
+
+  target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  target.focus();
+  target.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+
+  await sleep(10);
+
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+  target.dispatchEvent(new Event('change', { bubbles: true }));
+  target.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  target.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+  target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+}
+
+/**
+ * Check whether a required field still appears empty after autofill.
+ * @param {string} selector
+ * @param {number[]|undefined} iframePath
+ * @param {string} fieldType
+ * @returns {boolean}
+ */
+function isFieldMissingValue(selector, iframePath, fieldType) {
+  const root = resolveRootDocument(iframePath);
+  if (!root) return true;
+  const el = root.querySelector(selector);
+  if (!el) return true;
+
+  if (fieldType === 'radio') {
+    if (el instanceof HTMLInputElement && el.type === 'radio' && el.name) {
+      const group = root.querySelectorAll(`input[type="radio"][name="${escapeAttr(el.name)}"]`);
+      return !Array.from(group).some((r) => r.checked);
+    }
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    if (role === 'radiogroup') {
+      const radios = el.querySelectorAll('[role="radio"]');
+      return !Array.from(radios).some((r) => r.getAttribute('aria-checked') === 'true');
+    }
+  }
+
+  if (fieldType === 'checkbox') {
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') return !el.checked;
+    if ((el.getAttribute('role') || '').toLowerCase() === 'checkbox') {
+      return el.getAttribute('aria-checked') !== 'true';
+    }
+  }
+
+  if (fieldType === 'select') {
+    if (el instanceof HTMLSelectElement) return !String(el.value || '').trim();
+    const comboText = (el.textContent || '').trim();
+    const ariaVal = (el.getAttribute('aria-valuetext') || '').trim();
+    return !comboText && !ariaVal;
+  }
+
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    return !String(el.value || '').trim();
+  }
+  if (el instanceof HTMLElement && el.isContentEditable) {
+    return !String(el.textContent || '').trim();
+  }
+
+  return false;
 }
 
 /**
@@ -878,18 +1020,201 @@ function getWorkdayExpDateTarget(el, rawDates) {
  * @param {HTMLInputElement} el
  * @param {string} value
  */
-function setWorkdayDateSectionValue(el, value) {
+async function setWorkdayDateSectionValue(el, value) {
   const rawDates = String(value || '');
   const seg = getWorkdayExpDateTarget(el, rawDates);
   if (!seg) return;
   const { nextValue } = seg;
+  await typeAndCommitWorkdayDateInput(el, nextValue);
+}
 
+/**
+ * Workday MM/YYYY and date-section inputs often require keystroke-level typing + explicit commit.
+ * @param {HTMLInputElement} el
+ * @param {string} value
+ */
+async function typeAndCommitWorkdayDateInput(el, value) {
+  const text = String(value || '').trim();
+  if (!text) return;
   el.focus();
-  el.value = nextValue;
-  el.dispatchEvent(new Event('input', { bubbles: true }));
+
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter) setter.call(el, '');
+  else el.value = '';
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+
+  for (const ch of text) {
+    const keyCode = ch >= '0' && ch <= '9' ? 48 + Number(ch) : ch === '/' ? 191 : 0;
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ch, keyCode, which: keyCode }));
+    if (setter) setter.call(el, (el.value || '') + ch);
+    else el.value = (el.value || '') + ch;
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ch }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ch, keyCode, which: keyCode }));
+    await sleep(12);
+  }
+
+  // Workday commonly commits date controls only after explicit keyboard navigation.
+  el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13, which: 13 }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', keyCode: 13, which: 13 }));
+  el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Tab', keyCode: 9, which: 9 }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Tab', keyCode: 9, which: 9 }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', bubbles: true }));
-  el.dispatchEvent(new Event('blur', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  // Use native blur/focus transitions too (some validators ignore synthetic focus events).
+  el.blur();
+  focusNextFocusable(el);
+  await sleep(20);
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+
+  // Click-away helps some validators finalize "touched" state for date widgets.
+  const body = el.ownerDocument?.body;
+  if (body) {
+    body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+    body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    if (body instanceof HTMLElement) body.focus?.();
+  }
+
+  // Workday commonly recognizes the date only after calendar-icon interaction.
+  await forceCommitViaDateButton(el);
+
+  // Fallback: open/close calendar button to force widget-level commit.
+  if (fieldLooksInvalid(el)) {
+    await forceCommitViaNearbyDateParts(el, text);
+    await forceCommitViaDateButton(el);
+  }
+}
+
+/**
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
+function fieldLooksInvalid(el) {
+  const ariaInvalid = (el.getAttribute('aria-invalid') || '').toLowerCase();
+  if (ariaInvalid === 'true') return true;
+  const invalidAttr = (el.getAttribute('data-automation-invalid') || '').toLowerCase();
+  if (invalidAttr === 'true') return true;
+  const wrapper = el.closest('[data-automation-id*="dateSection"],[data-automation-id*="dateInput"],[data-automation-id*="dateField"]');
+  if (wrapper && /\berror\b/i.test((wrapper.textContent || '').trim())) return true;
+  return false;
+}
+
+/**
+ * Move focus to the next focusable control to trigger true blur/commit behavior.
+ * @param {HTMLElement} el
+ */
+function focusNextFocusable(el) {
+  const doc = el.ownerDocument;
+  if (!doc) return;
+  const focusables = Array.from(
+    doc.querySelectorAll(
+      'input,select,textarea,button,[role="combobox"],[tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((n) => n instanceof HTMLElement && !n.hasAttribute('disabled') && n.tabIndex !== -1);
+  const idx = focusables.indexOf(el);
+  const next = idx >= 0 ? focusables[idx + 1] : null;
+  if (next instanceof HTMLElement) {
+    next.focus();
+    next.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+    next.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+    next.blur();
+  }
+}
+
+/**
+ * Workday date controls sometimes commit only after interacting with the date-picker button.
+ * @param {HTMLInputElement} el
+ */
+async function forceCommitViaDateButton(el) {
+  const root = el.closest('[data-automation-id*="dateSection"],[data-automation-id*="dateInput"],[data-automation-id*="dateField"]') || el.parentElement;
+  const btn =
+    root?.querySelector?.('button[aria-label*="calendar" i],button[data-automation-id*="dateIcon"],button[data-automation-id*="calendar"]') ||
+    root?.querySelector?.('button[aria-haspopup="dialog"],button[aria-haspopup="grid"]');
+  if (!(btn instanceof HTMLElement)) return;
+
+  btn.focus();
+  btn.click();
+  await sleep(120);
+  btn.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape', keyCode: 27, which: 27 }));
+  btn.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Escape', keyCode: 27, which: 27 }));
+  btn.dispatchEvent(new Event('change', { bubbles: true }));
+  btn.blur();
+  await sleep(30);
+  el.focus();
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+}
+
+/**
+ * Workday often validates hidden/adjacent date-part controls (month/year) instead of the visible MM/YYYY input.
+ * This fills nearby month/year controls directly as a hard fallback.
+ * @param {HTMLInputElement} el
+ * @param {string} text
+ */
+async function forceCommitViaNearbyDateParts(el, text) {
+  const m = String(text || '').trim().match(/^(\d{1,2})\s*\/\s*(\d{4})$/);
+  if (!m) return;
+  const month = String(Math.max(1, Math.min(12, Number(m[1])))).padStart(2, '0');
+  const year = m[2];
+
+  const root =
+    el.closest('[data-automation-id*="dateSection"],[data-automation-id*="dateInput"],[data-automation-id*="dateField"]') ||
+    el.closest('[data-automation-id*="fromDate"],[data-automation-id*="toDate"]') ||
+    el.parentElement;
+  if (!root) return;
+
+  const monthCandidates = Array.from(
+    root.querySelectorAll(
+      [
+        'input[id*="dateSectionMonth" i]',
+        'input[data-automation-id*="dateSectionMonth" i]',
+        'input[id*="month" i]',
+        'select[id*="month" i]',
+        '[role="combobox"][id*="month" i]',
+        'button[aria-haspopup="listbox"][id*="month" i]',
+      ].join(','),
+    ),
+  ).filter((n) => n !== el);
+
+  const yearCandidates = Array.from(
+    root.querySelectorAll(
+      [
+        'input[id*="dateSectionYear" i]',
+        'input[data-automation-id*="dateSectionYear" i]',
+        'input[id*="year" i]',
+        'select[id*="year" i]',
+        '[role="combobox"][id*="year" i]',
+        'button[aria-haspopup="listbox"][id*="year" i]',
+      ].join(','),
+    ),
+  ).filter((n) => n !== el);
+
+  const fillPart = async (node, part) => {
+    if (!(node instanceof HTMLElement)) return;
+    if (node instanceof HTMLInputElement) {
+      await typeLikeUser(node, part);
+      return;
+    }
+    if (node instanceof HTMLSelectElement) {
+      setSelectValue(node, part);
+      await commitFieldInteraction(node);
+      return;
+    }
+    await setAnyDropdownValue(node, part);
+    await commitFieldInteraction(node);
+  };
+
+  // Fill the best nearby month/year controls when present.
+  if (monthCandidates.length) {
+    await fillPart(monthCandidates[0], month);
+  }
+  if (yearCandidates.length) {
+    await fillPart(yearCandidates[0], year);
+  }
+
+  // Re-commit the visible input afterward.
+  await commitFieldInteraction(el);
 }
 
 /**
@@ -1702,6 +2027,33 @@ function countWorkExperienceRowsInRoot(root) {
 }
 
 /**
+ * Count distinct Workday education-<N> repeater ids in the DOM (shadow DOM included).
+ * @param {Document|Element|ShadowRoot} root
+ * @returns {number}
+ */
+function countEducationRowsInRoot(root) {
+  const ids = new Set();
+  for (const el of allElementsDeep(root)) {
+    if (!(el instanceof Element)) continue;
+    const blob = [
+      el.id,
+      el.getAttribute('name'),
+      el.getAttribute('data-automation-id'),
+      el.getAttribute('aria-label'),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const compact = blob.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const re = /education(\d+)/g;
+    let m;
+    while ((m = re.exec(compact)) !== null) {
+      ids.add(parseInt(m[1], 10));
+    }
+  }
+  return ids.size;
+}
+
+/**
  * @param {Document} root
  * @param {number} workExperienceTargetCount - Desired number of Work Experience rows (capped by caller).
  * @param {boolean} educationAdd - Click Education "Add" once when true.
@@ -1721,11 +2073,14 @@ async function ensureWorkdayRepeatersInRoot(root, workExperienceTargetCount, edu
     }
   }
   if (educationAdd) {
-    await clickAddNearHeading(
-      root,
-      /(^|\s)(education|academic\s*history|schools?\s*attended)(\s|$)/i,
-      new WeakSet(),
-    );
+    const eduExisting = countEducationRowsInRoot(root);
+    if (eduExisting < 1) {
+      await clickAddNearHeading(
+        root,
+        /(^|\s)(education|academic\s*history|schools?\s*attended)(\s|$)/i,
+        new WeakSet(),
+      );
+    }
   }
 }
 

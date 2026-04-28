@@ -16,3 +16,11 @@ export const PAUSE_TRIGGER_KEYWORDS = [
   'nda',
   'work location preference',
 ];
+
+/**
+ * When true, autofill will auto-click Workday "Add" controls for repeaters
+ * (work experience / education) before a second DOM scan.
+ *
+ * Keep false by default to avoid field-count growth and unnecessary extra fill targets.
+ */
+export const AUTO_EXPAND_WORKDAY_REPEATERS = false;

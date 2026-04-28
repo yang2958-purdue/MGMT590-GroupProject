@@ -5,7 +5,8 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 export default defineConfig({
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    // Keep false so parallel watch builds (main + content) don't wipe each other's outputs.
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, 'src/sidepanel/index.html'),

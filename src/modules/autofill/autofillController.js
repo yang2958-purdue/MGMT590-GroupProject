@@ -22,7 +22,7 @@ import {
   setAutofillState,
   getSelectedJob,
 } from '../storage.js';
-import { FILL_DELAY_MS } from '../../config/autofill.config.js';
+import { FILL_DELAY_MS, AUTO_EXPAND_WORKDAY_REPEATERS } from '../../config/autofill.config.js';
 
 /**
  * @typedef {import('./fieldMapper.js').FilledField} FilledField
@@ -181,8 +181,10 @@ export async function runAutofillPipeline(tabId, pageUrl) {
   }
 
   if (!formFields.length) {
+    const scanDebug = scan?.debug ? ` [scan: ${scan.debug}]` : '';
     const msg =
-      'No fillable fields were found. Open the application step where the form is visible (some career sites load the form inside a frame), then try again.';
+      'No fillable fields were found. Open the application step where the form is visible (some career sites load the form inside a frame), then try again.' +
+      scanDebug;
     await setAutofillState({
       tabId,
       jobUrl: pageUrl,
@@ -213,7 +215,7 @@ export async function runAutofillPipeline(tabId, pageUrl) {
   const resume = await getResume();
   const profile = await getUserProfile();
 
-  if (shouldPrepareWorkdayRepeaters(resume)) {
+  if (AUTO_EXPAND_WORKDAY_REPEATERS && shouldPrepareWorkdayRepeaters(resume)) {
     try {
       const expLen = resume?.experience?.length ?? 0;
       const workExperienceTargetCount = expLen > 0 ? Math.min(expLen, 10) : 0;
@@ -463,7 +465,7 @@ function tabSendMessageWithContentScriptFallback(tabId, message, options = {}) {
  * Ask the content script to scan the live DOM for form fields. Probes every frame
  * (career sites often host the apply form in a cross-origin iframe).
  * @param {number} tabId
- * @returns {Promise<{ fields: import('../scraper/firecrawlAdapter.js').FormField[], frameId: number|null }>}
+ * @returns {Promise<{ fields: import('../scraper/firecrawlAdapter.js').FormField[], frameId: number|null, debug?: string }>}
  */
 async function requestDomFieldScan(tabId) {
   try {
@@ -472,15 +474,46 @@ async function requestDomFieldScan(tabId) {
       func: () => {
         const sel =
           'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
-          'select:not([disabled]),textarea:not([disabled])';
-        return { n: document.querySelectorAll(sel).length, href: location.href };
+          'select:not([disabled]),textarea:not([disabled]),' +
+          'button[aria-haspopup="listbox"]:not([disabled]),' +
+          '[role="combobox"]:not([aria-disabled="true"]),' +
+          '[role="radio"]:not([aria-disabled="true"]),' +
+          '[role="radiogroup"]:not([aria-disabled="true"])';
+
+        /** @type {(Document|ShadowRoot)[]} */
+        const roots = [document];
+        let count = 0;
+        while (roots.length) {
+          const root = roots.pop();
+          if (!root) continue;
+          try {
+            count += root.querySelectorAll(sel).length;
+          } catch {
+            // Ignore selector issues in unusual roots.
+          }
+          let hosts;
+          try {
+            hosts = root.querySelectorAll('*');
+          } catch {
+            continue;
+          }
+          for (const el of hosts) {
+            if (el.shadowRoot) roots.push(el.shadowRoot);
+          }
+        }
+
+        return { n: count, href: location.href };
       },
     });
 
     /** @type {{ frameId: number; count: number }[]} */
     const ranked = [];
+    let probeErrors = 0;
     for (const r of probeResults ?? []) {
-      if (r.error) continue;
+      if (r.error) {
+        probeErrors += 1;
+        continue;
+      }
       if (typeof r.frameId !== 'number') continue;
       const res = r.result;
       const n =
@@ -493,18 +526,25 @@ async function requestDomFieldScan(tabId) {
     }
     ranked.sort((a, b) => b.count - a.count);
 
+    let extractAttempts = 0;
+    let extractErrors = 0;
     for (const frame of ranked) {
-      if (frame.count === 0) continue;
       try {
+        extractAttempts += 1;
         const resp = await tabSendMessageWithContentScriptFallback(
           tabId,
           { type: 'EXTRACT_FIELDS_DOM' },
           { injectFrameId: frame.frameId, skipInitialSend: true },
         );
         if (resp?.fields?.length) {
-          return { fields: resp.fields, frameId: frame.frameId };
+          return {
+            fields: resp.fields,
+            frameId: frame.frameId,
+            debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=content-script`,
+          };
         }
       } catch {
+        extractErrors += 1;
         // try next frame
       }
     }
@@ -512,15 +552,104 @@ async function requestDomFieldScan(tabId) {
     try {
       const resp = await tabSendMessageWithContentScriptFallback(tabId, { type: 'EXTRACT_FIELDS_DOM' });
       if (resp?.fields?.length) {
-        return { fields: resp.fields, frameId: 0 };
+        return {
+          fields: resp.fields,
+          frameId: 0,
+          debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=content-script-main`,
+        };
       }
     } catch {
       // fall through
     }
 
-    return { fields: [], frameId: null };
+    // Fallback: direct executeScript-based extraction (bypasses content-script messaging/listener issues).
+    const inline = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: () => {
+        const controls = document.querySelectorAll(
+          'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
+            'select:not([disabled]),textarea:not([disabled]),' +
+            'button[aria-haspopup="listbox"]:not([disabled]),' +
+            '[role="combobox"]:not([aria-disabled="true"]),' +
+            '[role="radio"]:not([aria-disabled="true"]),' +
+            '[role="radiogroup"]:not([aria-disabled="true"])',
+        );
+
+        const out = [];
+        for (const el of controls) {
+          if (!(el instanceof HTMLElement)) continue;
+          const type = el instanceof HTMLInputElement ? (el.type || 'text').toLowerCase() : '';
+          if (type === 'file') continue;
+
+          let marker = el.getAttribute('data-jobbot-af');
+          if (!marker) {
+            marker = `jb-inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            el.setAttribute('data-jobbot-af', marker);
+          }
+          const selector = `[data-jobbot-af="${marker.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
+
+          let label = '';
+          if (el.id) {
+            const byFor = document.querySelector(`label[for="${el.id}"]`);
+            if (byFor?.textContent) label = byFor.textContent.trim();
+          }
+          if (!label) label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '';
+
+          const role = (el.getAttribute('role') || '').toLowerCase();
+          let fieldType = 'input';
+          if (el instanceof HTMLTextAreaElement) fieldType = 'textarea';
+          else if (el instanceof HTMLSelectElement) fieldType = 'select';
+          else if (type === 'checkbox' || role === 'checkbox') fieldType = 'checkbox';
+          else if (type === 'radio' || role === 'radio' || role === 'radiogroup') fieldType = 'radio';
+          else if (role === 'combobox' || (el.getAttribute('aria-haspopup') || '').toLowerCase() === 'listbox') fieldType = 'select';
+
+          out.push({
+            label: label || fieldType,
+            fieldType,
+            selector,
+            isRequired:
+              (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) &&
+              (el.required || el.getAttribute('aria-required') === 'true'),
+            suggestedDataKey: '',
+            inferenceSource: [
+              label,
+              (el.id || '').replace(/[_-]+/g, ' '),
+              (el.getAttribute('data-automation-id') || '').replace(/[_-]+/g, ' '),
+              (el.getAttribute('name') || '').replace(/[_-]+/g, ' '),
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim(),
+          });
+        }
+        return { fields: out, href: location.href };
+      },
+    });
+
+    let best = null;
+    for (const r of inline ?? []) {
+      if (r.error) continue;
+      const fields = Array.isArray(r.result?.fields) ? r.result.fields : [];
+      if (!best || fields.length > best.fields.length) {
+        best = { frameId: typeof r.frameId === 'number' ? r.frameId : 0, fields };
+      }
+    }
+    if (best && best.fields.length) {
+      return {
+        fields: best.fields,
+        frameId: best.frameId,
+        debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=inline-exec,inlineFields=${best.fields.length}`,
+      };
+    }
+
+    return {
+      fields: [],
+      frameId: null,
+      debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=none`,
+    };
   } catch {
-    return { fields: [], frameId: null };
+    return { fields: [], frameId: null, debug: 'requestDomFieldScan-outer-catch' };
   }
 }
 

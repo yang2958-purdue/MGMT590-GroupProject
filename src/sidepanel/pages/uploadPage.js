@@ -8,7 +8,7 @@ import { createResumeUpload } from '../components/resumeUpload.js';
 export async function renderUploadPage(container) {
   container.innerHTML = `
     <h1>Upload Resume</h1>
-    <p class="text-muted mt-8">Upload your resume as PDF or DOCX to get started.</p>
+    <p class="text-muted mt-8">Upload a resume (PDF or DOCX), or continue with your most recently parsed one.</p>
     <div id="upload-area" class="mt-16"></div>
   `;
 
