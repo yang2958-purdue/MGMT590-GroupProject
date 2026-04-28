@@ -22,6 +22,27 @@ import { inferDataKeysToTry, labelLooksLikeYesNo } from './fieldInference.js';
  * @property {"ready"|"skipped"|"pause_required"} status
  */
 
+function emitDebugLog(location, message, data = {}, runId = 'post-fix', hypothesisId = 'H0') {
+  // #region agent log
+  fetch('http://127.0.0.1:7503/ingest/4f5420e6-5c84-43bf-a398-b678a72cb864', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': 'f8a60b',
+    },
+    body: JSON.stringify({
+      sessionId: 'f8a60b',
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 /**
  * True when the label is only the US state / province field (not "country and state" combined rows).
  * @param {string|undefined} label
@@ -439,20 +460,255 @@ function buildLookup(resume, profile) {
  */
 function resolveValueForField(field, lookup, resume, targetCompany) {
   const label = field.label || '';
+  const binaryQuestion = isLikelyYesNoQuestion(label);
+
+  if (binaryQuestion) {
+    const customMatchedFirst = resolveCustomAnswerByLabel(field, lookup);
+    if (customMatchedFirst && !shouldRejectValueForField(field, customMatchedFirst)) {
+      if (field.fieldType === 'select' || field.fieldType === 'radio') {
+        // #region agent log
+        emitDebugLog(
+          'fieldMapper.js:resolveValueForField:selectedCustomLabelMatch',
+          'Selected custom-answer label match for binary choice field',
+          {
+            label: field.label || '',
+            selector: field.selector || '',
+            value: String(customMatchedFirst || '').slice(0, 200),
+            suggestedDataKey: field.suggestedDataKey || '',
+          },
+          'post-fix',
+          'H13',
+        );
+        // #endregion
+      }
+      return customMatchedFirst;
+    }
+  }
+
+  // Export-control/sanctions prompts are yes/no compliance questions, not citizenship text fields.
+  if (isExportControlQuestion(label)) {
+    const sensitive = String(lookup['commonAnswers.sensitiveOptional'] || '').trim();
+    if (sensitive) {
+      return sensitive;
+    }
+    const derived = deriveExportControlAnswerFromCitizenship(String(lookup['commonAnswers.citizenship'] || ''));
+    if (derived) {
+      if (field.fieldType === 'select' || field.fieldType === 'radio') {
+        // #region agent log
+        emitDebugLog(
+          'fieldMapper.js:resolveValueForField:derivedExportControl',
+          'Derived export-control yes/no from citizenship fallback',
+          {
+            label: field.label || '',
+            selector: field.selector || '',
+            derivedValue: derived,
+            citizenship: String(lookup['commonAnswers.citizenship'] || '').slice(0, 120),
+          },
+          'post-fix',
+          'H15',
+        );
+        // #endregion
+      }
+      return derived;
+    }
+  }
+
   const hardcodedValue = getHardcodedValueForField(field, resume, targetCompany);
-  if (hardcodedValue) return hardcodedValue;
+  if (hardcodedValue) {
+    if (field.fieldType === 'select' || field.fieldType === 'radio') {
+      // #region agent log
+      emitDebugLog(
+        'fieldMapper.js:resolveValueForField:hardcoded',
+        'Using hardcoded value for choice field',
+        {
+          label: field.label || '',
+          selector: field.selector || '',
+          value: String(hardcodedValue || '').slice(0, 200),
+        },
+        'post-fix',
+        'H12',
+      );
+      // #endregion
+    }
+    return hardcodedValue;
+  }
   const keysToTry = collectCandidateKeys(field);
 
   for (const key of keysToTry) {
+    if (isExportControlQuestion(label) && key === 'commonAnswers.citizenship') {
+      if (field.fieldType === 'select' || field.fieldType === 'radio') {
+        // #region agent log
+        emitDebugLog(
+          'fieldMapper.js:resolveValueForField:rejectedExportCitizenship',
+          'Rejected citizenship text for export-control yes/no field',
+          {
+            label: field.label || '',
+            selector: field.selector || '',
+            key,
+            value: String(lookup[key] || '').slice(0, 120),
+          },
+          'post-fix',
+          'H15',
+        );
+        // #endregion
+      }
+      continue;
+    }
     const raw = lookup[key];
     if (raw == null || raw === '') continue;
     const s = String(raw).trim();
     if (!s) continue;
-    if (shouldRejectValueForField(field, s)) continue;
+    if (shouldRejectValueForField(field, s)) {
+      if (field.fieldType === 'select' || field.fieldType === 'radio') {
+        // #region agent log
+        emitDebugLog(
+          'fieldMapper.js:resolveValueForField:rejectedCandidate',
+          'Rejected candidate value for choice field',
+          {
+            label: field.label || '',
+            selector: field.selector || '',
+            key,
+            value: s.slice(0, 200),
+          },
+          'post-fix',
+          'H14',
+        );
+        // #endregion
+      }
+      continue;
+    }
+    if (field.fieldType === 'select' || field.fieldType === 'radio') {
+      // #region agent log
+      emitDebugLog(
+        'fieldMapper.js:resolveValueForField:selectedCandidate',
+        'Selected candidate value for choice field',
+        {
+          label: field.label || '',
+          selector: field.selector || '',
+          key,
+          value: s.slice(0, 200),
+          suggestedDataKey: field.suggestedDataKey || '',
+        },
+        'post-fix',
+        'H12',
+      );
+      // #endregion
+    }
     return s;
   }
 
+  // Fallback: if inference failed, let custom key text match the label directly.
+  // Example: custom key "would you use or work on the workday system" should map
+  // to the corresponding yes/no dropdown even when suggestedDataKey is "unmapped".
+  const customMatched = resolveCustomAnswerByLabel(field, lookup);
+  if (customMatched && !shouldRejectValueForField(field, customMatched)) {
+    if (field.fieldType === 'select' || field.fieldType === 'radio') {
+      // #region agent log
+      emitDebugLog(
+        'fieldMapper.js:resolveValueForField:selectedCustomLabelMatch',
+        'Selected custom-answer label match for choice field',
+        {
+          label: field.label || '',
+          selector: field.selector || '',
+          value: String(customMatched || '').slice(0, 200),
+          suggestedDataKey: field.suggestedDataKey || '',
+        },
+        'post-fix',
+        'H13',
+      );
+      // #endregion
+    }
+    return customMatched;
+  }
+
+  if (field.fieldType === 'select' || field.fieldType === 'radio') {
+    // #region agent log
+    emitDebugLog(
+      'fieldMapper.js:resolveValueForField:noValue',
+      'No mappable value found for choice field',
+      {
+        label: field.label || '',
+        selector: field.selector || '',
+        suggestedDataKey: field.suggestedDataKey || '',
+        keysToTry: keysToTry.slice(0, 12),
+      },
+      'post-fix',
+      'H12',
+    );
+    // #endregion
+  }
+
   return null;
+}
+
+const BUILTIN_COMMON_ANSWER_KEYS = new Set([
+  'citizenship',
+  'sponsorship',
+  'workauthorization',
+  'salary',
+  'relocation',
+  'sensitiveoptional',
+  'address',
+  'country',
+  'city',
+  'state',
+  'zip',
+]);
+
+/**
+ * @param {string} s
+ * @returns {string}
+ */
+function normalizeMatchText(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Try to resolve a custom answer by matching key text against the field label/source.
+ * @param {FormField} field
+ * @param {Object.<string, string>} lookup
+ * @returns {string|null}
+ */
+function resolveCustomAnswerByLabel(field, lookup) {
+  const hay = normalizeMatchText(
+    [field.label, field.inferenceSource, field.selector]
+      .filter(Boolean)
+      .join(' ')
+  );
+  if (!hay) return null;
+
+  let best = null;
+  let bestScore = -1;
+  for (const [k, raw] of Object.entries(lookup)) {
+    if (!k.startsWith('commonAnswers.')) continue;
+    const customKey = k.slice('commonAnswers.'.length);
+    const customKeyNorm = normalizeMatchText(customKey);
+    if (!customKeyNorm || customKeyNorm.length < 3) continue;
+    if (BUILTIN_COMMON_ANSWER_KEYS.has(customKeyNorm)) continue;
+
+    const val = String(raw || '').trim();
+    if (!val) continue;
+
+    let score = -1;
+    if (hay.includes(customKeyNorm)) {
+      score = 100 + customKeyNorm.length;
+    } else {
+      const words = customKeyNorm.split(' ').filter((w) => w.length >= 3);
+      if (words.length >= 2 && words.every((w) => hay.includes(w))) {
+        score = 50 + words.length;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = val;
+    }
+  }
+  return best;
 }
 
 /**
@@ -545,10 +801,11 @@ function shouldRejectValueForField(field, val) {
   if (looksLikePhone(val)) return true;
 
   const sponsorish = /sponsor|visa|h-1|h1b|immigration/.test(label);
+  const binaryQuestion = isLikelyYesNoQuestion(field.label || '');
 
-  if (labelLooksLikeYesNo(field.label || '') && !sponsorish) {
+  if ((labelLooksLikeYesNo(field.label || '') || binaryQuestion) && !sponsorish) {
     if (val.length > 60) return true;
-    if (val.length > 20 && !looksLikeShortChoiceAnswer(val)) return true;
+    if (val.length > 12 && !looksLikeShortChoiceAnswer(val)) return true;
   }
 
   return false;
@@ -567,6 +824,62 @@ function looksLikeShortChoiceAnswer(s) {
   const t = s.trim().toLowerCase();
   if (t.length <= 24) return true;
   return /^(yes|no|y|n|true|false|prefer not|decline|n\/a)\b/i.test(t);
+}
+
+/**
+ * Heuristic for yes/no-style prompts that may not be recognized by inference.
+ * @param {string} label
+ * @returns {boolean}
+ */
+function isLikelyYesNoQuestion(label) {
+  const t = String(label || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!t) return false;
+  if (/\?$/.test(t) && /^(are|do|did|have|has|is|would|will|can|should)\b/.test(t)) return true;
+  if (
+    /\b(are you|do you|would you|have you|is your|will you|can you)\b/.test(t) &&
+    /\b(subject|authorized|require|sponsorship|workday|employee|government|related|consider|relocat|citizen|resident)\b/.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @param {string} label
+ * @returns {boolean}
+ */
+function isExportControlQuestion(label) {
+  const t = String(label || '').toLowerCase();
+  return (
+    t.includes('export control') ||
+    t.includes('iran') ||
+    t.includes('north korea') ||
+    t.includes('crimea') ||
+    t.includes('donetsk')
+  );
+}
+
+/**
+ * Conservative export-control yes/no fallback from citizenship text.
+ * Returns null when unsure.
+ * @param {string} citizenship
+ * @returns {string|null}
+ */
+function deriveExportControlAnswerFromCitizenship(citizenship) {
+  const c = String(citizenship || '').toLowerCase();
+  if (!c.trim()) return null;
+  if (
+    /\b(iran|cuba|north korea|syria|crimea|donetsk|luhansk|dnr|lnr)\b/.test(c)
+  ) {
+    return 'Yes';
+  }
+  if (
+    /\b(us|u s|usa|u s a|united states|us citizen|u\.s\.)\b/.test(c) ||
+    /\bcitizen\b/.test(c)
+  ) {
+    return 'No';
+  }
+  return null;
 }
 
 /**

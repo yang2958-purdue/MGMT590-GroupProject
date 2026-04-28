@@ -1,4 +1,4 @@
-import { getResume } from '../../modules/storage.js';
+import { getResume, getUserProfile } from '../../modules/storage.js';
 
 /**
  * Dedicated debug page for inspecting parsed resume values and autofill keys.
@@ -13,11 +13,44 @@ export async function renderDebugPage(container) {
 
   const host = container.querySelector('#debug-content');
   const resume = await getResume();
+  const profile = await getUserProfile();
+  const customAnswerRows = buildCustomAnswerRows(profile);
+  const customAnswerTable = customAnswerRows.length
+    ? customAnswerRows.map((row) => `
+      <tr>
+        <td class="debug-matrix-key">${escapeHtml(row.key)}</td>
+        <td class="debug-matrix-map">${escapeHtml(row.lookupKey)}</td>
+        <td class="debug-matrix-value">${escapeHtml(row.value)}</td>
+      </tr>
+    `).join('')
+    : `
+      <tr>
+        <td colspan="3" class="text-muted">No custom autofill keys are saved in Settings.</td>
+      </tr>
+    `;
   if (!resume) {
     host.innerHTML = `
       <div class="card">
         <p>No parsed resume data found.</p>
         <p class="text-muted text-sm mt-8">Upload a resume on the Upload tab first, then return here.</p>
+      </div>
+      <div class="card mt-16">
+        <h3>Saved Custom Autofill Keys</h3>
+        <p class="text-muted text-sm mt-8">Values currently stored from Settings → Custom autofill keys.</p>
+        <div class="debug-matrix mt-12">
+          <table class="debug-matrix-table">
+            <thead>
+              <tr>
+                <th>Custom Key</th>
+                <th>Lookup Key</th>
+                <th>Saved Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${customAnswerTable}
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
     return;
@@ -73,6 +106,25 @@ export async function renderDebugPage(container) {
           </thead>
           <tbody>
             ${experienceRows}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <h3>Saved Custom Autofill Keys</h3>
+      <p class="text-muted text-sm mt-8">Values currently stored from Settings → Custom autofill keys.</p>
+      <div class="debug-matrix mt-12">
+        <table class="debug-matrix-table">
+          <thead>
+            <tr>
+              <th>Custom Key</th>
+              <th>Lookup Key</th>
+              <th>Saved Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${customAnswerTable}
           </tbody>
         </table>
       </div>
@@ -145,4 +197,20 @@ function buildExperienceRows(data) {
       </tr>
     `)
     .join('');
+}
+
+/**
+ * @param {import('../../modules/storage.js').UserProfile | null} profile
+ */
+function buildCustomAnswerRows(profile) {
+  const answers = profile?.customAnswers && typeof profile.customAnswers === 'object'
+    ? profile.customAnswers
+    : {};
+  return Object.entries(answers)
+    .map(([key, value]) => ({
+      key: String(key || '').trim(),
+      lookupKey: `commonAnswers.${String(key || '').trim()}`,
+      value: String(value || '').trim(),
+    }))
+    .filter((row) => row.key && row.value);
 }

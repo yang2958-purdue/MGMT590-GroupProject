@@ -21,6 +21,27 @@ const BOUND = '__jobbotContentScriptMsgBound';
 if (!globalThis[BOUND]) {
   globalThis[BOUND] = true;
 
+function emitDebugLog(location, message, data = {}, runId = 'initial', hypothesisId = 'H0') {
+  // #region agent log
+  fetch('http://127.0.0.1:7503/ingest/4f5420e6-5c84-43bf-a398-b678a72cb864', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': 'f8a60b',
+    },
+    body: JSON.stringify({
+      sessionId: 'f8a60b',
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 let resumeResolver = null;
 let isPaused = false;
 
@@ -41,6 +62,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   switch (message.type) {
     case 'EXTRACT_FIELDS_DOM': {
       const fields = scanFormFieldsInDocument();
+      // #region agent log
+      emitDebugLog(
+        'content.js:onMessage:EXTRACT_FIELDS_DOM',
+        'Content script completed DOM field scan',
+        {
+          href: location.href,
+          fieldCount: Array.isArray(fields) ? fields.length : 0,
+          fieldTypeCounts: (Array.isArray(fields) ? fields : []).reduce((acc, f) => {
+            const k = f?.fieldType || 'unknown';
+            acc[k] = (acc[k] || 0) + 1;
+            return acc;
+          }, {}),
+        },
+        'initial',
+        'H5',
+      );
+      // #endregion
       sendResponse({ ok: true, fields });
       return true;
     }

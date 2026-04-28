@@ -9,6 +9,27 @@ import { abbrToFullStateName } from './usStateAbbrev.js';
 
 const HIGHLIGHT_STYLE = 'outline: 3px solid #6366f1; outline-offset: 2px; transition: outline 0.2s;';
 
+function emitDebugLog(location, message, data = {}, runId = 'initial', hypothesisId = 'H0') {
+  // #region agent log
+  fetch('http://127.0.0.1:7503/ingest/4f5420e6-5c84-43bf-a398-b678a72cb864', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': 'f8a60b',
+    },
+    body: JSON.stringify({
+      sessionId: 'f8a60b',
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 /**
  * @typedef {import('./fieldMapper.js').FilledField} FilledField
  */
@@ -82,6 +103,33 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
       await sleep(delayMs);
     }
   }
+
+  // #region agent log
+  const selectFinalStates = fields
+    .filter((f) => f.status !== 'skipped' && f.field?.fieldType === 'select')
+    .slice(0, 30)
+    .map((f) => {
+      const root = resolveRootDocument(f.field.iframePath);
+      const el = root?.querySelector?.(f.field.selector);
+      return {
+        selector: f.field.selector,
+        label: f.field.label || '',
+        intendedValue: String(f.value ?? ''),
+        finalText: (el?.textContent || '').trim().slice(0, 220),
+        finalValue:
+          el instanceof HTMLInputElement || el instanceof HTMLSelectElement
+            ? String(el.value ?? '')
+            : '',
+      };
+    });
+  emitDebugLog(
+    'fieldFiller.js:fillFieldsSequentially:finalSelectSnapshot',
+    'Final select snapshot after autofill loop',
+    { total: selectFinalStates.length, states: selectFinalStates },
+    'post-fix',
+    'H17',
+  );
+  // #endregion
 
   sendStatus('AUTOFILL_COMPLETE', {
     filledCount,
@@ -601,6 +649,24 @@ export async function setFieldValue(selector, value, iframePath, fieldType) {
   if (!root) return;
   const el = root.querySelector(selector);
   if (!el) return;
+  if (fieldType === 'select') {
+    // #region agent log
+    emitDebugLog(
+      'fieldFiller.js:setFieldValue:selectStart',
+      'Starting select field fill',
+      {
+        selector,
+        value: String(value ?? ''),
+        tagName: el.tagName,
+        role: el.getAttribute('role') || '',
+        ariaHaspopup: el.getAttribute('aria-haspopup') || '',
+        iframeDepth: Array.isArray(iframePath) ? iframePath.length : 0,
+      },
+      'post-fix',
+      'H6',
+    );
+    // #endregion
+  }
 
   const innerTextarea =
     el instanceof HTMLTextAreaElement ? el : el.querySelector?.('textarea');
@@ -1122,11 +1188,30 @@ async function waitForWorkdayDegreeCommitted(btn, beforeText, expected, timeoutM
  */
 async function clickWorkdayPromptOptionByToken(doc, token, options = {}) {
   const { allowFallback = true } = options;
-  const list = doc.querySelector('[data-automation-id="activeListContainer"][role="listbox"]');
+  const list =
+    doc.querySelector('[data-automation-id="activeListContainer"][role="listbox"]') ||
+    doc.querySelector('[data-automation-id="activeListContainer"]') ||
+    doc.querySelector('[role="listbox"][data-automation-id*="activeList"]');
   if (!(list instanceof HTMLElement)) return false;
 
   const wanted = normText(String(token || ''));
   const menuItems = Array.from(list.querySelectorAll('[data-automation-id="menuItem"][role="option"]'));
+  const wantYes = /(^|\b)(yes|y|true|1)\b/i.test(String(token || ''));
+  const wantNo = /(^|\b)(no|n|false|0)\b/i.test(String(token || ''));
+  // #region agent log
+  emitDebugLog(
+    'fieldFiller.js:clickWorkdayPromptOptionByToken:listFound',
+    'Workday prompt list discovered',
+    {
+      token: String(token || ''),
+      menuItemCount: menuItems.length,
+      listRole: list.getAttribute('role') || '',
+      listAutomationId: list.getAttribute('data-automation-id') || '',
+    },
+    'post-fix',
+    'H11',
+  );
+  // #endregion
 
   /**
    * @param {Element} node
@@ -1151,20 +1236,40 @@ async function clickWorkdayPromptOptionByToken(doc, token, options = {}) {
     return true;
   };
 
-  const exactMenuItem = menuItems.find((item) => {
+  const scoreMenuItem = (item) => {
     const idText = normText((item.getAttribute('id') || '').replace(/^menuitem-?/i, ''));
     const ariaLabel = normText((item.getAttribute('aria-label') || '').replace(/\s+not\s+checked.*$/i, '').trim());
     const labelNode = item.querySelector('[data-automation-id="promptOption"]');
     const optionLabel = normText(
       (labelNode?.getAttribute('data-automation-label') || labelNode?.textContent || '').trim()
     );
+    const parts = [optionLabel, ariaLabel, idText].filter(Boolean);
+    const bestText = parts[0] || '';
 
-    return (
-      (wanted && (idText === wanted || ariaLabel === wanted || optionLabel === wanted)) ||
-      (wanted && (idText.startsWith(`${wanted} `) || ariaLabel.startsWith(`${wanted} `) || optionLabel.startsWith(`${wanted} `)))
-    );
-  });
-  if (exactMenuItem) return clickNode(exactMenuItem);
+    if (wantYes && /^(yes|y|true|1)$/i.test(bestText)) return 200;
+    if (wantNo && /^(no|n|false|0)$/i.test(bestText)) return 200;
+
+    if (parts.some((p) => p === wanted)) return 180;
+    if (parts.some((p) => p.startsWith(`${wanted} `) || p.startsWith(`${wanted}-`))) return 165;
+
+    // Conservative fuzzy match: avoid matching tiny yes/no options against long custom strings.
+    if (!wantYes && !wantNo && wanted.length >= 4) {
+      if (parts.some((p) => p.includes(wanted))) return 130;
+      if (parts.some((p) => wanted.includes(p) && p.length >= 4)) return 110;
+    }
+    return 0;
+  };
+
+  let bestItem = null;
+  let bestScore = 0;
+  for (const item of menuItems) {
+    const score = scoreMenuItem(item);
+    if (score > bestScore) {
+      bestScore = score;
+      bestItem = item;
+    }
+  }
+  if (bestItem && bestScore > 0) return clickNode(bestItem);
 
   if (!allowFallback) return false;
 
@@ -1415,6 +1520,31 @@ async function setComboboxValue(el, value) {
     await sleep(350);
   };
 
+  const readTriggerText = () => (el.textContent || '').trim().slice(0, 220);
+  const readTriggerValue = () =>
+    el instanceof HTMLInputElement || el instanceof HTMLSelectElement
+      ? String(el.value ?? '')
+      : '';
+  const logDelayedStabilityCheck = async (token) => {
+    await sleep(900);
+    // #region agent log
+    emitDebugLog(
+      'fieldFiller.js:setComboboxValue:delayedStability',
+      'Delayed combobox value stability check',
+      {
+        token,
+        triggerTextDelayed: readTriggerText(),
+        triggerValueDelayed: readTriggerValue(),
+        activeListVisibleDelayed: !!el.ownerDocument.querySelector(
+          '[data-automation-id="activeListContainer"]',
+        ),
+      },
+      'post-fix',
+      'H16',
+    );
+    // #endregion
+  };
+
   const openDropdown = () => {
     if (!(el instanceof HTMLElement)) return;
     el.focus();
@@ -1425,8 +1555,35 @@ async function setComboboxValue(el, value) {
   };
 
   const searchTokens = buildComboboxSearchTokens(raw, el);
+  // #region agent log
+  emitDebugLog(
+    'fieldFiller.js:setComboboxValue:tokens',
+    'Computed combobox search tokens',
+    {
+      raw,
+      tokenCount: searchTokens.length,
+      tokens: searchTokens.slice(0, 8),
+      tagName: el.tagName,
+      role: el.getAttribute('role') || '',
+      ariaHaspopup: el.getAttribute('aria-haspopup') || '',
+      controlId: el.getAttribute('id') || '',
+      automationId: el.getAttribute('data-automation-id') || '',
+    },
+    'post-fix',
+    'H6',
+  );
+  // #endregion
 
   for (const token of searchTokens) {
+    // #region agent log
+    emitDebugLog(
+      'fieldFiller.js:setComboboxValue:tokenAttempt',
+      'Trying combobox token',
+      { token },
+      'post-fix',
+      'H6',
+    );
+    // #endregion
     openDropdown();
 
     if (el instanceof HTMLInputElement && !el.readOnly) {
@@ -1436,22 +1593,98 @@ async function setComboboxValue(el, value) {
     }
 
     for (let i = 0; i < 10; i++) {
+      if (await clickWorkdayPromptOptionByToken(el.ownerDocument, token, { allowFallback: false })) {
+        // #region agent log
+        emitDebugLog(
+          'fieldFiller.js:setComboboxValue:workdayPromptClick',
+          'Clicked Workday prompt option by token',
+          {
+            token,
+            iteration: i,
+          },
+          'post-fix',
+          'H6',
+        );
+        // #endregion
+        await settleSelection();
+        // #region agent log
+        emitDebugLog(
+          'fieldFiller.js:setComboboxValue:afterWorkdayPromptClick',
+          'Settled after Workday prompt click',
+          {
+            token,
+            triggerTextAfter: readTriggerText(),
+            triggerValueAfter: readTriggerValue(),
+          },
+          'post-fix',
+          'H7',
+        );
+        // #endregion
+        await logDelayedStabilityCheck(token);
+        return;
+      }
+
       const option = findCustomDropdownOption(el.ownerDocument, token);
       if (option) {
+        // #region agent log
+        emitDebugLog(
+          'fieldFiller.js:setComboboxValue:foundOption',
+          'Found custom dropdown option candidate',
+          {
+            token,
+            iteration: i,
+            optionText: (option.textContent || '').trim().slice(0, 220),
+            optionAriaLabel: option.getAttribute('aria-label') || '',
+          },
+          'post-fix',
+          'H6',
+        );
+        // #endregion
         option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         option.click();
         option.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
         await settleSelection();
-        return;
-      }
-      if (await clickWorkdayPromptOptionByToken(el.ownerDocument, token, { allowFallback: false })) {
-        await settleSelection();
+        // #region agent log
+        emitDebugLog(
+          'fieldFiller.js:setComboboxValue:afterOptionClick',
+          'Completed option click and settle',
+          {
+            token,
+            iteration: i,
+            triggerTextAfter: readTriggerText(),
+            triggerValueAfter: readTriggerValue(),
+            activeListVisible: !!el.ownerDocument.querySelector(
+              '[data-automation-id="activeListContainer"][role="listbox"]',
+            ),
+          },
+          'post-fix',
+          'H7',
+        );
+        // #endregion
+        await logDelayedStabilityCheck(token);
         return;
       }
       if (i === 3 || i === 6) openDropdown();
       await sleep(120);
     }
   }
+  // #region agent log
+  emitDebugLog(
+    'fieldFiller.js:setComboboxValue:noSelection',
+    'Combobox fill finished without option selection',
+    {
+      raw,
+      tokenCount: searchTokens.length,
+      finalTriggerText: (el.textContent || '').trim().slice(0, 220),
+      finalTriggerValue:
+        el instanceof HTMLInputElement || el instanceof HTMLSelectElement
+          ? String(el.value ?? '')
+          : '',
+    },
+    'post-fix',
+    'H8',
+  );
+  // #endregion
 }
 
 /**
@@ -1475,7 +1708,10 @@ function findCustomDropdownOption(doc, raw) {
   const pick = candidates.find((node) => {
     const text = normText(node.textContent || '');
     if (!text) return false;
-    return text === low || text.includes(low) || low.includes(text);
+    if (text === low) return true;
+    if (text.length >= 4 && low.length >= 4 && text.includes(low)) return true;
+    if (text.length >= 4 && low.length >= 4 && low.includes(text)) return true;
+    return false;
   });
 
   return pick instanceof HTMLElement ? pick : null;

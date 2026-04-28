@@ -115,6 +115,7 @@ Use the **API keys** tab to store **Firecrawl** and **OpenAI** keys in `chrome.s
 - **Custom autofill keys** — Each row maps to `commonAnswers.<yourKey>` (e.g. key `visaStatus`) so you can supply answers for labels that map to those keys.
 
 The scraper card shows **Connected** when `GET /health` on the local server succeeds.
+The **Debug** page also shows a **Saved Custom Autofill Keys** table so you can verify `customAnswers` persistence (`commonAnswers.<key>`) before autofill.
 
 ### 6. Development workflow
 
@@ -188,7 +189,7 @@ JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOB
 ## Architecture Notes
 
 - **Host permissions** — `manifest.json` includes `<all_urls>` so `chrome.scripting.executeScript` can inject the content script after an extension reload (when `tabs.sendMessage` would otherwise fail). Chrome may prompt for broader site access on install/update.
-- **Content script bundle** — The content script is built as an ES module with a shared chunk (`chunks/fieldInference-*.js`). After programmatic inject, the side panel waits on animation frames and retries `sendMessage` until the module finishes loading (so `onMessage` is registered). The DOM scanner recurses into **same-origin iframes** (common on Phenom/ATS pages) and passes `iframePath` so fills target the correct document.
+- **Content script bundle** — The content script is built as an ES module with a shared chunk (`chunks/fieldInference-*.js`). After programmatic inject, the side panel waits on animation frames and retries `sendMessage` until the module finishes loading (so `onMessage` is registered). The DOM scanner recurses into **same-origin iframes** (common on Phenom/ATS pages), extracts Workday `fieldset/legend` rich-question text for stronger label inference, and passes `iframePath` so fills target the correct document.
 - **Education parsing** — The resume parser uses education-specific heuristics plus a curated university-name list/keyword matcher to better distinguish `school` values from degree or field-of-study text.
 - **No external database** — persistence via `chrome.storage.session` (resume, search, results, autofill session) and `chrome.storage.local` (settings and saved profile).
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.

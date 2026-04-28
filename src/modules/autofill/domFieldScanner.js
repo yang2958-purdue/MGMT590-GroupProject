@@ -9,6 +9,27 @@ import { inferDataKeyFromLabel } from './fieldInference.js';
 
 let _jobbotAfCounter = 0;
 
+function emitDebugLog(location, message, data = {}, runId = 'initial', hypothesisId = 'H0') {
+  // #region agent log
+  fetch('http://127.0.0.1:7503/ingest/4f5420e6-5c84-43bf-a398-b678a72cb864', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': 'f8a60b',
+    },
+    body: JSON.stringify({
+      sessionId: 'f8a60b',
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 const CONTROL_SELECTOR =
   'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
   'select:not([disabled]),textarea:not([disabled]),' +
@@ -125,8 +146,44 @@ export function scanFormFieldsInDocument() {
   const seenRadioKeys = new Set();
   /** @type {{ wxFallbackMerged: number }} */
   const scanStats = { wxFallbackMerged: 0 };
+  const nativeControlCount = document.querySelectorAll(
+    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),select:not([disabled]),textarea:not([disabled])',
+  ).length;
+  const comboboxLikeCount = document.querySelectorAll(
+    'button[aria-haspopup="listbox"]:not([disabled]),[role="combobox"]:not([aria-disabled="true"])',
+  ).length;
+  // #region agent log
+  emitDebugLog(
+    'domFieldScanner.js:scanFormFieldsInDocument:start',
+    'Starting DOM field scan',
+    {
+      href: location.href,
+      nativeControlCount,
+      comboboxLikeCount,
+    },
+    'initial',
+    'H1',
+  );
+  // #endregion
 
   scanInto(document, [], out, seenRadioKeys, scanStats);
+  // #region agent log
+  emitDebugLog(
+    'domFieldScanner.js:scanFormFieldsInDocument:complete',
+    'DOM field scan complete',
+    {
+      totalFields: out.length,
+      wxFallbackMerged: scanStats.wxFallbackMerged,
+      fieldTypeCounts: out.reduce((acc, f) => {
+        const k = f?.fieldType || 'unknown';
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+      }, {}),
+    },
+    'initial',
+    'H5',
+  );
+  // #endregion
 
   return out;
 }
@@ -267,6 +324,23 @@ function inferLabel(el) {
     if (lab?.textContent?.trim()) return lab.textContent.trim().replace(/\s+/g, ' ');
   }
 
+  // Workday questionnaire fields often use <fieldset><legend><div rich text>...</div></legend>
+  // without a direct <label for="..."> binding on the listbox button.
+  const fieldset = el.closest('fieldset');
+  if (fieldset) {
+    const legend = fieldset.querySelector('legend');
+    const legendText = normalizeLegendText(legend?.textContent || '');
+    if (legendText) return legendText;
+  }
+
+  // Workday wrapper fallback: label can be rendered in an adjacent rich label block.
+  const formFieldContainer = el.closest('[data-automation-id^="formField-"]');
+  if (formFieldContainer) {
+    const richLabel = formFieldContainer.querySelector('[id^="rich-label"], [data-automation-id="richText"]');
+    const richLabelText = normalizeLegendText(richLabel?.textContent || '');
+    if (richLabelText) return richLabelText;
+  }
+
   const aria = el.getAttribute('aria-label');
   if (aria?.trim()) return aria.trim();
 
@@ -286,6 +360,28 @@ function inferLabel(el) {
   if (name?.trim()) return name.replace(/[_-]+/g, ' ').trim();
 
   return '';
+}
+
+/**
+ * Clean rich legend text into a stable question-style label.
+ * @param {string} s
+ * @returns {string}
+ */
+function normalizeLegendText(s) {
+  const raw = (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const cleaned = raw
+    .replace(/\*/g, ' ')
+    .replace(/\brequired\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  // Avoid swallowing giant policy paragraphs; keep useful question signal.
+  if (cleaned.length > 420) {
+    const firstSentence = cleaned.split(/[.?!]\s/)[0] || cleaned;
+    return firstSentence.slice(0, 420).trim();
+  }
+  return cleaned;
 }
 
 /**

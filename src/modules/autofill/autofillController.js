@@ -28,6 +28,27 @@ import { FILL_DELAY_MS } from '../../config/autofill.config.js';
  * @typedef {import('./fieldMapper.js').FilledField} FilledField
  */
 
+function emitDebugLog(location, message, data = {}, runId = 'initial', hypothesisId = 'H0') {
+  // #region agent log
+  fetch('http://127.0.0.1:7503/ingest/4f5420e6-5c84-43bf-a398-b678a72cb864', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': 'f8a60b',
+    },
+    body: JSON.stringify({
+      sessionId: 'f8a60b',
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 /**
  * Extract company name from page URL or form fields.
  * Used when user navigates directly to career site without selecting a job.
@@ -476,6 +497,28 @@ async function requestDomFieldScan(tabId) {
         return { n: document.querySelectorAll(sel).length, href: location.href };
       },
     });
+    // #region agent log
+    emitDebugLog(
+      'autofillController.js:requestDomFieldScan:probeResults',
+      'Frame probe completed',
+      {
+        frameCount: Array.isArray(probeResults) ? probeResults.length : 0,
+        sample: (probeResults || []).slice(0, 6).map((r) => ({
+          frameId: r?.frameId,
+          hasError: !!r?.error,
+          n:
+            r?.result && typeof r.result === 'object' && 'n' in r.result
+              ? Number(r.result.n)
+              : typeof r?.result === 'number'
+                ? r.result
+                : null,
+          href: r?.result && typeof r.result === 'object' ? r.result.href : null,
+        })),
+      },
+      'initial',
+      'H1',
+    );
+    // #endregion
 
     /** @type {{ frameId: number; count: number }[]} */
     const ranked = [];
@@ -492,34 +535,116 @@ async function requestDomFieldScan(tabId) {
       ranked.push({ frameId: r.frameId, count: Number.isFinite(n) ? n : 0 });
     }
     ranked.sort((a, b) => b.count - a.count);
+    // #region agent log
+    emitDebugLog(
+      'autofillController.js:requestDomFieldScan:rankedFrames',
+      'Ranked candidate frames',
+      {
+        ranked,
+      },
+      'initial',
+      'H1',
+    );
+    // #endregion
 
     for (const frame of ranked) {
       if (frame.count === 0) continue;
       try {
+        // #region agent log
+        emitDebugLog(
+          'autofillController.js:requestDomFieldScan:scanFrameStart',
+          'Attempting EXTRACT_FIELDS_DOM for frame',
+          { frameId: frame.frameId, probeCount: frame.count },
+          'initial',
+          'H2',
+        );
+        // #endregion
         const resp = await tabSendMessageWithContentScriptFallback(
           tabId,
           { type: 'EXTRACT_FIELDS_DOM' },
           { injectFrameId: frame.frameId, skipInitialSend: true },
         );
+        // #region agent log
+        emitDebugLog(
+          'autofillController.js:requestDomFieldScan:scanFrameResp',
+          'Frame scan response received',
+          {
+            frameId: frame.frameId,
+            responseFieldCount: Array.isArray(resp?.fields) ? resp.fields.length : 0,
+          },
+          'initial',
+          'H2',
+        );
+        // #endregion
         if (resp?.fields?.length) {
           return { fields: resp.fields, frameId: frame.frameId };
         }
-      } catch {
+      } catch (e) {
+        // #region agent log
+        emitDebugLog(
+          'autofillController.js:requestDomFieldScan:scanFrameError',
+          'Frame scan failed',
+          {
+            frameId: frame.frameId,
+            error: e instanceof Error ? e.message : String(e),
+          },
+          'initial',
+          'H2',
+        );
+        // #endregion
         // try next frame
       }
     }
 
     try {
       const resp = await tabSendMessageWithContentScriptFallback(tabId, { type: 'EXTRACT_FIELDS_DOM' });
+      // #region agent log
+      emitDebugLog(
+        'autofillController.js:requestDomFieldScan:fallbackMainFrame',
+        'Fallback scan on main frame finished',
+        {
+          responseFieldCount: Array.isArray(resp?.fields) ? resp.fields.length : 0,
+        },
+        'initial',
+        'H3',
+      );
+      // #endregion
       if (resp?.fields?.length) {
         return { fields: resp.fields, frameId: 0 };
       }
-    } catch {
+    } catch (e) {
+      // #region agent log
+      emitDebugLog(
+        'autofillController.js:requestDomFieldScan:fallbackMainFrameError',
+        'Fallback scan on main frame failed',
+        { error: e instanceof Error ? e.message : String(e) },
+        'initial',
+        'H3',
+      );
+      // #endregion
       // fall through
     }
 
+    // #region agent log
+    emitDebugLog(
+      'autofillController.js:requestDomFieldScan:returnEmpty',
+      'DOM scan returned no fields',
+      {},
+      'initial',
+      'H1',
+    );
+    // #endregion
     return { fields: [], frameId: null };
-  } catch {
+  } catch (e) {
+    // #region agent log
+    emitDebugLog(
+      'autofillController.js:requestDomFieldScan:topLevelError',
+      'DOM scan top-level failure',
+      { error: e instanceof Error ? e.message : String(e) },
+      'initial',
+      'H4',
+    );
+    // #endregion
     return { fields: [], frameId: null };
   }
 }
