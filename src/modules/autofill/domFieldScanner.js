@@ -6,16 +6,12 @@
  */
 
 import { inferDataKeyFromLabel } from './fieldInference.js';
+import { DOM_SCAN_CONTROL_SELECTOR_BROAD_MATCH } from '../../config/domScanSelectors.js';
+import { collectDeepFallbackCandidates } from './domFillableHeuristic.js';
 
 let _jobbotAfCounter = 0;
 
-const CONTROL_SELECTOR =
-  'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
-  'select:not([disabled]),textarea:not([disabled]),' +
-  'button[aria-haspopup="listbox"]:not([disabled]),' +
-  '[role="combobox"]:not([aria-disabled="true"]),' +
-  '[role="radio"]:not([aria-disabled="true"]),' +
-  '[role="radiogroup"]:not([aria-disabled="true"])';
+const CONTROL_SELECTOR = DOM_SCAN_CONTROL_SELECTOR_BROAD_MATCH;
 
 /**
  * True when control metadata looks like Work Experience row **N** date (From/To / month / year).
@@ -143,13 +139,24 @@ function scanInto(doc, iframePath, out, seenRadioKeys, scanStats) {
   const fallback = queryWorkdayWxDateFallbackInDocumentAndShadowRoots(doc);
   const seenEl = new Set(primary);
   /** @type {HTMLElement[]} */
-  const nodes = [...primary];
+  let nodes = [...primary];
   for (const el of fallback) {
     if (!(el instanceof HTMLElement)) continue;
     if (!seenEl.has(el)) {
       seenEl.add(el);
       nodes.push(el);
       if (scanStats) scanStats.wxFallbackMerged += 1;
+    }
+  }
+
+  if (!nodes.length) {
+    const deep = collectDeepFallbackCandidates(doc);
+    for (const el of deep) {
+      if (!(el instanceof HTMLElement)) continue;
+      if (!seenEl.has(el)) {
+        seenEl.add(el);
+        nodes.push(el);
+      }
     }
   }
 
@@ -267,6 +274,26 @@ function inferLabel(el) {
     if (lab?.textContent?.trim()) return lab.textContent.trim().replace(/\s+/g, ' ');
   }
 
+  // Workday questionnaire controls are commonly wrapped in fieldsets where the prompt
+  // lives in <legend> (often rich text), while the button itself only says "Select One".
+  const fieldset = el.closest?.('fieldset');
+  if (fieldset) {
+    const legend = fieldset.querySelector('legend');
+    const legendText = legend?.textContent?.replace(/\s+/g, ' ').trim();
+    if (legendText) return legendText;
+  }
+
+  // Secondary Workday fallback: question text is usually under rich-label containers
+  // within the same formField wrapper.
+  const workdayField = el.closest?.('[data-automation-id^="formField-"]');
+  if (workdayField) {
+    const rich = workdayField.querySelector(
+      '[id^="rich-label"],[data-automation-id="richText"],legend'
+    );
+    const richText = rich?.textContent?.replace(/\s+/g, ' ').trim();
+    if (richText) return richText;
+  }
+
   const aria = el.getAttribute('aria-label');
   if (aria?.trim()) return aria.trim();
 
@@ -317,9 +344,20 @@ function isComboboxLike(el) {
   const role = (el.getAttribute('role') || '').toLowerCase();
   if (role === 'textbox' && !(el instanceof HTMLInputElement)) return false;
   const hasPopup = (el.getAttribute('aria-haspopup') || '').toLowerCase();
+  const autoDa = (el.getAttribute('data-automation-id') || '').toLowerCase();
   if (role === 'combobox') return true;
   if (hasPopup === 'listbox') return true;
+  // Workday / ATS: dropdown triggers often use dialog/menu popups instead of listbox-only.
+  if (
+    (role === 'button' || el.tagName === 'BUTTON') &&
+    (hasPopup === 'listbox' || hasPopup === 'dialog' || hasPopup === 'menu')
+  )
+    return true;
   if (el.tagName === 'BUTTON' && hasPopup) return true;
+  if (
+    /promptbutton|selectwidget|singleselect|moniker|monikerinput|promptinput|dropdown|questionanswer/.test(autoDa)
+  )
+    return true;
   if (el instanceof HTMLInputElement && el.getAttribute('aria-controls') && el.getAttribute('aria-autocomplete')) return true;
   return false;
 }

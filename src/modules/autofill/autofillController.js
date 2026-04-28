@@ -23,6 +23,7 @@ import {
   getSelectedJob,
 } from '../storage.js';
 import { FILL_DELAY_MS, AUTO_EXPAND_WORKDAY_REPEATERS } from '../../config/autofill.config.js';
+import { DOM_SCAN_CONTROL_SELECTOR_BROAD_MATCH } from '../../config/domScanSelectors.js';
 
 /**
  * @typedef {import('./fieldMapper.js').FilledField} FilledField
@@ -467,18 +468,88 @@ function tabSendMessageWithContentScriptFallback(tabId, message, options = {}) {
  * @param {number} tabId
  * @returns {Promise<{ fields: import('../scraper/firecrawlAdapter.js').FormField[], frameId: number|null, debug?: string }>}
  */
-async function requestDomFieldScan(tabId) {
+async function requestDomFieldScan(tabId, attempt = 0) {
   try {
+    const probeSel = DOM_SCAN_CONTROL_SELECTOR_BROAD_MATCH;
     const probeResults = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
-      func: () => {
-        const sel =
-          'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
-          'select:not([disabled]),textarea:not([disabled]),' +
-          'button[aria-haspopup="listbox"]:not([disabled]),' +
-          '[role="combobox"]:not([aria-disabled="true"]),' +
-          '[role="radio"]:not([aria-disabled="true"]),' +
-          '[role="radiogroup"]:not([aria-disabled="true"])';
+      func: (selInner) => {
+        const sel = selInner;
+
+        /** @param {HTMLElement} el */
+        function jbLooksFill(el) {
+          const tag = el.tagName?.toUpperCase?.() || '';
+          if (tag === 'SELECT' || tag === 'TEXTAREA') return true;
+          if (tag === 'INPUT') {
+            const inp = /** @type {HTMLInputElement} */ (el);
+            const t = (inp.type || 'text').toLowerCase();
+            if (['hidden', 'submit', 'file', 'reset', 'image'].includes(t)) return false;
+            return true;
+          }
+
+          const role = (el.getAttribute('role') || '').toLowerCase();
+          const ap = (el.getAttribute('aria-haspopup') || '').toLowerCase();
+          const tabIndex = el.getAttribute('tabindex');
+          const auto = (el.getAttribute('data-automation-id') || '').toLowerCase();
+
+          if (role === 'combobox') return true;
+          if (role === 'textbox' && ap) return true;
+          if (
+            role === 'textbox' &&
+            (el.getAttribute('aria-autocomplete') || el.getAttribute('aria-controls'))
+          )
+            return true;
+          if (role === 'radiogroup' || role === 'listbox') return true;
+          if (role === 'radio' && el.getAttribute('aria-checked') != null) return true;
+
+          if (ap === 'listbox' || ap === 'dialog' || ap === 'menu' || ap === 'true') return true;
+          if (tag === 'BUTTON' || role === 'button') {
+            if (ap) return true;
+          }
+          if (
+            /promptbutton|selectwidget|singleselect|moniker|monikerinput|dropdown|questionanswer|formfield|selectone|multiselect/.test(
+              auto,
+            )
+          )
+            return true;
+          if (
+            auto.includes('prompt') &&
+            (tag === 'BUTTON' || role === 'button' || role === 'combobox')
+          )
+            return true;
+          if (tabIndex !== null && tabIndex !== '-1' && (role === 'combobox' || ap))
+            return true;
+          return false;
+        }
+
+        /** @returns {HTMLElement[]} */
+        function jbDeepCandidates() {
+          const out = [];
+          const seen = new Set();
+          const stack = /** @type {(Document | ShadowRoot)[]} */ ([document]);
+          while (stack.length) {
+            const rr = stack.pop();
+            if (!rr) continue;
+            let children;
+            try {
+              children = rr.querySelectorAll('*');
+            } catch {
+              continue;
+            }
+            for (const node of children) {
+              if (!(node instanceof HTMLElement)) continue;
+              if (
+                jbLooksFill(node) &&
+                !seen.has(node)
+              ) {
+                seen.add(node);
+                out.push(node);
+              }
+              if (node.shadowRoot) stack.push(node.shadowRoot);
+            }
+          }
+          return out;
+        }
 
         /** @type {(Document|ShadowRoot)[]} */
         const roots = [document];
@@ -502,8 +573,17 @@ async function requestDomFieldScan(tabId) {
           }
         }
 
+        if (!count) {
+          try {
+            count = jbDeepCandidates().length;
+          } catch {
+            count = 0;
+          }
+        }
+
         return { n: count, href: location.href };
       },
+      args: [probeSel],
     });
 
     /** @type {{ frameId: number; count: number }[]} */
@@ -526,9 +606,17 @@ async function requestDomFieldScan(tabId) {
     }
     ranked.sort((a, b) => b.count - a.count);
 
+    /** Fallback: if every frame probed zero (selector drift), still try EXTRACT_FIELDS_DOM on each frame Chrome returned. */
+    const extractionFrameOrder =
+      ranked.length > 0
+        ? ranked
+        : (probeResults ?? [])
+            .filter((r) => !r.error && typeof r.frameId === 'number')
+            .map((r) => ({ frameId: r.frameId, count: 0 }));
+
     let extractAttempts = 0;
     let extractErrors = 0;
-    for (const frame of ranked) {
+    for (const frame of extractionFrameOrder) {
       try {
         extractAttempts += 1;
         const resp = await tabSendMessageWithContentScriptFallback(
@@ -540,7 +628,7 @@ async function requestDomFieldScan(tabId) {
           return {
             fields: resp.fields,
             frameId: frame.frameId,
-            debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=content-script`,
+            debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=content-script,fallbackFrames=${extractionFrameOrder.length}`,
           };
         }
       } catch {
@@ -563,17 +651,115 @@ async function requestDomFieldScan(tabId) {
     }
 
     // Fallback: direct executeScript-based extraction (bypasses content-script messaging/listener issues).
+    const scanSelInline = DOM_SCAN_CONTROL_SELECTOR_BROAD_MATCH;
     const inline = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
-      func: () => {
-        const controls = document.querySelectorAll(
-          'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([disabled]),' +
-            'select:not([disabled]),textarea:not([disabled]),' +
-            'button[aria-haspopup="listbox"]:not([disabled]),' +
-            '[role="combobox"]:not([aria-disabled="true"]),' +
-            '[role="radio"]:not([aria-disabled="true"]),' +
-            '[role="radiogroup"]:not([aria-disabled="true"])',
-        );
+      func: (CONTROL_SELECTOR_INNER) => {
+        const CONTROL_SELECTOR = CONTROL_SELECTOR_INNER;
+
+        /** @param {HTMLElement} el */
+        function jbLooksFill(el) {
+          const tag = el.tagName?.toUpperCase?.() || '';
+          if (tag === 'SELECT' || tag === 'TEXTAREA') return true;
+          if (tag === 'INPUT') {
+            const inp = /** @type {HTMLInputElement} */ (el);
+            const t = (inp.type || 'text').toLowerCase();
+            if (['hidden', 'submit', 'file', 'reset', 'image'].includes(t)) return false;
+            return true;
+          }
+
+          const role = (el.getAttribute('role') || '').toLowerCase();
+          const ap = (el.getAttribute('aria-haspopup') || '').toLowerCase();
+          const tabIndex = el.getAttribute('tabindex');
+          const auto = (el.getAttribute('data-automation-id') || '').toLowerCase();
+
+          if (role === 'combobox') return true;
+          if (role === 'textbox' && ap) return true;
+          if (
+            role === 'textbox' &&
+            (el.getAttribute('aria-autocomplete') || el.getAttribute('aria-controls'))
+          )
+            return true;
+          if (role === 'radiogroup' || role === 'listbox') return true;
+          if (role === 'radio' && el.getAttribute('aria-checked') != null) return true;
+
+          if (ap === 'listbox' || ap === 'dialog' || ap === 'menu' || ap === 'true') return true;
+          if (tag === 'BUTTON' || role === 'button') {
+            if (ap) return true;
+          }
+          if (
+            /promptbutton|selectwidget|singleselect|moniker|monikerinput|dropdown|questionanswer|formfield|selectone|multiselect/.test(
+              auto,
+            )
+          )
+            return true;
+          if (
+            auto.includes('prompt') &&
+            (tag === 'BUTTON' || role === 'button' || role === 'combobox')
+          )
+            return true;
+          if (tabIndex !== null && tabIndex !== '-1' && (role === 'combobox' || ap))
+            return true;
+          return false;
+        }
+
+        /** @returns {HTMLElement[]} */
+        function jbDeepCandidates() {
+          const out = [];
+          const seen = new Set();
+          const stack = /** @type {(Document|ShadowRoot)[]} */ ([document]);
+          while (stack.length) {
+            const rr = stack.pop();
+            if (!rr) continue;
+            let children;
+            try {
+              children = rr.querySelectorAll('*');
+            } catch {
+              continue;
+            }
+            for (const node of children) {
+              if (!(node instanceof HTMLElement)) continue;
+              if (
+                jbLooksFill(node) &&
+                !seen.has(node)
+              ) {
+                seen.add(node);
+                out.push(node);
+              }
+              if (node.shadowRoot) stack.push(node.shadowRoot);
+            }
+          }
+          return out;
+        }
+
+        /** @type {(Document|ShadowRoot)[]} */
+        const roots = [document];
+        /** @type {HTMLElement[]} */
+        const controls = [];
+        while (roots.length) {
+          const root = roots.pop();
+          if (!root) continue;
+          try {
+            root.querySelectorAll(CONTROL_SELECTOR).forEach((el) => {
+              if (el instanceof HTMLElement) controls.push(el);
+            });
+          } catch {
+            /* ignore malformed/unsupported roots */
+          }
+          let hosts;
+          try {
+            hosts = root.querySelectorAll('*');
+          } catch {
+            continue;
+          }
+          for (const host of hosts) {
+            if (host.shadowRoot) roots.push(host.shadowRoot);
+          }
+        }
+
+        if (!controls.length) {
+          controls.push(...jbDeepCandidates());
+        }
 
         const out = [];
         for (const el of controls) {
@@ -586,22 +772,56 @@ async function requestDomFieldScan(tabId) {
             marker = `jb-inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             el.setAttribute('data-jobbot-af', marker);
           }
-          const selector = `[data-jobbot-af="${marker.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
+          let escaped = marker.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+            escaped = CSS.escape(marker);
+          }
+          const selector = `[data-jobbot-af="${escaped}"]`;
 
           let label = '';
           if (el.id) {
-            const byFor = document.querySelector(`label[for="${el.id}"]`);
+            const safeId =
+              typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+                ? CSS.escape(el.id)
+                : el.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const byFor = document.querySelector(`label[for="${safeId}"]`);
             if (byFor?.textContent) label = byFor.textContent.trim();
+          }
+          if (!label) {
+            const parentLabel = el.closest('label');
+            if (parentLabel?.textContent) label = parentLabel.textContent.trim();
+          }
+          if (!label) {
+            const fs = el.closest('fieldset');
+            const lg = fs?.querySelector('legend');
+            if (lg?.textContent) label = lg.textContent.replace(/\s+/g, ' ').trim();
+          }
+          if (!label) {
+            const wdField = el.closest('[data-automation-id^="formField-"]');
+            const rich = wdField?.querySelector('[id^="rich-label"],[data-automation-id="richText"],legend');
+            if (rich?.textContent) label = rich.textContent.replace(/\s+/g, ' ').trim();
           }
           if (!label) label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '';
 
           const role = (el.getAttribute('role') || '').toLowerCase();
+          const ap = (el.getAttribute('aria-haspopup') || '').toLowerCase();
+          const autoId = (el.getAttribute('data-automation-id') || '').toLowerCase();
           let fieldType = 'input';
           if (el instanceof HTMLTextAreaElement) fieldType = 'textarea';
           else if (el instanceof HTMLSelectElement) fieldType = 'select';
           else if (type === 'checkbox' || role === 'checkbox') fieldType = 'checkbox';
           else if (type === 'radio' || role === 'radio' || role === 'radiogroup') fieldType = 'radio';
-          else if (role === 'combobox' || (el.getAttribute('aria-haspopup') || '').toLowerCase() === 'listbox') fieldType = 'select';
+          else if (
+            role === 'combobox' ||
+            ap === 'listbox' ||
+            ap === 'dialog' ||
+            ap === 'menu' ||
+            ((role === 'button' || el.tagName === 'BUTTON') &&
+              (ap === 'listbox' || ap === 'dialog' || ap === 'menu'))
+          )
+            fieldType = 'select';
+          else if (/promptbutton|selectwidget|singleselect|moniker|monikerinput|promptinput/.test(autoId))
+            fieldType = 'select';
 
           out.push({
             label: label || fieldType,
@@ -623,8 +843,9 @@ async function requestDomFieldScan(tabId) {
               .trim(),
           });
         }
-        return { fields: out, href: location.href };
+        return { fields: out, href: location.href, discovered: controls.length };
       },
+      args: [scanSelInline],
     });
 
     let best = null;
@@ -643,13 +864,22 @@ async function requestDomFieldScan(tabId) {
       };
     }
 
-    return {
+    const noneResult = {
       fields: [],
       frameId: null,
-      debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=none`,
+      debug: `probeFrames=${ranked.length},probeErrors=${probeErrors},extractAttempts=${extractAttempts},extractErrors=${extractErrors},path=none,attempt=${attempt}`,
     };
+    if (attempt < 2) {
+      await delay(450 + attempt * 350);
+      return requestDomFieldScan(tabId, attempt + 1);
+    }
+    return noneResult;
   } catch {
-    return { fields: [], frameId: null, debug: 'requestDomFieldScan-outer-catch' };
+    if (attempt < 2) {
+      await delay(450 + attempt * 350);
+      return requestDomFieldScan(tabId, attempt + 1);
+    }
+    return { fields: [], frameId: null, debug: `requestDomFieldScan-outer-catch,attempt=${attempt}` };
   }
 }
 
