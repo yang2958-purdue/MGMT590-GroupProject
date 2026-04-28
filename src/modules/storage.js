@@ -13,6 +13,7 @@ export const KEYS = {
   USER_PROFILE: 'jobbot_userProfile',
   SETTINGS: 'jobbot_settings',
   AUTOFILL_STATE: 'jobbot_autofillState',
+  JOB_SEARCH_STATE: 'jobbot_jobSearchState',
   /** Persistent API keys (see `src/lib/apiKeys.js`). */
   FIRECRAWL_API_KEY: 'jobbot_firecrawlApiKey',
   OPENAI_API_KEY: 'jobbot_openaiApiKey',
@@ -33,6 +34,7 @@ const SESSION_KEYS = new Set([
   KEYS.RESULTS,
   KEYS.SELECTED_JOB,
   KEYS.AUTOFILL_STATE,
+  KEYS.JOB_SEARCH_STATE,
 ]);
 
 /** One-time removal of pre-migration copies of session keys from chrome.storage.local. */
@@ -76,6 +78,7 @@ function migrateStaleEphemeralFromLocalOnce() {
         KEYS.RESULTS,
         KEYS.SELECTED_JOB,
         KEYS.AUTOFILL_STATE,
+        KEYS.JOB_SEARCH_STATE,
       ]);
       await api.storage.local.set({ [MIGRATION_LOCAL_EPHEMERAL_CLEANUP]: true });
     } catch (e) {
@@ -343,4 +346,31 @@ export async function getAutofillState() {
  */
 export async function setAutofillState(data) {
   return set(KEYS.AUTOFILL_STATE, data);
+}
+
+/**
+ * @typedef {Object} JobSearchState
+ * @property {"idle"|"running"|"complete"|"error"} status
+ * @property {number} [startedAt]
+ * @property {number} [completedAt]
+ * @property {number} [total]
+ * @property {number} [processed]
+ * @property {string} [errorMessage]
+ */
+
+/**
+ * Get current background job-search state.
+ * @returns {Promise<JobSearchState|null>}
+ */
+export async function getJobSearchState() {
+  return get(KEYS.JOB_SEARCH_STATE);
+}
+
+/**
+ * Store current background job-search state.
+ * @param {JobSearchState} data
+ * @returns {Promise<void>}
+ */
+export async function setJobSearchState(data) {
+  return set(KEYS.JOB_SEARCH_STATE, data);
 }
