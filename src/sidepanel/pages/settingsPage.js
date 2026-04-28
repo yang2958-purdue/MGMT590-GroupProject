@@ -176,7 +176,13 @@ export async function renderSettingsPage(container) {
     </div>
 
     <div class="card mt-16">
-      <button type="button" id="btn-save-profile" class="btn btn-primary">Save profile</button>
+      <div class="flex gap-8 flex-wrap align-start">
+        <button type="button" id="btn-save-profile" class="btn btn-primary">Save profile</button>
+        <button type="button" id="btn-clear-profile" class="btn btn-danger">Clear profile data</button>
+      </div>
+      <p class="text-muted text-sm mt-8">
+        Clearing profile data also clears saved resume data. API keys are retained and must be cleared separately in the API keys tab.
+      </p>
       <span id="profile-save-status" class="text-muted text-sm ml-12" role="status"></span>
     </div>
     </div>
@@ -398,6 +404,10 @@ function wireApiKeysForm(container) {
   });
 
   clearFc?.addEventListener('click', async () => {
+    const ok = globalThis.confirm(
+      'Clear stored Firecrawl API key? This only removes the API key. Profile data remains unchanged.',
+    );
+    if (!ok) return;
     if (status) status.textContent = 'Clearing…';
     try {
       await remove(KEYS.FIRECRAWL_API_KEY);
@@ -415,6 +425,10 @@ function wireApiKeysForm(container) {
   });
 
   clearOa?.addEventListener('click', async () => {
+    const ok = globalThis.confirm(
+      'Clear stored OpenAI API key? This only removes the API key. Profile data remains unchanged.',
+    );
+    if (!ok) return;
     if (status) status.textContent = 'Clearing…';
     try {
       await remove(KEYS.OPENAI_API_KEY);
@@ -470,6 +484,7 @@ function wireProfileForm(container) {
   const rowsHost = container.querySelector('#custom-qa-rows');
   const addBtn = container.querySelector('#btn-add-custom-qa');
   const saveBtn = container.querySelector('#btn-save-profile');
+  const clearBtn = container.querySelector('#btn-clear-profile');
 
   addBtn?.addEventListener('click', () => {
     addCustomRow(rowsHost, '', '');
@@ -490,6 +505,49 @@ function wireProfileForm(container) {
       console.error(e);
     }
   });
+
+  clearBtn?.addEventListener('click', async () => {
+    const status = container.querySelector('#profile-save-status');
+    const ok = globalThis.confirm(
+      'Are you sure you want to clear profile data? This clears Profile tab data (including custom fields) and saved resume data. API keys are NOT cleared and must be removed separately in the API keys tab.',
+    );
+    if (!ok) return;
+    if (status) status.textContent = 'Clearing…';
+    try {
+      await remove(KEYS.USER_PROFILE);
+      await remove(KEYS.RESUME);
+      resetProfileForm(container);
+      if (status) status.textContent = 'Profile and resume data cleared. API keys are still saved unless cleared separately.';
+      setTimeout(() => {
+        if (status?.textContent === 'Profile and resume data cleared. API keys are still saved unless cleared separately.') {
+          status.textContent = '';
+        }
+      }, 3500);
+    } catch (e) {
+      if (status) status.textContent = 'Clear failed.';
+      console.error(e);
+    }
+  });
+}
+
+/**
+ * Clear all profile form inputs and reset custom Q&A rows.
+ * @param {HTMLElement} container
+ */
+function resetProfileForm(container) {
+  container.querySelectorAll('#panel-profile input, #panel-profile textarea, #panel-profile select').forEach((el) => {
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) {
+      return;
+    }
+    if (el.id === 'api-key-firecrawl' || el.id === 'api-key-openai') return;
+    el.value = '';
+  });
+
+  const host = container.querySelector('#custom-qa-rows');
+  if (host) {
+    host.innerHTML = '';
+    addCustomRow(host, '', '');
+  }
 }
 
 /**

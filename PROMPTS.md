@@ -484,3 +484,33 @@
 **Prompt:** Runtime error after latest changes: "Could not load file: 'content/content.js'."
 
 **Outcome:** Fixed watch-build output race by setting `emptyOutDir: false` in `vite.config.js` so the main watcher does not wipe `dist` while the content watcher is running. Updated `package.json` `build` script to `rimraf dist` first, preserving clean production builds while keeping watch mode stable.
+
+## 2026-04-28 - Resume storage messaging + clear profile action
+
+**Prompt:** Tell user resume is saved in local storage on first upload, show "Saved resume found" when existing data exists, and add a clear profile option next to Save Profile with confirmation warning about re-inputting custom fields.
+
+**Outcome:** Updated Upload page copy in `src/sidepanel/pages/uploadPage.js` to explicitly describe first-time local-storage save behavior and returning-user "Saved resume found" behavior. Updated Settings Profile actions in `src/sidepanel/pages/settingsPage.js` to add **Clear profile data** next to **Save profile**, show a confirmation dialog, clear `jobbot_userProfile` from storage on confirm, reset profile form fields, and show status text reminding users they must re-input custom fields.
+
+## 2026-04-28 - Separate profile clear vs API key clear warnings
+
+**Prompt:** Keep key clearing separate; warn users that clearing profile only clears Profile page data and retains API keys. Keep separate clear-key actions with similar warning.
+
+**Outcome:** Updated `settingsPage.js` copy and confirmations: added inline Profile-tab note that API keys are retained when clearing profile; changed profile-clear confirm/status messages to explicitly say API keys are not cleared; added confirmation prompts on Firecrawl/OpenAI key clear buttons stating key-clearing is separate and does not affect profile data.
+
+## 2026-04-28 - Clear profile now also clears resume data
+
+**Prompt:** "Clear profile data" should also clear resume data, and the message should indicate that.
+
+**Outcome:** Updated `settingsPage.js` so the profile-clear action now removes both `KEYS.USER_PROFILE` and `KEYS.RESUME`. Updated inline warning text, confirmation dialog, and post-clear status message to explicitly say profile + saved resume data are cleared, while API keys remain separate.
+
+## 2026-04-28 - Initial upload confirmation vs next-load saved state
+
+**Prompt:** On first/initial upload, notify user that the resume is saved; only on next extension load should it show "Saved resume found".
+
+**Outcome:** Updated `resumeUpload.js` so immediate post-upload UI now shows a "Resume uploaded and saved locally." confirmation in preview mode, without routing to the "Saved resume found" choice state. The "Saved resume found" screen remains the initial state only when stored resume data is detected on a subsequent extension load.
+
+## 2026-04-28 - Debug matrix access from saved-resume choice screen
+
+**Prompt:** Even when saved data is found, ensure "Show Debug Matrix" is available so users can view it.
+
+**Outcome:** Updated `resumeUpload.js` to add a **Show Debug Matrix** button directly on the "Saved resume found" screen. It opens the stored preview with debug matrix expanded by default; toggle button/initial visibility now respects a `startDebugOpen` option.
