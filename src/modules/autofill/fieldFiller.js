@@ -364,6 +364,88 @@ function findMatchingOption(opts, raw) {
 }
 
 /**
+ * @param {string} s
+ */
+function normalizeSchoolText(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\-–—/_,()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * @param {string} school
+ */
+function splitBaseAndCampus(school) {
+  const n = normalizeSchoolText(school);
+  const m = n.match(/^(.*?)(?:\s+main\s+campus|\s+fort\s+wayne|\s+northwest|\s+global|\s+online)$/);
+  if (m) return { base: m[1].trim(), full: n };
+  return { base: n, full: n };
+}
+
+/**
+ * @param {HTMLSelectElement} select
+ */
+function isSchoolLikeSelect(select) {
+  const blob = [
+    select.id,
+    select.name,
+    select.getAttribute('aria-label'),
+    select.getAttribute('data-automation-id'),
+    select.labels?.[0]?.textContent || '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return /\b(school|university|college|campus|institution)\b/.test(blob);
+}
+
+/**
+ * Prefer exact campus/institution match for education fields.
+ * @param {HTMLOptionElement[]} opts
+ * @param {string} raw
+ * @returns {HTMLOptionElement|null}
+ */
+function findBestSchoolOption(opts, raw) {
+  const target = splitBaseAndCampus(raw);
+  if (!target.full) return null;
+
+  const cleaned = opts.filter((o) => {
+    const t = normalizeSchoolText(o.textContent || o.value || '');
+    return t && !/^select one|choose|--$/.test(t);
+  });
+  if (!cleaned.length) return null;
+
+  // 1) Exact full campus/institution match
+  let pick = cleaned.find((o) => {
+    const t = normalizeSchoolText(o.textContent || o.value || '');
+    const v = normalizeSchoolText(o.value || '');
+    return t === target.full || v === target.full;
+  });
+  if (pick) return pick;
+
+  // 2) Exact by base + explicit campus token when requested
+  const wantCampus = /\b(main campus|fort wayne|northwest|global|online)\b/.test(target.full);
+  if (wantCampus) {
+    pick = cleaned.find((o) => {
+      const t = normalizeSchoolText(o.textContent || o.value || '');
+      return t.includes(target.base) && t.includes(target.full.replace(target.base, '').trim());
+    });
+    if (pick) return pick;
+  }
+
+  // 3) Base school exact-ish
+  pick = cleaned.find((o) => {
+    const t = normalizeSchoolText(o.textContent || o.value || '');
+    return t === target.base || t.startsWith(`${target.base} `);
+  });
+  if (pick) return pick;
+
+  return null;
+}
+
+/**
  * @param {HTMLSelectElement} select
  * @param {string} value
  */
@@ -372,7 +454,9 @@ function setSelectValue(select, value) {
   if (!raw) return;
 
   const opts = Array.from(select.options);
-  const pick = findMatchingOption(opts, raw);
+  const pick = isSchoolLikeSelect(select)
+    ? findBestSchoolOption(opts, raw) || findMatchingOption(opts, raw)
+    : findMatchingOption(opts, raw);
   if (!pick) return;
 
   select.value = pick.value;
@@ -2056,14 +2140,14 @@ function countEducationRowsInRoot(root) {
 /**
  * @param {Document} root
  * @param {number} workExperienceTargetCount - Desired number of Work Experience rows (capped by caller).
- * @param {boolean} educationAdd - Click Education "Add" once when true.
+ * @param {number} educationTargetCount - Desired number of Education rows (capped by caller).
  */
-async function ensureWorkdayRepeatersInRoot(root, workExperienceTargetCount, educationAdd) {
+async function ensureWorkdayRepeatersInRoot(root, workExperienceTargetCount, educationTargetCount) {
   if (!root?.body) return;
-  const cap = Math.min(Math.max(workExperienceTargetCount, 0), 10);
-  if (cap > 0) {
+  const wxCap = Math.min(Math.max(workExperienceTargetCount, 0), 10);
+  if (wxCap > 0) {
     const existing = countWorkExperienceRowsInRoot(root);
-    const need = Math.max(0, cap - existing);
+    const need = Math.max(0, wxCap - existing);
     for (let i = 0; i < need; i++) {
       await clickAddNearHeading(
         root,
@@ -2072,9 +2156,12 @@ async function ensureWorkdayRepeatersInRoot(root, workExperienceTargetCount, edu
       );
     }
   }
-  if (educationAdd) {
+
+  const eduCap = Math.min(Math.max(educationTargetCount, 0), 10);
+  if (eduCap > 0) {
     const eduExisting = countEducationRowsInRoot(root);
-    if (eduExisting < 1) {
+    const eduNeed = Math.max(0, eduCap - eduExisting);
+    for (let i = 0; i < eduNeed; i++) {
       await clickAddNearHeading(
         root,
         /(^|\s)(education|academic\s*history|schools?\s*attended)(\s|$)/i,
@@ -2118,16 +2205,19 @@ function collectSameOriginDocuments() {
  *
  * @param {Object} [opts]
  * @param {number} [opts.workExperienceTargetCount] - Number of Work Experience rows to ensure (default 1).
- * @param {boolean} [opts.educationAdd] - Also add one Education row (default true).
+ * @param {number} [opts.educationTargetCount] - Number of Education rows to ensure (default 1).
  */
 export async function prepareWorkdayRepeatersForAutofill(opts = {}) {
   const wxTarget =
     typeof opts.workExperienceTargetCount === 'number' && !Number.isNaN(opts.workExperienceTargetCount)
       ? opts.workExperienceTargetCount
       : 1;
-  const educationAdd = opts.educationAdd !== false;
+  const eduTarget =
+    typeof opts.educationTargetCount === 'number' && !Number.isNaN(opts.educationTargetCount)
+      ? opts.educationTargetCount
+      : 1;
   for (const root of collectSameOriginDocuments()) {
-    await ensureWorkdayRepeatersInRoot(root, wxTarget, educationAdd);
+    await ensureWorkdayRepeatersInRoot(root, wxTarget, eduTarget);
   }
 }
 

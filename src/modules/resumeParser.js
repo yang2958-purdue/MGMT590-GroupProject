@@ -896,7 +896,53 @@ function extractEducation(text) {
   }
 
   if (current) entries.push(current);
-  return entries;
+  return collapseMinorOnlyEducationEntries(entries);
+}
+
+/**
+ * Collapse minor-only education rows into primary degree rows for same school.
+ * Avoids treating "Minor in X" as a separate education block.
+ * @param {EducationEntry[]} entries
+ * @returns {EducationEntry[]}
+ */
+function collapseMinorOnlyEducationEntries(entries) {
+  const out = [];
+  const isMinorOnly = (degree) => {
+    const d = String(degree || '').trim();
+    if (!d) return false;
+    const low = d.toLowerCase();
+    const hasMinor = /\bminor\b/.test(low);
+    const hasPrimary = /\b(bachelor|master|ph\.?d|doctor|associate|mba|b\.?s|b\.?a|m\.?s|m\.?a)\b/.test(low);
+    return hasMinor && !hasPrimary;
+  };
+
+  for (const e of entries) {
+    const degree = String(e?.degree || '').trim();
+    const school = String(e?.school || '').trim();
+    const dates = String(e?.dates || '').trim();
+
+    if (!isMinorOnly(degree)) {
+      out.push({ degree, school, dates });
+      continue;
+    }
+
+    const target = out.find(
+      (x) =>
+        String(x.school || '').trim().toLowerCase() === school.toLowerCase() &&
+        !isMinorOnly(String(x.degree || '').trim()),
+    );
+    if (target) {
+      const minorText = degree.replace(/^\s*minor\s*(in)?\s*/i, '').trim();
+      const addition = minorText ? `Minor: ${minorText}` : degree;
+      if (!target.degree.toLowerCase().includes(addition.toLowerCase())) {
+        target.degree = target.degree ? `${target.degree}; ${addition}` : addition;
+      }
+      if (!target.dates && dates) target.dates = dates;
+    }
+    // Otherwise drop minor-only row to avoid extra education blocks.
+  }
+
+  return out;
 }
 
 /**

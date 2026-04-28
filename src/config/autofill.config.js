@@ -21,6 +21,6 @@ export const PAUSE_TRIGGER_KEYWORDS = [
  * When true, autofill will auto-click Workday "Add" controls for repeaters
  * (work experience / education) before a second DOM scan.
  *
- * Keep false by default to avoid field-count growth and unnecessary extra fill targets.
+ * Uses target-count guards so it only adds rows up to parsed resume counts.
  */
-export const AUTO_EXPAND_WORKDAY_REPEATERS = false;
+export const AUTO_EXPAND_WORKDAY_REPEATERS = true;
