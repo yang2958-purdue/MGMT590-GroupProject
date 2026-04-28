@@ -1,10 +1,7 @@
 import { createCompanyAutocomplete } from '../components/companyAutocomplete.js';
 import { createTagInput } from '../components/tagInput.js';
 import { createFilterControls } from '../components/filterControls.js';
-import { scrapeJobs } from '../../modules/jobScraper.js';
-import { extractSkillsLLM } from '../../modules/llmSkillExtractor.js';
-import { scoreJob } from '../../modules/scorer.js';
-import { getResume, setResults, setTargets } from '../../modules/storage.js';
+import { getResume, setJobSearchState } from '../../modules/storage.js';
 
 /**
  * Render the target input page.
@@ -59,6 +56,56 @@ export function renderTargetPage(container) {
 
   const btnSearch = container.querySelector('#btn-search');
   const statusEl = container.querySelector('#search-status');
+  let pollTimer = null;
+
+  const stopPolling = () => {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  };
+
+  const renderState = (state) => {
+    if (!state || state.status === 'idle') {
+      statusEl.innerHTML = '';
+      btnSearch.disabled = false;
+      return;
+    }
+
+    if (state.status === 'running') {
+      btnSearch.disabled = true;
+      const processed = Number(state.processed || 0);
+      const total = Number(state.total || 0);
+      const progress = total > 0 ? `${processed}/${total}` : 'starting';
+      statusEl.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><div class="spinner"></div><span class="text-muted">Searching in background... (${progress})</span></div>`;
+      return;
+    }
+
+    if (state.status === 'complete') {
+      btnSearch.disabled = false;
+      stopPolling();
+      statusEl.innerHTML = '<p class="text-muted">Search complete. Opening results...</p>';
+      // Consume completion so returning to Targets does not bounce back to Results.
+      void setJobSearchState({ status: 'idle' });
+      window.location.hash = '#/results';
+      return;
+    }
+
+    if (state.status === 'error') {
+      btnSearch.disabled = false;
+      stopPolling();
+      statusEl.innerHTML = `<p style="color:var(--color-danger);">Error: ${state.errorMessage || 'Background search failed.'}</p>`;
+    }
+  };
+
+  const pollSearchState = async () => {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: 'JOB_SEARCH_STATUS' });
+      if (resp?.ok) renderState(resp.state);
+    } catch {
+      // ignore transient background wake-up errors
+    }
+  };
 
   btnSearch.addEventListener('click', async () => {
     const companies = companyEl._getTags ? companyEl._getTags() : [];
@@ -71,7 +118,7 @@ export function renderTargetPage(container) {
     }
 
     btnSearch.disabled = true;
-    statusEl.innerHTML = '<div style="display:flex; align-items:center; gap:8px;"><div class="spinner"></div><span class="text-muted">Searching...</span></div>';
+    statusEl.innerHTML = '<div style="display:flex; align-items:center; gap:8px;"><div class="spinner"></div><span class="text-muted">Starting background search...</span></div>';
 
     try {
       const criteria = {
@@ -84,47 +131,37 @@ export function renderTargetPage(container) {
         remote: filters.remote,
       };
 
-      await setTargets({ companies, titles, filters });
-      const postings = await scrapeJobs(criteria);
-
       const resume = await getResume();
       if (!resume) {
         statusEl.innerHTML =
           '<p style="color:var(--color-warning);">Upload and parse a resume (PDF or DOCX) from the Upload tab first.</p>';
+        btnSearch.disabled = false;
         return;
       }
 
-      let resumeSkills = undefined;
-      let resumeExtractFailed = false;
-      if (resume) {
-        try {
-          resumeSkills = await extractSkillsLLM(resume.rawText, 'resume');
-        } catch {
-          resumeExtractFailed = true;
-        }
+      await setJobSearchState({
+        status: 'running',
+        startedAt: Date.now(),
+        processed: 0,
+        total: 0,
+      });
+
+      const resp = await chrome.runtime.sendMessage({ type: 'JOB_SEARCH_START', criteria });
+      if (!resp?.ok) {
+        throw new Error(resp?.error || 'Could not start background search.');
       }
-
-      const scored = await Promise.all(
-        postings.map(async (posting) => {
-          if (resume) {
-            const scores = await scoreJob(resume, posting, {
-              resumeSkills,
-              resumeExtractFailed,
-            });
-            return { ...posting, ...scores };
-          }
-          return { ...posting, fitScore: 0, atsScore: 0, matchedKeywords: [], missingKeywords: [] };
-        }),
-      );
-
-      scored.sort((a, b) => b.fitScore - a.fitScore);
-      await setResults(scored);
-
-      window.location.hash = '#/results';
+      await pollSearchState();
+      stopPolling();
+      pollTimer = setInterval(() => {
+        void pollSearchState();
+      }, 1200);
     } catch (err) {
       statusEl.innerHTML = `<p style="color:var(--color-danger);">Error: ${err.message}</p>`;
-    } finally {
       btnSearch.disabled = false;
+    } finally {
+      // keep disabled while background search is active; poll updates button state
     }
   });
+
+  void pollSearchState();
 }

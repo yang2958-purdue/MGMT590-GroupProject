@@ -555,3 +555,15 @@
 **Prompt:** Even when saved data is found, ensure "Show Debug Matrix" is available so users can view it.
 
 **Outcome:** Updated `resumeUpload.js` to add a **Show Debug Matrix** button directly on the "Saved resume found" screen. It opens the stored preview with debug matrix expanded by default; toggle button/initial visibility now respects a `startDebugOpen` option.
+
+## 2026-04-28 - Background job search survives tab switches
+
+**Prompt:** Job search halts when switching browser tabs; requested search to continue since it is not page-dependent like autofill.
+
+**Outcome:** Moved search execution to `src/background/service-worker.js` via new runtime messages (`JOB_SEARCH_START`, `JOB_SEARCH_STATUS`). Added persisted search state in `storage.js` (`KEYS.JOB_SEARCH_STATE`, `getJobSearchState`, `setJobSearchState`). Updated `targetPage.js` to start background search, poll status, show progress, and navigate to Results on completion. This keeps search/scoring running across tab switches and sidepanel context changes.
+
+## 2026-04-28 - Prevent Targets page bounce after completed search
+
+**Prompt:** After auto-navigating to Results on completion (intended), returning to Job Search immediately redirects back to Results and blocks starting a new search.
+
+**Outcome:** Updated `targetPage.js` so when a completed search state is consumed for auto-navigation, it immediately resets `jobSearchState` to `idle`. This preserves auto-navigation behavior once, but allows users to return to Targets and run new searches without being bounced back.
