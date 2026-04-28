@@ -412,3 +412,75 @@
 **Prompt:** lets rewrite the prompt to have chatgpt read the pdf file we give it rather than the individual text
 
 **Outcome:** Updated client/server LLM parsing flow so the uploaded PDF bytes are sent to `/parse-resume-llm` and forwarded to OpenAI Responses API as an attached file (`input_file`) with document-first parsing instructions; raw extracted text is now fallback context. Updated `src/modules/llmResumeParser.js`, `src/sidepanel/components/resumeUpload.js`, `python-server/server.py`, and README notes.
+
+## 2026-04-28 - Resume reuse prompt and latest parsed metadata
+
+**Prompt:** For the Resume tab and related functions. If there is no existing data, ask user to upload a compatible document, docx or pdf. Once the resume is parsed, aka information returned from Open AI API, save it locally like in Option 1. Then when the user returns the next time, use the most recent data indicating what file was uploaded and parsed. Ask if the user would like to proceed with the existing one or upload a new one.
+
+**Outcome:** Updated `resumeUpload.js` to add a returning-user decision state: show "Saved resume found" with last parsed file name and parsed time, then offer **Use Existing** or **Upload New**. If no resume is stored, the Upload tab now explicitly asks for a compatible PDF/DOCX. After heuristic + optional LLM parse, resume data is persisted with `parsedAt` metadata and the user is returned to the decision view. Updated `storage.js` so parsed resumes persist in `chrome.storage.local` (not session-only), added a no-resume warning in `targetPage.js` and blocked search until a resume is uploaded/parsed, updated `resumeParser.js` typedef docs for `parsedAt`, and documented the behavior in `README.md`.
+
+## 2026-04-28 - Autofill frame scan fix for visible Workday fields
+
+**Prompt:** Autofill fails with "No fillable fields were found" even though visible fields are on the page (Workday screenshot provided).
+
+**Outcome:** Updated `requestDomFieldScan()` in `src/modules/autofill/autofillController.js` to improve frame probing reliability: probe counts now include custom controls (`combobox`, listbox-trigger buttons, radio/radiogroup roles) and traverse open shadow roots, and frame attempts no longer skip frames whose basic-input probe count is zero. This ensures content-script extraction is attempted across all detected frames, including Workday pages where controls are custom/shadow-based.
+
+## 2026-04-28 - Autofill direct executeScript extraction fallback
+
+**Prompt:** Even after frame scan updates, autofill still errors with "No fillable fields were found."
+
+**Outcome:** Added a stronger fallback path in `requestDomFieldScan()` (`src/modules/autofill/autofillController.js`): when content-script message extraction finds no fields, the controller now runs a direct `chrome.scripting.executeScript` extraction across all frames and uses the best frame result. Also added scan diagnostics (`debug`) to the no-fields error message so failures now show probe/extract path details for faster troubleshooting.
+
+## 2026-04-28 - Fix missing content/content.js in dev watch
+
+**Prompt:** New runtime error: "Could not load file: 'content/content.js'."
+
+**Outcome:** Updated `package.json` `dev` script to watch/build both bundles in parallel: main extension build and the content-script IIFE build (`vite.content.config.js`). This ensures `dist/content/content.js` exists during development so programmatic injection via `chrome.scripting.executeScript({ files: ['content/content.js'] })` succeeds.
+
+## 2026-04-28 - Required-field autofill retry with typing simulation
+
+**Prompt:** Autofill values appear inserted but some ATS fields still error as required/empty; requested user-typing simulation if easier.
+
+**Outcome:** Updated `src/modules/autofill/fieldFiller.js` to add a required-field commit retry path: after normal fill, required fields are validated for actual non-empty/selected state. If still missing, autofill retries with a keystroke-style typing simulation (`keydown`/`input`/`keyup` per character + `change`/`blur`) for text-like controls. Added helper checks for radio/checkbox/select/text emptiness to target retries only when needed.
+
+## 2026-04-28 - Post-fill touched-state commit for validators
+
+**Prompt:** Fields appear filled, but application only recognizes values after manually clicking into the field box.
+
+**Outcome:** Added `commitFieldInteraction()` in `src/modules/autofill/fieldFiller.js` and invoked it after standard fill and typing-simulation fill paths. The helper now dispatches pointer/mouse focus interactions plus `input`/`change`/`focusout`/`blur` to better emulate user "touched" behavior that ATS validators depend on.
+
+## 2026-04-28 - Workday From/To date commit fix
+
+**Prompt:** Workday "From" and "To" date boxes show values but still fail required validation.
+
+**Outcome:** Updated Workday date handlers in `src/modules/autofill/fieldFiller.js` so date inputs are filled via character-by-character typing and explicit commit events (`Enter`, `Tab`, `change`, `focusout`, `blur`, click-away). Converted date fill helpers to async and awaited them in `setFieldValue()` so autofill does not race ahead before date fields finish committing.
+
+## 2026-04-28 - Stronger Workday date widget commit fallback
+
+**Prompt:** Date widget still fails required validation after typing-based date fill.
+
+**Outcome:** Strengthened Workday date commit behavior in `src/modules/autofill/fieldFiller.js`: added native `blur()`/real focus transitions to next control, post-commit invalid-state detection, and a calendar-button open/close fallback (`click` then `Escape`) to force widget-level commit when the field still appears invalid.
+
+## 2026-04-28 - Workday date parts fallback (month/year controls)
+
+**Prompt:** Date fields continue failing required validation despite visible values and commit-event fallbacks.
+
+**Outcome:** Added `forceCommitViaNearbyDateParts()` in `src/modules/autofill/fieldFiller.js`. When a date field still appears invalid, autofill now parses `MM/YYYY` and fills nearby month/year sub-controls directly (inputs/selects/combobox/listbox buttons), then re-commits interaction on the visible date input. This targets Workday variants where validator state is tied to internal month/year controls rather than the displayed text field.
+
+## 2026-04-28 - Calendar-icon commit + repeater growth guard
+
+**Prompt:** Date still fails unless user clicks calendar icon; repeated autofill attempts add more fields each time.
+
+**Outcome:** Updated `fieldFiller.js` so Workday date inputs now always run calendar-icon commit (`forceCommitViaDateButton`) after typing/blur, with follow-up refocus/change/blur. Also fixed repeater growth behavior by counting existing education repeater rows (`education<N>`) and only auto-clicking Education "Add" when no education row exists, preventing extra rows from being added on every autofill run.
+
+## 2026-04-28 - Minimize Firecrawl usage and disable auto repeater expansion
+
+**Prompt:** Autofill still fails and user requested reducing fields to minimize Firecrawl API token usage.
+
+**Outcome:** Added `AUTO_EXPAND_WORKDAY_REPEATERS = false` (default) in `src/config/autofill.config.js` and gated repeater auto-add logic in `autofillController.js` so Workday does not keep growing field count on retries. Also updated `shouldSkipRemoteExtract()` in `firecrawlAdapter.js` to skip Firecrawl extraction for Workday hosts (`*.myworkdayjobs.com`, `*.workday.com`) so Workday autofill relies on DOM scan and avoids unnecessary Firecrawl token usage.
+
+## 2026-04-28 - Fix intermittent missing content/content.js during watch
+
+**Prompt:** Runtime error after latest changes: "Could not load file: 'content/content.js'."
+
+**Outcome:** Fixed watch-build output race by setting `emptyOutDir: false` in `vite.config.js` so the main watcher does not wipe `dist` while the content watcher is running. Updated `package.json` `build` script to `rimraf dist` first, preserving clean production builds while keeping watch mode stable.

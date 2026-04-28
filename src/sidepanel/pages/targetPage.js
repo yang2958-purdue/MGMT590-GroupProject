@@ -16,6 +16,7 @@ export function renderTargetPage(container) {
   container.innerHTML = `
     <h1>Search Targets</h1>
     <p class="text-muted mt-8">Set your target companies, job titles, and filters.</p>
+    <div id="resume-required-note" class="mt-8"></div>
 
     <div class="mt-16">
       <label>Companies</label>
@@ -38,10 +39,23 @@ export function renderTargetPage(container) {
   const companyEl = container.querySelector('#company-input');
   const titleEl = container.querySelector('#title-input');
   const filterEl = container.querySelector('#filter-area');
+  const resumeNoteEl = container.querySelector('#resume-required-note');
 
   createCompanyAutocomplete(companyEl);
   createTagInput(titleEl, { storageKey: 'targetTitles', placeholder: 'e.g. Software Engineer...' });
   createFilterControls(filterEl);
+
+  getResume().then((resume) => {
+    if (!resume) {
+      resumeNoteEl.innerHTML = `
+        <p style="color:var(--color-warning);">
+          No parsed resume found. Upload a compatible PDF or DOCX from the Upload tab before searching.
+        </p>
+      `;
+    } else {
+      resumeNoteEl.innerHTML = '';
+    }
+  });
 
   const btnSearch = container.querySelector('#btn-search');
   const statusEl = container.querySelector('#search-status');
@@ -74,6 +88,11 @@ export function renderTargetPage(container) {
       const postings = await scrapeJobs(criteria);
 
       const resume = await getResume();
+      if (!resume) {
+        statusEl.innerHTML =
+          '<p style="color:var(--color-warning);">Upload and parse a resume (PDF or DOCX) from the Upload tab first.</p>';
+        return;
+      }
 
       let resumeSkills = undefined;
       let resumeExtractFailed = false;

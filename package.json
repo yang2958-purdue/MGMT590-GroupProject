@@ -5,9 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch",
+    "dev": "sh -c 'vite build --watch & vite build --config vite.content.config.js --watch & wait'",
     "predev": "node scripts/generate-extension-icons.mjs",
-    "build": "node scripts/generate-extension-icons.mjs && vite build && vite build --config vite.content.config.js",
+    "build": "rimraf dist && node scripts/generate-extension-icons.mjs && vite build && vite build --config vite.content.config.js",
     "clean": "rimraf dist"
   },
   "dependencies": {

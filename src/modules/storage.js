@@ -3,7 +3,7 @@ const api = globalThis.browser || globalThis.chrome;
 /**
  * Storage key constants.
  * Ephemeral keys use chrome.storage.session (cleared when the browser session ends).
- * Profile and settings use chrome.storage.local (persistent).
+ * Resume, profile, settings, and API keys use chrome.storage.local (persistent).
  */
 export const KEYS = {
   RESUME: 'jobbot_resume',
@@ -29,7 +29,6 @@ export const KEYS = {
 
 /** Keys stored in memory for the browser session only (see chrome.storage.session). */
 const SESSION_KEYS = new Set([
-  KEYS.RESUME,
   KEYS.TARGETS,
   KEYS.RESULTS,
   KEYS.SELECTED_JOB,
@@ -73,7 +72,6 @@ function migrateStaleEphemeralFromLocalOnce() {
       const flag = await api.storage.local.get(MIGRATION_LOCAL_EPHEMERAL_CLEANUP);
       if (flag[MIGRATION_LOCAL_EPHEMERAL_CLEANUP]) return;
       await api.storage.local.remove([
-        KEYS.RESUME,
         KEYS.TARGETS,
         KEYS.RESULTS,
         KEYS.SELECTED_JOB,
