@@ -34,6 +34,7 @@ function renderStoredChoice(container, data) {
       <div style="display:flex; gap:8px; margin-top:12px;">
         <button id="btn-use-existing-resume" class="btn btn-primary btn-sm" style="font-size:12px;">Use Existing</button>
         <button id="btn-upload-new-resume" class="btn btn-sm" style="font-size:12px;">Upload New</button>
+        <button id="btn-show-debug-from-choice" class="btn btn-sm" style="font-size:12px;">Show Debug Matrix</button>
       </div>
     </div>
   `;
@@ -45,9 +46,16 @@ function renderStoredChoice(container, data) {
   container.querySelector('#btn-upload-new-resume').addEventListener('click', () => {
     renderDropzone(container);
   });
+
+  container.querySelector('#btn-show-debug-from-choice').addEventListener('click', () => {
+    renderStoredPreview(container, data, { startDebugOpen: true });
+  });
 }
 
-function renderStoredPreview(container, data) {
+function renderStoredPreview(container, data, options = {}) {
+  const showSavedNowNotice = options.showSavedNowNotice === true;
+  const allowBackToChoice = options.allowBackToChoice !== false;
+  const startDebugOpen = options.startDebugOpen === true;
   const debugRows = buildResumeDebugRows(data);
   const debugTableRows = debugRows.map((row) => `
     <tr>
@@ -60,10 +68,19 @@ function renderStoredPreview(container, data) {
 
   container.innerHTML = `
     <div class="card">
+      ${
+        showSavedNowNotice
+          ? '<p class="text-sm" style="color:var(--color-success); font-weight:600; margin-bottom:8px;">Resume uploaded and saved locally.</p>'
+          : ''
+      }
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <p style="font-weight:600;">Current resume: ${escapeHtml(data.fileName)}</p>
         <div style="display:flex; gap:8px;">
-          <button id="btn-back-to-choice" class="btn btn-sm" style="font-size:12px;">Back</button>
+          ${
+            allowBackToChoice
+              ? '<button id="btn-back-to-choice" class="btn btn-sm" style="font-size:12px;">Back</button>'
+              : ''
+          }
           <button id="btn-replace-resume" class="btn btn-sm" style="font-size:12px;">Upload New</button>
           <button id="btn-remove-resume" class="btn btn-sm btn-danger" style="font-size:12px;">Remove</button>
         </div>
@@ -78,10 +95,10 @@ function renderStoredPreview(container, data) {
       <p class="text-muted text-sm mt-12">Contact: ${escapeHtml(data.contact?.name || '—')} · ${escapeHtml(data.contact?.email || '—')} · ${escapeHtml(data.contact?.phone || '—')}</p>
 
       <div class="mt-12">
-        <button id="btn-toggle-debug" class="btn btn-sm" style="font-size:12px;">Show Debug Matrix</button>
+        <button id="btn-toggle-debug" class="btn btn-sm" style="font-size:12px;">${startDebugOpen ? 'Hide Debug Matrix' : 'Show Debug Matrix'}</button>
       </div>
 
-      <div id="resume-debug-matrix" class="debug-matrix mt-12" style="display:none;">
+      <div id="resume-debug-matrix" class="debug-matrix mt-12" style="display:${startDebugOpen ? 'block' : 'none'};">
         <p class="text-sm text-muted mb-8">What the parser believes each field is:</p>
         <table class="debug-matrix-table">
           <thead>
@@ -100,9 +117,11 @@ function renderStoredPreview(container, data) {
     </div>
   `;
 
-  container.querySelector('#btn-back-to-choice').addEventListener('click', () => {
-    renderStoredChoice(container, data);
-  });
+  if (allowBackToChoice) {
+    container.querySelector('#btn-back-to-choice')?.addEventListener('click', () => {
+      renderStoredChoice(container, data);
+    });
+  }
 
   container.querySelector('#btn-replace-resume').addEventListener('click', () => {
     renderDropzone(container);
@@ -198,7 +217,10 @@ async function handleFile(file, container) {
     };
 
     await setResume(resumeData);
-    renderStoredChoice(container, resumeData);
+    renderStoredPreview(container, resumeData, {
+      showSavedNowNotice: true,
+      allowBackToChoice: false,
+    });
   } catch (err) {
     status.innerHTML = `<p style="color:var(--color-danger);">Error: ${err.message}</p>`;
   }
