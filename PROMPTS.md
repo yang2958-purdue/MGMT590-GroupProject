@@ -484,3 +484,45 @@
 **Prompt:** Runtime error after latest changes: "Could not load file: 'content/content.js'."
 
 **Outcome:** Fixed watch-build output race by setting `emptyOutDir: false` in `vite.config.js` so the main watcher does not wipe `dist` while the content watcher is running. Updated `package.json` `build` script to `rimraf dist` first, preserving clean production builds while keeping watch mode stable.
+
+## 2026-04-28 - Workday custom dropdown key matching fallback
+
+**Prompt:** The dropdown selection in Workday is not working for our custom field key value pairs. The autofill function seems to click into the dropdown fields but does not select an option or save the information that it fills out.
+
+**Outcome:** Updated `src/modules/autofill/fieldMapper.js` to add a custom-answer fallback matcher that resolves `commonAnswers.<customKey>` values by normalized label/inference text (including partial key support like `are you subjec` for long Workday questions). This improves mapping of custom profile key-value pairs into dropdown/radio questions even when heuristic key inference does not return an exact key. Updated `README.md` custom keys documentation accordingly.
+
+## 2026-04-28 - Workday dropdown commit and mirror-input guard
+
+**Prompt:** The autofill is still missing the dropdowns and not saving the actual answers to the questions. It briefly selects an answer and moves on without confirming.
+
+**Outcome:** Strengthened dropdown reliability in two places: (1) `src/modules/autofill/fieldMapper.js` now skips likely mirrored text inputs when a same-label select/radio control exists (prevents Workday mirror inputs from clearing committed choices), and (2) `src/modules/autofill/fieldFiller.js` now verifies combobox selections are visibly committed, applies a stronger commit sequence (Enter/Tab/change/blur/click-away), and retries instead of immediately advancing when selection does not stick. Updated `README.md` autofill pipeline notes.
+
+## 2026-04-28 - Zero-fields fallback hardening for Workday
+
+**Prompt:** The autofill now detects zero fields when trying to fill the page again.
+
+**Outcome:** Hardened `requestDomFieldScan()` fallback in `src/modules/autofill/autofillController.js`: direct executeScript extraction now scans open shadow roots (not only `document.querySelectorAll`), improves selector/label escaping for reliability, and returns richer fallback discovery data. This prevents false zero-field results on Workday pages with shadow-DOM-based controls when content-script message extraction is unavailable.
+
+## 2026-04-28 - Broader DOM scan selectors + probe frame fallback
+
+**Prompt:** The autofill is still detecting zero fields when scanning the page.
+
+**Outcome:** Added `src/config/domScanSelectors.js` with shared primary + wide CSS patterns (Workday `aria-haspopup` variants, `data-automation-id`, listbox/dialog/menu triggers). Wired `domFieldScanner.js` and `requestDomFieldScan()` probe/inline paths to this list; when every frame’s probe count is zero, content-script extraction still iterates all frames returned by `executeScript`, not only ranked matches. Treated dialog/menu popup triggers as combobox/select in `domFieldScanner.js`, `fieldFiller.js`, and inline typing. Fixed inline injection block referencing `role` before definition.
+
+## 2026-04-28 - Deep-scan heuristic when Workday CSS misses controls
+
+**Prompt:** Autofill shows 0 fields on Workday application questions despite visible dropdowns (`0 of 0 fields filled`). Previously dropdowns were at least detected.
+
+**Outcome:** Added `src/modules/autofill/domFillableHeuristic.js` with `elementLooksFillableHeuristic` + `collectDeepFallbackCandidates()` (shadow walk). `domFieldScanner.js` merges this when CSS queries return zero in a frame. Probe + inline executeScript duplicates the same heuristic so frame ranking and `allFrames` injection still find prompts when selectors miss hydrated/disabled quirks. Relaxed `DOM_SCAN_CONTROL_SELECTOR_PRIMARY` inputs (drop `:disabled` exclusion on inputs). Expanded `data-automation-id` pattern hints and combobox hints in `domFieldScanner` / `fieldFiller`.
+
+## 2026-04-28 - Scan retry timing + broader selector admission
+
+**Prompt:** The same issue occurred. The autofill is still getting zero fields detected.
+
+**Outcome:** Broadened selector admission in `src/config/domScanSelectors.js` by removing disabled/aria-disabled filters from primary and wide scan selectors (so transiently disabled Workday controls are still discovered). Added retry logic in `requestDomFieldScan(tabId, attempt)` (`src/modules/autofill/autofillController.js`) with short backoff before returning no-fields, so hydration delays no longer prematurely yield `0 fields`.
+
+## 2026-04-28 - Workday legend-based question label extraction
+
+**Prompt:** Provided Workday page HTML and requested dropdown-by-dropdown behavior (open menu, select option, move next). Noted fields still appeared as zero detected.
+
+**Outcome:** Updated label extraction to use Workday question sources (`fieldset > legend`, rich-label/richText containers) in both `domFieldScanner.js` and inline fallback extraction inside `autofillController.js`. This avoids using generic button aria-labels like `Select One Required`, allowing mapped values to target each question dropdown and proceed sequentially.

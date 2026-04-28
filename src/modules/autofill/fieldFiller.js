@@ -1562,7 +1562,17 @@ function isComboboxLike(el) {
   const popup = (el.getAttribute('aria-haspopup') || '').toLowerCase();
   if (role === 'combobox') return true;
   if (popup === 'listbox') return true;
+  if (
+    (role === 'button' || el.tagName === 'BUTTON') &&
+    (popup === 'listbox' || popup === 'dialog' || popup === 'menu')
+  )
+    return true;
   if (el.tagName === 'BUTTON' && popup) return true;
+  const autoDa = (el.getAttribute('data-automation-id') || '').toLowerCase();
+  if (
+    /promptbutton|selectwidget|singleselect|moniker|monikerinput|promptinput|dropdown|questionanswer/.test(autoDa)
+  )
+    return true;
   if (el instanceof HTMLInputElement && el.getAttribute('aria-controls') && el.getAttribute('aria-autocomplete')) return true;
   return false;
 }
@@ -1723,6 +1733,66 @@ async function waitForWorkdayListboxToSettle(doc) {
   }
 }
 
+/**
+ * Read currently displayed value text for a combobox-like trigger.
+ * @param {Element} el
+ * @returns {string}
+ */
+function getComboboxDisplayedValue(el) {
+  const bits = [];
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    bits.push(el.value || '');
+  }
+  bits.push(el.getAttribute?.('aria-valuetext') || '');
+  bits.push(el.getAttribute?.('aria-label') || '');
+  bits.push(el.textContent || '');
+  const wrap = el instanceof HTMLElement ? el.closest('[data-automation-id^="formField"]') : null;
+  if (wrap) {
+    bits.push(wrap.getAttribute('aria-label') || '');
+    bits.push(wrap.textContent || '');
+  }
+  return normText(bits.filter(Boolean).join(' '));
+}
+
+/**
+ * @param {Element} el
+ * @param {string} wanted
+ * @returns {boolean}
+ */
+function comboboxLooksCommitted(el, wanted) {
+  const observed = getComboboxDisplayedValue(el);
+  const raw = normText(wanted);
+  if (!observed || !raw) return false;
+  if (observed.includes(raw) || raw.includes(observed)) return true;
+  if (/^(yes|y|true|1)$/.test(raw)) return /\byes\b|\btrue\b|\by\b/.test(observed);
+  if (/^(no|n|false|0)$/.test(raw)) return /\bno\b|\bfalse\b|\bn\b/.test(observed);
+  const fullState = normText(abbrToFullStateName(wanted) || '');
+  if (fullState && observed.includes(fullState)) return true;
+  return false;
+}
+
+/**
+ * @param {Element} el
+ */
+async function forceComboboxCommit(el) {
+  if (!(el instanceof HTMLElement)) return;
+  el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  el.blur();
+  const body = el.ownerDocument?.body;
+  if (body) {
+    body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+    body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  }
+  await sleep(120);
+}
+
 async function setComboboxValue(el, value) {
   const raw = String(value ?? '').trim();
   if (!raw) return;
@@ -1767,15 +1837,22 @@ async function setComboboxValue(el, value) {
         option.click();
         option.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
         await settleSelection();
-        return;
+        await forceComboboxCommit(el);
+        if (comboboxLooksCommitted(el, token) || comboboxLooksCommitted(el, raw)) return;
       }
       if (await clickWorkdayPromptOptionByToken(el.ownerDocument, token, { allowFallback: false })) {
         await settleSelection();
-        return;
+        await forceComboboxCommit(el);
+        if (comboboxLooksCommitted(el, token) || comboboxLooksCommitted(el, raw)) return;
       }
       if (i === 3 || i === 6) openDropdown();
       await sleep(120);
     }
+  }
+
+  // Last fallback: if the UI already reflects the value, do not keep interacting.
+  if (!comboboxLooksCommitted(el, raw)) {
+    await forceComboboxCommit(el);
   }
 }
 

@@ -68,6 +68,7 @@ export function mapFields(formFields, resume, userProfile, targetCompany = '') {
   normalizeWorkExperienceFieldKeys(formFields);
 
   const lookup = buildLookup(resume, userProfile);
+  const choiceLabels = buildChoiceControlLabelSet(formFields);
 
   const hasStateDropdown = formFields.some(
     (f) => f.fieldType === 'select' && labelIsStateOnlyField(f.label),
@@ -92,6 +93,13 @@ export function mapFields(formFields, resume, userProfile, targetCompany = '') {
       return { field, value: null, status: 'skipped' };
     }
 
+    // Generic mirror-control guard:
+    // Workday frequently renders both a choice widget (select/radio/combobox) and a mirrored text input
+    // with the same label. Filling the text input after a valid choice can clear the committed selection.
+    if (isLikelyMirroredChoiceTextField(field, choiceLabels)) {
+      return { field, value: null, status: 'skipped' };
+    }
+
     const value = resolveValueForField(field, lookup, resume, targetCompany);
 
     if (value != null && value !== '') {
@@ -102,6 +110,45 @@ export function mapFields(formFields, resume, userProfile, targetCompany = '') {
   });
 
   return filledFields;
+}
+
+/**
+ * @param {string|undefined} label
+ */
+function normalizeComparableLabel(label) {
+  return String(label || '')
+    .toLowerCase()
+    .replace(/\*+/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * @param {import('../scraper/firecrawlAdapter.js').FormField[]} formFields
+ */
+function buildChoiceControlLabelSet(formFields) {
+  const out = new Set();
+  for (const f of formFields) {
+    if (f.fieldType !== 'select' && f.fieldType !== 'radio') continue;
+    const n = normalizeComparableLabel(f.label);
+    if (!n) continue;
+    out.add(n);
+  }
+  return out;
+}
+
+/**
+ * @param {FormField} field
+ * @param {Set<string>} choiceLabels
+ */
+function isLikelyMirroredChoiceTextField(field, choiceLabels) {
+  if (field.fieldType !== 'input' && field.fieldType !== 'textarea') return false;
+  const n = normalizeComparableLabel(field.label);
+  if (!n || !choiceLabels.has(n)) return false;
+  // Keep explicit free-form "other/specify" companions.
+  if (/\bother\b|\bspecify\b|\bexplain\b|\bdetails?\b/.test(n)) return false;
+  return true;
 }
 
 // ─── Pause-trigger detection ────────────────────────────────────
@@ -452,7 +499,74 @@ function resolveValueForField(field, lookup, resume, targetCompany) {
     return s;
   }
 
+  const customFallbackValue = resolveCustomAnswerValueForField(field, lookup);
+  if (customFallbackValue != null && customFallbackValue !== '') {
+    return customFallbackValue;
+  }
+
   return null;
+}
+
+const BUILTIN_COMMON_ANSWER_KEYS = new Set([
+  'citizenship',
+  'sponsorship',
+  'workauthorization',
+  'salary',
+  'relocation',
+  'sensitiveoptional',
+  'address',
+  'country',
+  'city',
+  'state',
+  'zip',
+]);
+
+/**
+ * Normalize text for fuzzy custom-key matching.
+ * @param {string|undefined|null} s
+ * @returns {string}
+ */
+function normCustomKeyText(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Best-effort fallback for user-defined `customAnswers` keys:
+ * match `commonAnswers.<key>` against the field label / inference blob.
+ * Supports partial keys like "are you subjec" for long Workday prompts.
+ *
+ * @param {FormField} field
+ * @param {Object.<string, string>} lookup
+ * @returns {string|null}
+ */
+function resolveCustomAnswerValueForField(field, lookup) {
+  const haystack = normCustomKeyText(
+    [field.label, field.inferenceSource, field.selector].filter(Boolean).join(' ')
+  );
+  if (!haystack) return null;
+
+  /** @type {{ value: string, score: number } | null} */
+  let best = null;
+  for (const [lookupKey, rawValue] of Object.entries(lookup)) {
+    if (!lookupKey.startsWith('commonAnswers.')) continue;
+    if (rawValue == null || rawValue === '') continue;
+
+    const customPartRaw = lookupKey.slice('commonAnswers.'.length);
+    const customPart = normCustomKeyText(customPartRaw);
+    if (!customPart || customPart.length < 4) continue;
+    if (BUILTIN_COMMON_ANSWER_KEYS.has(customPart)) continue;
+    if (!haystack.includes(customPart)) continue;
+
+    // Prefer the longest custom key match to avoid short-key collisions.
+    const score = customPart.length;
+    if (!best || score > best.score) {
+      best = { value: String(rawValue).trim(), score };
+    }
+  }
+
+  return best?.value || null;
 }
 
 /**

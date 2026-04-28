@@ -112,7 +112,7 @@ Use the **API keys** tab to store **Firecrawl** and **OpenAI** keys in `chrome.s
 - **Contact & documents** — LinkedIn URL and default cover letter text.
 - **Location** — Country, city, state, ZIP for address fields on forms.
 - **Resume corrections** — Overrides for name, email, phone, most recent job, first education block, and skills when the resume parser is wrong. Non-empty values replace parsed resume data during mapping.
-- **Custom autofill keys** — Each row maps to `commonAnswers.<yourKey>` (e.g. key `visaStatus`) so you can supply answers for labels that map to those keys.
+- **Custom autofill keys** — Each row maps to `commonAnswers.<yourKey>` (e.g. key `visaStatus`) so you can supply answers for labels that map to those keys. Matching now also supports partial question-style keys (for example `are you subjec`) for long Workday prompts.
 
 The scraper card shows **Connected** when `GET /health` on the local server succeeds.
 
@@ -146,7 +146,8 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   ├── content/            # Content script for autofill
 │   ├── config/             # Feature config files
 │   │   ├── firecrawl.config.js  # Firecrawl API key + mock mode
-│   │   └── autofill.config.js   # Fill delay, pause-trigger keywords
+│   │   ├── autofill.config.js   # Fill delay, pause-trigger keywords
+│   │   └── domScanSelectors.js  # Shared CSS for DOM field discovery (ATS / Workday)
 │   ├── modules/            # Core business logic (ES modules)
 │   │   ├── resumeParser.js # PDF/DOCX → structured resume object
 │   │   ├── storage.js      # chrome.storage.session (ephemeral) + local (profile/settings/API keys)
@@ -159,6 +160,8 @@ This runs `vite build --watch`. After each rebuild, go to `chrome://extensions/`
 │   │   │   └── firecrawlAdapter.js  # Firecrawl API adapter (scrape + extract)
 │   │   └── autofill/
 │   │       ├── autofillController.js  # Orchestrates the autofill pipeline
+│   │       ├── domFieldScanner.js       # Discover fillable DOM controls (iframes + shadow)
+│   │       ├── domFillableHeuristic.js  # Deep-scan fallback when CSS misses Workday widgets
 │   │       ├── fieldMapper.js         # Maps form fields → resume/profile values
 │   │       └── fieldFiller.js         # Content-script DOM filling logic
 │   ├── data/               # Static data (company seed list)
@@ -188,10 +191,11 @@ JobSpy-specific settings (sites, result count, max age) can be tuned in the `JOB
 ## Architecture Notes
 
 - **Host permissions** — `manifest.json` includes `<all_urls>` so `chrome.scripting.executeScript` can inject the content script after an extension reload (when `tabs.sendMessage` would otherwise fail). Chrome may prompt for broader site access on install/update.
-- **Content script bundle** — The content script is built as an ES module with a shared chunk (`chunks/fieldInference-*.js`). After programmatic inject, the side panel waits on animation frames and retries `sendMessage` until the module finishes loading (so `onMessage` is registered). The DOM scanner recurses into **same-origin iframes** (common on Phenom/ATS pages) and passes `iframePath` so fills target the correct document.
+- **Content script bundle** — The content script is built as an ES module with a shared chunk (`chunks/fieldInference-*.js`). After programmatic inject, the side panel waits on animation frames and retries `sendMessage` until the module finishes loading (so `onMessage` is registered). DOM scan selectors live in [`src/config/domScanSelectors.js`](src/config/domScanSelectors.js) (`primary` + `wide`) so probes, content-script scans, and inline fallback agree. The DOM scanner recurses into **same-origin iframes** (common on Phenom/ATS pages) and passes `iframePath` so fills target the correct document. If content-script extraction fails, controller fallback extraction scans open shadow roots too (custom controls common on Workday). DOM scan also retries with short delays before returning no fields to handle Workday hydration timing.
 - **Education parsing** — The resume parser uses education-specific heuristics plus a curated university-name list/keyword matcher to better distinguish `school` values from degree or field-of-study text.
 - **No external database** — persistence via `chrome.storage.session` (resume, search, results, autofill session) and `chrome.storage.local` (settings and saved profile).
 - **Each module** is a standalone ES module with a clean exported interface and no cross-module side effects.
 - **AI/LLM calls** — Resume parsing and skill extraction go through the Python server (`/parse-resume-llm`, `/extract-skills`). Prompts for skill extraction are in `python-server/prompts/`. The extension falls back to heuristics if OpenAI is unavailable.
 - **The JS side** calls `localhost:5001/scrape` and knows nothing about which adapter is active on the server.
-- **Autofill pipeline** — Open the **real** application site in a normal browser tab (e.g. Workday, Greenhouse). In the side panel, go to **Autofill** and press **Autofill this tab** to extract fields and fill using pause/resume/skip controls. The job **Detail** page only offers **Open job posting** (listing URL); it does not start autofill. Field discovery uses **Firecrawl** when the site is allowed and a Firecrawl key is set (**More → Settings → API keys**, or `VITE_FIRECRAWL_API_KEY` in `.env.local` at build time — see `.env.example`); otherwise the extension scans the **live tab DOM**. **LinkedIn** is skipped for remote Firecrawl extract — rely on DOM scan on the application page. Mapping uses label + control type (e.g. **select** options matched by text/value; phone/email are not applied to yes/no controls). **Work experience:** the parser keeps multiple jobs from your resume; before filling, the extension clicks **Add** on Workday enough times to match the number of parsed roles (up to 10), then maps each repeater row to `workExperience[0]`, `[1]`, … in order. Edit **Settings → Profile** to maintain `jobbot_userProfile` (answers, resume overrides, custom keys). Rebuild after changing Vite env vars (`npm run build`) if you rely on build-time Firecrawl key fallback.
+- **Autofill pipeline** — Open the **real** application site in a normal browser tab (e.g. Workday, Greenhouse). In the side panel, go to **Autofill** and press **Autofill this tab** to extract fields and fill using pause/resume/skip controls. The job **Detail** page only offers **Open job posting** (listing URL); it does not start autofill. Field discovery uses **Firecrawl** when the site is allowed and a Firecrawl key is set (**More → Settings → API keys**, or `VITE_FIRECRAWL_API_KEY` in `.env.local` at build time — see `.env.example`); otherwise the extension scans the **live tab DOM**. **LinkedIn** is skipped for remote Firecrawl extract — rely on DOM scan on the application page. Mapping uses label + control type (e.g. **select** options matched by text/value; phone/email are not applied to yes/no controls). For Workday-style mirrored controls, text inputs that duplicate a dropdown/radio question are skipped so they do not clear committed selections. Custom combobox fills now verify that selection text is committed before advancing to the next field. **Work experience:** the parser keeps multiple jobs from your resume; before filling, the extension clicks **Add** on Workday enough times to match the number of parsed roles (up to 10), then maps each repeater row to `workExperience[0]`, `[1]`, … in order. Edit **Settings → Profile** to maintain `jobbot_userProfile` (answers, resume overrides, custom keys). Rebuild after changing Vite env vars (`npm run build`) if you rely on build-time Firecrawl key fallback.
+- **Workday question labels** — Workday question dropdowns usually have button text like `Select One`, while the real prompt is in `fieldset > legend` rich text. DOM scan now extracts legend/rich-label prompt text so mapping keys resolve to the actual question and autofill can proceed dropdown-by-dropdown.
