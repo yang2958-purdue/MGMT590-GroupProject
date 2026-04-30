@@ -27,6 +27,8 @@ const HIGHLIGHT_STYLE = 'outline: 3px solid #6366f1; outline-offset: 2px; transi
  * @param {function(): Promise<"resume"|"skip">} hooks.waitForResume
  *   Called when a pause_required field is hit; resolves when the user
  *   clicks Resume or Skip in the side panel.
+ * @param {function(): boolean} [hooks.isPauseRequested]
+ *   Returns true when user-initiated pause was requested from the side panel.
  * @returns {Promise<void>}
  */
 export async function fillFieldsSequentially(fields, delayMs, hooks) {
@@ -37,6 +39,14 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
     const { field, value, status } = fields[i];
 
     if (status === 'skipped') continue;
+
+    if (hooks?.isPauseRequested?.()) {
+      const action = await pauseAtCurrentField(i, field, filledCount, total, hooks);
+      if (action === 'skip') {
+        filledCount++;
+        continue;
+      }
+    }
 
     sendStatus('AUTOFILL_STATUS', {
       currentIndex: i,
@@ -75,15 +85,24 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
       // Retry required fields with keystroke-like typing so strict validators detect user-style input.
       await setFieldValue(field.selector, value, field.iframePath, field.fieldType, { forceTyping: true });
     }
+
+    if (hooks?.isPauseRequested?.()) {
+      const action = await pauseAtCurrentField(i, field, filledCount, total, hooks);
+      if (action === 'skip') {
+        filledCount++;
+        continue;
+      }
+    }
+
     filledCount++;
 
     // Custom dropdowns (Workday listboxes) need time to commit before the next field steals focus.
     if (field.fieldType === 'select' && i < fields.length - 1) {
-      await sleep(320);
+      await sleepWithPauseChecks(320, i, field, filledCount, total, hooks);
     }
 
     if (i < fields.length - 1) {
-      await sleep(delayMs);
+      await sleepWithPauseChecks(delayMs, i, field, filledCount, total, hooks);
     }
   }
 
@@ -91,6 +110,49 @@ export async function fillFieldsSequentially(fields, delayMs, hooks) {
     filledCount,
     totalFields: total,
   });
+}
+
+/**
+ * Pause at the current field and wait for resume/skip.
+ * @param {number} index
+ * @param {FilledField['field']} field
+ * @param {number} filledCount
+ * @param {number} total
+ * @param {{waitForResume: function(): Promise<"resume"|"skip">}} hooks
+ * @returns {Promise<"resume"|"skip">}
+ */
+async function pauseAtCurrentField(index, field, filledCount, total, hooks) {
+  highlightField(field.selector, field.iframePath);
+  sendStatus('AUTOFILL_PAUSED', {
+    currentIndex: index,
+    filledCount,
+    totalFields: total,
+    fieldLabel: field.label,
+    reason: `Paused at: "${field.label}"`,
+  });
+  const action = await hooks.waitForResume();
+  unhighlightField(field.selector, field.iframePath);
+  return action;
+}
+
+/**
+ * Sleep in short slices so user-initiated pause can interrupt between fields.
+ * @param {number} ms
+ * @param {number} index
+ * @param {FilledField['field']} field
+ * @param {number} filledCount
+ * @param {number} total
+ * @param {Object} hooks
+ */
+async function sleepWithPauseChecks(ms, index, field, filledCount, total, hooks) {
+  const end = Date.now() + Math.max(0, ms);
+  while (Date.now() < end) {
+    if (hooks?.isPauseRequested?.()) {
+      const action = await pauseAtCurrentField(index, field, filledCount, total, hooks);
+      if (action === 'skip') return;
+    }
+    await sleep(Math.min(60, Math.max(0, end - Date.now())));
+  }
 }
 
 // TODO: Multi-page support — after AUTOFILL_COMPLETE, scan for a "Next"

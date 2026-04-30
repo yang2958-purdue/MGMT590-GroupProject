@@ -58,24 +58,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     case 'FILL_FIELDS':
-      fillFieldsSequentially(message.fields, message.delayMs, { waitForResume });
+      fillFieldsSequentially(message.fields, message.delayMs, {
+        waitForResume,
+        isPauseRequested: () => isPaused,
+      });
       sendResponse({ ok: true });
       break;
 
     case 'RESUME_AUTOFILL':
+      isPaused = false;
       if (resumeResolver) {
         resumeResolver('resume');
         resumeResolver = null;
-        isPaused = false;
       }
       sendResponse({ ok: true });
       break;
 
     case 'SKIP_FIELD':
+      isPaused = false;
       if (resumeResolver) {
         resumeResolver('skip');
         resumeResolver = null;
-        isPaused = false;
       }
       sendResponse({ ok: true });
       break;
