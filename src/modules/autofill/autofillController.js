@@ -219,13 +219,15 @@ export async function runAutofillPipeline(tabId, pageUrl) {
   if (AUTO_EXPAND_WORKDAY_REPEATERS && shouldPrepareWorkdayRepeaters(resume)) {
     try {
       const expLen = resume?.experience?.length ?? 0;
+      const eduLen = resume?.education?.length ?? 0;
       const workExperienceTargetCount = expLen > 0 ? Math.min(expLen, 10) : 0;
+      const educationTargetCount = eduLen > 0 ? Math.min(eduLen, 10) : 0;
       await tabSendMessageWithContentScriptFallback(
         tabId,
         {
           type: 'PREPARE_WORKDAY_REPEATERS',
           workExperienceTargetCount,
-          educationAdd: true,
+          educationTargetCount,
         },
         { injectFrameId: typeof contentFrameId === 'number' ? contentFrameId : undefined },
       );

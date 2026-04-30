@@ -266,6 +266,8 @@ def parse_resume_llm():
         "- For each experience entry, set `location` to the job site or employment location stated for that role (city/state, Remote, etc.). Do not copy the candidate's contact/mailing address into `location` unless the resume clearly uses it as the job location.\n"
         "- For education.school, scan the ENTIRE resume text (not just the Education header).\n"
         "- Prefer institution names that clearly look like universities/colleges/institutes/schools.\n"
+        "- Campus handling: if a school appears without a campus qualifier, assume main campus (e.g., 'Purdue University' -> 'Purdue University - Main Campus').\n"
+        "- If the resume explicitly states a campus, preserve it exactly (e.g., 'Purdue University - Fort Wayne').\n"
         "- Do not use field of study as school (e.g., 'Robotics and Automation' is not a school).\n"
         f"- Candidate school strings found in text (use when present): {json.dumps(school_candidates)}\n"
         f"- Known university dictionary for fuzzy matching (use if present in resume): {json.dumps(KNOWN_UNIVERSITIES)}\n"
@@ -544,6 +546,8 @@ def _normalize_resume_payload(data, file_name):
             }
         )
 
+    norm_edu = _collapse_minor_only_education_entries(norm_edu)
+
     return {
         "fileName": _s(data.get("fileName")) or _s(file_name),
         "contact": {
@@ -560,6 +564,51 @@ def _normalize_resume_payload(data, file_name):
         "experience": norm_exp,
         "education": norm_edu,
     }
+
+
+def _collapse_minor_only_education_entries(entries: list[dict]) -> list[dict]:
+    out: list[dict] = []
+
+    def _is_minor_only(degree: str) -> bool:
+        d = (degree or "").strip().lower()
+        if not d:
+            return False
+        has_minor = bool(re.search(r"\bminor\b", d))
+        has_primary = bool(
+            re.search(r"\b(bachelor|master|ph\.?d|doctor|associate|mba|b\.?s|b\.?a|m\.?s|m\.?a)\b", d)
+        )
+        return has_minor and not has_primary
+
+    for e in entries:
+        degree = str(e.get("degree") or "").strip()
+        school = str(e.get("school") or "").strip()
+        dates = str(e.get("dates") or "").strip()
+
+        if not _is_minor_only(degree):
+            out.append({"degree": degree, "school": school, "dates": dates})
+            continue
+
+        target = next(
+            (
+                x
+                for x in out
+                if str(x.get("school") or "").strip().lower() == school.lower()
+                and not _is_minor_only(str(x.get("degree") or "").strip())
+            ),
+            None,
+        )
+        if target:
+            minor_text = re.sub(r"^\s*minor\s*(in)?\s*", "", degree, flags=re.I).strip()
+            addition = f"Minor: {minor_text}" if minor_text else degree
+            if addition.lower() not in str(target.get("degree") or "").lower():
+                target["degree"] = (
+                    f"{target['degree']}; {addition}" if str(target.get("degree") or "").strip() else addition
+                )
+            if not str(target.get("dates") or "").strip() and dates:
+                target["dates"] = dates
+        # otherwise drop minor-only row so it does not become a separate education block
+
+    return out
 
 
 def _normalize_school_text(text: str) -> str:
@@ -610,9 +659,16 @@ def _pick_best_school_name(school_text: str) -> str:
     if not school:
         return ""
     norm = _normalize_school_text(school)
+    has_explicit_campus = bool(
+        re.search(r"\b(campus|fort wayne|northwest|global|online|satellite|regional|west lafayette)\b", school, re.I)
+    )
     for uni in KNOWN_UNIVERSITIES:
-        if _normalize_school_text(uni) in norm or norm in _normalize_school_text(uni):
-            return uni
+        uni_norm = _normalize_school_text(uni)
+        if uni_norm in norm or norm in uni_norm:
+            if has_explicit_campus:
+                return school
+            # Default to main campus when the university is named but campus is unspecified.
+            return f"{uni} - Main Campus"
     return school
 
 

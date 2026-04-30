@@ -567,3 +567,33 @@
 **Prompt:** After auto-navigating to Results on completion (intended), returning to Job Search immediately redirects back to Results and blocks starting a new search.
 
 **Outcome:** Updated `targetPage.js` so when a completed search state is consumed for auto-navigation, it immediately resets `jobSearchState` to `idle`. This preserves auto-navigation behavior once, but allows users to return to Targets and run new searches without being bounced back.
+
+## 2026-04-28 - Campus-aware education parsing and autofill matching
+
+**Prompt:** For OpenAI resume parsing, assume main campus when school campus is unspecified; preserve explicit campus names; during autofill, match education to the intended campus/school rather than first broad name match.
+
+**Outcome:** Updated `python-server/server.py` resume-parser prompt rules and normalization logic: if a known university appears without campus qualifier, school is normalized to "`<University> - Main Campus`"; explicit campus variants are preserved. Updated `src/modules/autofill/fieldFiller.js` select matching with school-aware logic that detects school/institution fields and prefers exact campus/institution matches before generic contains-based matching.
+
+## 2026-04-28 - Multi-education repeater expansion from resume count
+
+**Prompt:** Resume has multiple education entries (Masters + Bachelors), but autofill only fills one Education form; likely due to earlier repeater auto-expand limits.
+
+**Outcome:** Reworked Workday repeater prep to use target counts for both Work Experience and Education: controller now sends `educationTargetCount` based on parsed resume education length; content script forwards that target; filler expands Education rows up to the target count (with cap) rather than a single add. Also re-enabled guarded repeater expansion in config so multi-entry education forms are created without runaway growth. Build/lint checks passed.
+
+## 2026-04-28 - Exclude minor-only entries from extra education rows
+
+**Prompt:** Asked whether "Minor" is being treated as separate education because a resume with two degrees generated three education tabs.
+
+**Outcome:** Added minor-collapse normalization in three places (`src/modules/resumeParser.js`, `src/modules/llmResumeParser.js`, `python-server/server.py`): minor-only lines are merged into same-school primary degree text when possible (e.g., append `Minor: X`) and otherwise excluded as standalone education rows. This prevents minor-only entries from inflating education repeater counts.
+
+## 2026-04-28 - Restore missing content/content.js runtime asset
+
+**Prompt:** Runtime error: `Could not load file: 'content/content.js'.`
+
+**Outcome:** Verified `dist/content` was missing, rebuilt the content bundle with `npx vite build --config vite.content.config.js` to restore `dist/content/content.js`, and restarted `npm run dev` dual watchers so both main and content outputs stay up to date.
+
+## 2026-04-30 - Fix user pause/resume behavior during autofill
+
+**Prompt:** Pause button does not pause at current field; expected behavior is pause now and resume remaining fields.
+
+**Outcome:** Updated `fieldFiller.js` and `content.js` so user-initiated pause is actively checked during fill loop and inter-field waits. Autofill now pauses at current field, emits paused status with field label, waits for Resume/Skip, then continues remaining fields. Also fixed content-script pause state so Resume clears paused mode even if clicked before a pause waiter is attached.

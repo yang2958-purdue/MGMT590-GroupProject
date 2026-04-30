@@ -143,5 +143,53 @@ function mergeEducationEntries(baseEdu, llmEdu) {
     out.push({ degree, school, dates });
   }
 
+  return collapseMinorOnlyEducationEntries(out);
+}
+
+/**
+ * Collapse minor-only rows into the nearest primary degree row for the same school.
+ * Prevents creating extra education repeaters for lines like "Minor in X".
+ * @param {Array<{degree:string,school:string,dates:string}>} entries
+ * @returns {Array<{degree:string,school:string,dates:string}>}
+ */
+function collapseMinorOnlyEducationEntries(entries) {
+  const out = [];
+  const isMinorOnly = (degree) => {
+    const d = String(degree || '').trim();
+    if (!d) return false;
+    const low = d.toLowerCase();
+    const hasMinor = /\bminor\b/.test(low);
+    const hasPrimary = /\b(bachelor|master|ph\.?d|doctor|associate|mba|b\.?s|b\.?a|m\.?s|m\.?a)\b/.test(low);
+    return hasMinor && !hasPrimary;
+  };
+
+  for (const e of entries) {
+    const degree = String(e?.degree || '').trim();
+    const school = String(e?.school || '').trim();
+    const dates = String(e?.dates || '').trim();
+    if (!isMinorOnly(degree)) {
+      out.push({ degree, school, dates });
+      continue;
+    }
+
+    // Try attach minor to an existing primary degree row at the same school.
+    const target = out.find(
+      (x) =>
+        String(x.school || '').trim().toLowerCase() === school.toLowerCase() &&
+        !isMinorOnly(String(x.degree || '').trim()),
+    );
+    if (target) {
+      const minorText = degree.replace(/^\s*minor\s*(in)?\s*/i, '').trim();
+      const addition = minorText ? `Minor: ${minorText}` : degree;
+      if (!target.degree.toLowerCase().includes(addition.toLowerCase())) {
+        target.degree = target.degree ? `${target.degree}; ${addition}` : addition;
+      }
+      if (!target.dates && dates) target.dates = dates;
+      continue;
+    }
+
+    // No primary row to attach to; skip minor-only row to avoid extra repeater rows.
+  }
+
   return out;
 }
