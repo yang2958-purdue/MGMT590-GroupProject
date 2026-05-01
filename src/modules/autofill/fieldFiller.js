@@ -10,6 +10,70 @@ import { abbrToFullStateName } from './usStateAbbrev.js';
 const HIGHLIGHT_STYLE = 'outline: 3px solid #6366f1; outline-offset: 2px; transition: outline 0.2s;';
 
 /**
+ * React-controlled inputs attach `_valueTracker`; updating `.value` without syncing it
+ * leaves framework/submit validators seeing an empty value even when the DOM shows text.
+ * @param {HTMLInputElement} el
+ * @param {string} next
+ */
+function applyNativeInputValueReactAware(el, next) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  const tracker = /** @type {{ setValue?: (v: string) => void }} */ (el)._valueTracker;
+  if (tracker && typeof tracker.setValue === 'function') {
+    tracker.setValue(el.value);
+  }
+  if (setter) {
+    setter.call(el, next);
+  } else {
+    el.value = next;
+  }
+}
+
+/**
+ * Workday often ignores programmatic updates until the control receives a real pointer cycle + blur.
+ * @param {HTMLElement} el
+ */
+async function pointerActivateForWorkdayInput(el) {
+  if (!(el instanceof HTMLElement)) return;
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  el.focus();
+  el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+  el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+  el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+  el.click();
+  await sleep(15);
+}
+
+/**
+ * When bulk paste-like fills don't bind Workday model and no calendar trigger matches,
+ * send `beforeinput` + incremental chars (closer to real typing).
+ * @param {HTMLInputElement} el
+ * @param {string} text
+ */
+async function typeWorkdayDateCharsWithBeforeinput(el, text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  el.focus();
+  applyNativeInputValueReactAware(el, '');
+  el.dispatchEvent(
+    new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'deleteContentBackward' }),
+  );
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+  for (const ch of t) {
+    el.dispatchEvent(
+      new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: ch }),
+    );
+    applyNativeInputValueReactAware(el, (el.value || '') + ch);
+    el.dispatchEvent(
+      new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ch }),
+    );
+    await sleep(10);
+  }
+}
+
+/**
  * @typedef {import('./fieldMapper.js').FilledField} FilledField
  */
 
@@ -1036,22 +1100,31 @@ async function setWorkdayDateSectionValue(el, value) {
 async function typeAndCommitWorkdayDateInput(el, value) {
   const text = String(value || '').trim();
   if (!text) return;
-  el.focus();
+  let usedCalendarFallback = false;
 
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-  if (setter) setter.call(el, '');
-  else el.value = '';
+  await pointerActivateForWorkdayInput(el);
+
+  applyNativeInputValueReactAware(el, '');
+  el.dispatchEvent(
+    new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'deleteContentBackward' }),
+  );
   el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
 
-  for (const ch of text) {
-    const keyCode = ch >= '0' && ch <= '9' ? 48 + Number(ch) : ch === '/' ? 191 : 0;
-    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ch, keyCode, which: keyCode }));
-    if (setter) setter.call(el, (el.value || '') + ch);
-    else el.value = (el.value || '') + ch;
-    el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ch }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ch, keyCode, which: keyCode }));
-    await sleep(12);
-  }
+  applyNativeInputValueReactAware(el, text);
+  el.dispatchEvent(
+    new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertFromPaste', data: text }),
+  );
+  el.dispatchEvent(
+    new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertFromPaste',
+      data: text,
+    }),
+  );
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+
+  await pointerActivateForWorkdayInput(el);
 
   // Workday commonly commits date controls only after explicit keyboard navigation.
   el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13, which: 13 }));
@@ -1059,30 +1132,26 @@ async function typeAndCommitWorkdayDateInput(el, value) {
   el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Tab', keyCode: 9, which: 9 }));
   el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Tab', keyCode: 9, which: 9 }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-  el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-  // Use native blur/focus transitions too (some validators ignore synthetic focus events).
-  el.blur();
-  focusNextFocusable(el);
-  await sleep(20);
-  el.dispatchEvent(new Event('change', { bubbles: true }));
 
-  // Click-away helps some validators finalize "touched" state for date widgets.
-  const body = el.ownerDocument?.body;
-  if (body) {
-    body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-    body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    if (body instanceof HTMLElement) body.focus?.();
+  await commitFieldInteraction(el);
+
+  usedCalendarFallback = !!(await forceCommitViaDateButton(el));
+  await commitFieldInteraction(el);
+
+  if (!usedCalendarFallback) {
+    await typeWorkdayDateCharsWithBeforeinput(el, text);
+    await pointerActivateForWorkdayInput(el);
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13, which: 13 }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', keyCode: 13, which: 13 }));
+    await commitFieldInteraction(el);
+    usedCalendarFallback = !!(await forceCommitViaDateButton(el));
+    await commitFieldInteraction(el);
   }
 
-  // Workday commonly recognizes the date only after calendar-icon interaction.
-  await forceCommitViaDateButton(el);
-
-  // Fallback: open/close calendar button to force widget-level commit.
   if (fieldLooksInvalid(el)) {
     await forceCommitViaNearbyDateParts(el, text);
-    await forceCommitViaDateButton(el);
+    usedCalendarFallback = usedCalendarFallback || !!(await forceCommitViaDateButton(el));
+    await commitFieldInteraction(el);
   }
 }
 
@@ -1101,25 +1170,78 @@ function fieldLooksInvalid(el) {
 }
 
 /**
- * Move focus to the next focusable control to trigger true blur/commit behavior.
- * @param {HTMLElement} el
+ * querySelector within `scope`'s subtree including open shadow roots (Workday nests icons under components).
+ * @param {Element} scope
+ * @param {string} selector
+ * @returns {Element|null}
  */
-function focusNextFocusable(el) {
-  const doc = el.ownerDocument;
-  if (!doc) return;
-  const focusables = Array.from(
-    doc.querySelectorAll(
-      'input,select,textarea,button,[role="combobox"],[tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((n) => n instanceof HTMLElement && !n.hasAttribute('disabled') && n.tabIndex !== -1);
-  const idx = focusables.indexOf(el);
-  const next = idx >= 0 ? focusables[idx + 1] : null;
-  if (next instanceof HTMLElement) {
-    next.focus();
-    next.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-    next.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-    next.blur();
+function querySelectorIncludingShadowRoots(scope, selector) {
+  if (!(scope instanceof Element)) return null;
+  try {
+    const hit = scope.querySelector(selector);
+    if (hit) return hit;
+  } catch {
+    return null;
   }
+  const stack = [...scope.children];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!(node instanceof Element)) continue;
+    try {
+      if (node.shadowRoot) {
+        try {
+          const inner = node.shadowRoot.querySelector(selector);
+          if (inner) return inner;
+        } catch {
+          /* ignore */
+        }
+        stack.push(...Array.from(node.shadowRoot.children));
+      }
+    } catch {
+      /* closed shadow */
+    }
+    stack.push(...Array.from(node.children));
+  }
+  return null;
+}
+
+/** @param {Element|null} el */
+function nextAncestorElement(el) {
+  if (!el) return null;
+  const p = el.parentNode;
+  if (p instanceof ShadowRoot && p.host instanceof HTMLElement) return p.host;
+  return el.parentElement;
+}
+
+/**
+ * Calendar triggers often live outside `closest(...)` reach or inside shadow roots — walk ancestors.
+ * @param {HTMLInputElement} el
+ * @returns {HTMLElement|null}
+ */
+function findWorkdayCalendarTriggerNearDateInput(el) {
+  const selector = [
+    'button[aria-label*="calendar" i]',
+    'button[aria-label*="date picker" i]',
+    'button[data-automation-id*="dateIcon" i]',
+    'button[data-automation-id*="calendar" i]',
+    '[data-automation-id*="calendar" i][role="button"]',
+    '[data-automation-id*="dateIcon" i][role="button"]',
+    '[data-automation-id*="IconButton" i]',
+    '[data-automation-id*="iconButton" i]',
+    'div[role="button"][aria-label*="calendar" i]',
+    'button[aria-haspopup="dialog"]',
+    'button[aria-haspopup="grid"]',
+  ].join(',');
+  let scope = /** @type {Element|null} */ (el.parentElement);
+  for (let hops = 0; scope && hops < 22; hops++) {
+    const roots = [scope, scope.parentElement].filter((x) => x instanceof Element);
+    for (const root of roots) {
+      const btn = querySelectorIncludingShadowRoots(root, selector);
+      if (btn instanceof HTMLElement) return btn;
+    }
+    scope = nextAncestorElement(scope);
+  }
+  return null;
 }
 
 /**
@@ -1127,23 +1249,59 @@ function focusNextFocusable(el) {
  * @param {HTMLInputElement} el
  */
 async function forceCommitViaDateButton(el) {
-  const root = el.closest('[data-automation-id*="dateSection"],[data-automation-id*="dateInput"],[data-automation-id*="dateField"]') || el.parentElement;
-  const btn =
-    root?.querySelector?.('button[aria-label*="calendar" i],button[data-automation-id*="dateIcon"],button[data-automation-id*="calendar"]') ||
-    root?.querySelector?.('button[aria-haspopup="dialog"],button[aria-haspopup="grid"]');
-  if (!(btn instanceof HTMLElement)) return;
+  const btn = findWorkdayCalendarTriggerNearDateInput(el);
+  if (!(btn instanceof HTMLElement)) return false;
 
   btn.focus();
   btn.click();
-  await sleep(120);
-  btn.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape', keyCode: 27, which: 27 }));
-  btn.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Escape', keyCode: 27, which: 27 }));
+  await sleep(160);
+  const doc = el.ownerDocument;
+  const keyTarget =
+    doc.activeElement instanceof HTMLElement ? doc.activeElement : btn;
+  keyTarget.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      bubbles: true,
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+    }),
+  );
+  keyTarget.dispatchEvent(
+    new KeyboardEvent('keyup', {
+      bubbles: true,
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+    }),
+  );
+  await sleep(90);
+  keyTarget.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      bubbles: true,
+      key: 'Escape',
+      code: 'Escape',
+      keyCode: 27,
+      which: 27,
+    }),
+  );
+  keyTarget.dispatchEvent(
+    new KeyboardEvent('keyup', {
+      bubbles: true,
+      key: 'Escape',
+      code: 'Escape',
+      keyCode: 27,
+      which: 27,
+    }),
+  );
   btn.dispatchEvent(new Event('change', { bubbles: true }));
   btn.blur();
   await sleep(30);
   el.focus();
   el.dispatchEvent(new Event('change', { bubbles: true }));
   el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  return true;
 }
 
 /**

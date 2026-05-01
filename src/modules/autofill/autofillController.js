@@ -82,6 +82,21 @@ function extractCompanyFromPage(pageUrl, formFields) {
 }
 
 /**
+ * Whether to click Workday Experience/Education **Add** before rescannning the DOM.
+ * Enabled when {@link AUTO_EXPAND_WORKDAY_REPEATERS} is true, or automatically on Workday career URLs.
+ *
+ * @param {string} pageUrl
+ */
+function shouldExpandWorkdayRepeaters(pageUrl) {
+  if (AUTO_EXPAND_WORKDAY_REPEATERS) return true;
+  try {
+    return new URL(pageUrl).hostname.toLowerCase().includes('myworkdayjobs.com');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * @typedef {Object} SkippedRequiredField
  * @property {string} label - Field label
  * @property {string} fieldType - Field type (input, select, etc.)
@@ -216,7 +231,7 @@ export async function runAutofillPipeline(tabId, pageUrl) {
   const resume = await getResume();
   const profile = await getUserProfile();
 
-  if (AUTO_EXPAND_WORKDAY_REPEATERS && shouldPrepareWorkdayRepeaters(resume)) {
+  if (shouldExpandWorkdayRepeaters(pageUrl) && shouldPrepareWorkdayRepeaters(resume)) {
     try {
       const expLen = resume?.experience?.length ?? 0;
       const workExperienceTargetCount = expLen > 0 ? Math.min(expLen, 10) : 0;

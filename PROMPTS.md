@@ -567,3 +567,51 @@
 **Prompt:** After auto-navigating to Results on completion (intended), returning to Job Search immediately redirects back to Results and blocks starting a new search.
 
 **Outcome:** Updated `targetPage.js` so when a completed search state is consumed for auto-navigation, it immediately resets `jobSearchState` to `idle`. This preserves auto-navigation behavior once, but allows users to return to Targets and run new searches without being bounced back.
+
+## 2026-04-30 - Workday autofill skips Experience/Education Add buttons
+
+**Prompt:** Autofill does not press Workday `Add` for Work Experience and Education; only detects skills lower on the page.
+
+**Outcome:** Instrumented `autofillController.js` with debug-session NDJSON logs (hypotheses H1–H5). Logs confirmed `AUTO_EXPAND_WORKDAY_REPEATERS: false` blocked expansion while resume had rows (`shouldPrepareWorkdayRepeaters: true`) and first scan showed `skillsFieldHints: 1` but zero repeater hints. Fix: `shouldExpandWorkdayRepeaters(pageUrl)` enables repeater expansion on `*.myworkdayjobs.com` automatically; config flag still forces expansion on other hosts.
+
+## 2026-04-30 - Workday issue reproduced / proceed with fix
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome:** Read `.cursor/debug-a7ea79.log`, evaluated hypotheses from NDJSON lines; implemented URL-based repeater expansion and updated README/autofill config comments; cleared log file for verification; instrumentation kept (`runId: verify-fix`).
+
+## 2026-04-30 - Workday date fields need extra manual interaction
+
+**Prompt:** Experience/Education dates fill but Workday requires another manual interaction on the date fields.
+
+**Outcome:** Added `JOBBOT_DEBUG_LOG` relay in `service-worker.js` and capped instrumentation in `fieldFiller.js` (`typeAndCommitWorkdayDateInput`, Workday month/year combobox path in `setComboboxValue`) to capture aria-invalid / displayed value / commit guesses; cleared `.cursor/debug-a7ea79.log` for the next capture run.
+
+## 2026-04-30 - Workday submit rejects filled From/To dates
+
+**Prompt:** Errors Found lists From/To required although dates look filled until user clicks each box.
+
+**Outcome:** Logs (`wd-date-commit`) showed DOM values present (`dbgAfter.value`) while Workday blocked Save — consistent with React controlled inputs. Implemented `applyNativeInputValueReactAware` (`_valueTracker` sync + native value setter + bulk `input`) replacing per-keystroke mutation in `typeAndCommitWorkdayDateInput`; extended debug payload with `hadReactTracker`; README note; instrumentation retained for verification.
+
+## 2026-04-30 - Workday dates reproduced / evidence on React tracker
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome:** Read `.cursor/debug-a7ea79.log`: all sampled date lines showed `hadReactTracker:false`, so Workday inputs here are not using React’s `_valueTracker` path. Reworked `typeAndCommitWorkdayDateInput` to pointer-activate the input, run `commitFieldInteraction`, always attempt `forceCommitViaDateButton` when a calendar trigger exists (**Enter** then **Escape** on the focused node), dropped body click-away and removed unused `focusNextFocusable`; log field `usedCalendarFallback` reflects whether a calendar button was found. Cleared debug log for verification.
+
+## 2026-04-30 - Workday dates reproduced / calendar never found
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome:** Logs showed `usedCalendarFallback:false` on every date fragment — `forceCommitViaDateButton` never resolved a calendar node (`closest` + shallow `querySelector` missed triggers in/near shadow DOM). Implemented `querySelectorIncludingShadowRoots`, `nextAncestorElement`, and `findWorkdayCalendarTriggerNearDateInput`; rewired `forceCommitViaDateButton` to use it. README updated; cleared `.cursor/debug-a7ea79.log` for verification.
+
+## 2026-04-30 - Workday dates / calendar still unmatched
+
+**Prompt:** Issue reproduced, please proceed.
+
+**Outcome:** Post–shadow-walk logs still had `usedCalendarFallback:false` on all fields. Broadened calendar selectors (incl. `IconButton`, `role="button"`, date-picker label), search each hop on both `scope` and `scope.parentElement` for sibling icons, added `beforeinput` on bulk value set, and **`typeWorkdayDateCharsWithBeforeinput`** when no calendar triggers. Log field `usedCharFallback`. Cleared `.cursor/debug-a7ea79.log`.
+
+## 2026-04-30 - Remove Workday debug instrumentation
+
+**Prompt:** The issue has been fixed. Please clean up the instrumentation.
+
+**Outcome:** Removed NDJSON/fetch hooks from `autofillController.js`, `JOBBOT_DEBUG_LOG` relay and ingest URL from `service-worker.js`, and `jbAgentDbg` / `#region agent log` blocks from `fieldFiller.js` (`typeAndCommitWorkdayDateInput`, `setComboboxValue`). Kept functional Workday date logic (pointer activation, `beforeinput`, calendar discovery, char fallback). Rebuilt with `npm run build`.
